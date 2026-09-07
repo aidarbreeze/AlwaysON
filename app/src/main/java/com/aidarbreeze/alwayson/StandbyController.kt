@@ -59,16 +59,17 @@ class StandbyController(context: Context, root: View) {
     private var driftStep = 0
 
     // --- calendar <-> stock chart alternation ---
-    // null = show the calendar; an Int = MOEX ISS candle interval (code 1/10/60
-    // minutes). Sequence: calendar, 60М, calendar, 10М, calendar, 1М, repeat.
-    private val panelSteps = arrayOf<Int?>(null, 60, null, 10, null, 1)
-    private var panelStep = 0
+    // null = show the calendar; an Int = MOEX ISS candle interval (code 1/10/60).
+    // When the chosen period is 0 the cycle walks all three (60/10/1); when the
+    // user picks one timeframe it alternates calendar <-> that one chart.
     private val stockCached = HashMap<Int, List<Candle>>()
+    private var panelSeq: List<Int?> = emptyList()
+    private var panelStep = 0
     private var fetchGen = 0L
     private val panelTickMs = 10_000L
     private val panelRunnable = object : Runnable {
         override fun run() {
-            panelStep = (panelStep + 1) % panelSteps.size
+            panelStep = (panelStep + 1) % panelSeq.size
             renderPanel()
             handler.postDelayed(this, panelTickMs)
         }
@@ -165,8 +166,16 @@ class StandbyController(context: Context, root: View) {
     private fun startPanelCycle() {
         handler.removeCallbacks(panelRunnable)
         if (!panelEnabled()) {
+            panelSeq = emptyList()
             showCalendarOnly()
             return
+        }
+        // Build the alternation sequence for the chosen period.
+        val chosen = Prefs.stockPeriod(appContext)
+        panelSeq = if (chosen == 1 || chosen == 10 || chosen == 60) {
+            listOf<Int?>(null, chosen)
+        } else {
+            listOf<Int?>(null, 60, null, 10, null, 1)
         }
         panelStep = 0
         renderPanel()
@@ -174,7 +183,7 @@ class StandbyController(context: Context, root: View) {
     }
 
     private fun renderPanel() {
-        val code = panelSteps[panelStep]
+        val code = panelSeq.getOrNull(panelStep)
         if (code == null) {
             showCalendarOnly()
         } else {
@@ -323,7 +332,8 @@ class StandbyController(context: Context, root: View) {
 
     private fun updateMedia() {
         val now = mediaWatcher.current()
-        if (now == null) {
+        // Only ever show the player card while audio is actually playing.
+        if (now == null || !now.playing) {
             if (mediaGroup.visibility == View.VISIBLE) {
                 mediaGroup.visibility = View.GONE
                 lastMedia = null
@@ -335,7 +345,7 @@ class StandbyController(context: Context, root: View) {
             lastMedia = line
             mediaText.text = line
         }
-        mediaGlyph.text = if (now.playing) "\u25B6" else "\u23F8"
+        mediaGlyph.text = "\u25B6"
         if (mediaGroup.visibility != View.VISIBLE) {
             mediaGroup.visibility = View.VISIBLE
         }

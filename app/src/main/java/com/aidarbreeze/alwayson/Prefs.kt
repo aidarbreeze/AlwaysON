@@ -26,6 +26,9 @@ object Prefs {
     private const val KEY_STOCK_REF = "stock_reference"
     // Stock chart rendering: 0 = line of closes, 1 = candlesticks.
     private const val KEY_STOCK_TYPE = "stock_type"
+    // Chart period/timeframe: 0 = auto-cycle, otherwise a MOEX interval code
+    // (1, 10 or 60) to keep showing.
+    private const val KEY_STOCK_PERIOD = "stock_period"
     private const val KEY_AUTO_STANDBY = "auto_standby"
 
     private fun sp(ctx: Context) =
@@ -86,6 +89,11 @@ object Prefs {
     fun stockType(ctx: Context): Int = sp(ctx).getInt(KEY_STOCK_TYPE, 0)
     fun setStockType(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(KEY_STOCK_TYPE, v.coerceIn(0, 1)).apply()
+
+    /** Chart period: 0 = auto-cycle (default); else a MOEX interval code. */
+    fun stockPeriod(ctx: Context): Int = sp(ctx).getInt(KEY_STOCK_PERIOD, 0)
+    fun setStockPeriod(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_STOCK_PERIOD, v).apply()
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)

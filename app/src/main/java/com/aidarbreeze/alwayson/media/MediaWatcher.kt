@@ -20,9 +20,10 @@ import android.media.session.PlaybackState
 class MediaWatcher(private val context: Context) {
 
     fun current(): NowPlaying? {
-        // Preferred path: what the notification listener just saw.
+        // Preferred path: what the notification listener just saw. Only trust
+        // it while it is fresh AND reported as actually playing.
         val cached = NowPlayingCache.current
-        if (cached != null &&
+        if (cached != null && cached.playing &&
             System.currentTimeMillis() - NowPlayingCache.updatedAt < 5_000
         ) {
             return cached

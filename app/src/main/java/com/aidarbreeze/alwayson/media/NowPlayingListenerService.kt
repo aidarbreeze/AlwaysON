@@ -48,8 +48,12 @@ class NowPlayingListenerService : NotificationListenerService() {
         NowPlayingCache.updatedAt = 0L
     }
 
-    /** Scan current notifications and publish the first one that is actively
-     *  playing (or whose state we cannot read), so the card shows up. */
+    /** Scan current notifications and publish the first one that is really
+     *  PLAYING audio. A notification is only accepted when it carries a
+     *  MediaSession token AND its playback state is actually STATE_PLAYING;
+     *  anything we cannot positively confirm as playing (paused, stopped,
+     *  stale, no readable state) is ignored so the card never shows while no
+     *  music is playing. */
     private fun refresh() {
         val notifs = try {
             activeNotifications ?: emptyArray()
@@ -62,27 +66,30 @@ class NowPlayingListenerService : NotificationListenerService() {
             val n = sbn.notification
             val extras = n.extras
 
-            // Only real media notifications count (they carry a MediaSession
-            // token or are flagged as transport). Skip everything else —
-            // e.g. messenger counters like "142 сообщения".
+            // Must carry a MediaSession token; a bare CATEGORY_TRANSPORT with no
+            // confirmable session is not enough (avoids stale/placeholder cards).
             val token = mediaToken(extras)
-            if (token == null &&
-                n.category != Notification.CATEGORY_TRANSPORT
-            ) {
-                continue
-            }
+            if (token == null) continue
 
             var controller: MediaController? = null
-            if (token != null) {
-                controller = try {
-                    MediaController(this, token)
-                } catch (_: Exception) {
-                    null
-                }
+            try {
+                controller = MediaController(this, token)
+            } catch (_: Exception) {
+                controller = null
             }
 
-            // Title / artist: prefer the session metadata, fall back to the
-            // notification's own title/text (visible to the listener always).
+            // Positively confirm it is playing right now.
+            var state = -1
+            if (controller != null) {
+                state = try {
+                    controller?.playbackState?.state ?: -1
+                } catch (_: Exception) {
+                    -1
+                }
+            }
+            if (state != PlaybackState.STATE_PLAYING) continue
+
+            // Title must be present and non-blank.
             val meta = try {
                 controller?.metadata
             } catch (_: Exception) {
@@ -99,20 +106,8 @@ class NowPlayingListenerService : NotificationListenerService() {
                 ?: extras.getString(Notification.EXTRA_TEXT)
                 ?: ""
 
-            // Play state: treat as playing unless we can tell it is paused.
-            val state = try {
-                controller?.playbackState?.state
-            } catch (_: Exception) {
-                null
-            }
-            val paused = state == PlaybackState.STATE_PAUSED ||
-                state == PlaybackState.STATE_STOPPED ||
-                state == PlaybackState.STATE_NONE
-
-            if (!paused) {
-                found = NowPlaying(title, artist, playing = true)
-                break
-            }
+            found = NowPlaying(title, artist, playing = true)
+            break
         }
 
         NowPlayingCache.current = found

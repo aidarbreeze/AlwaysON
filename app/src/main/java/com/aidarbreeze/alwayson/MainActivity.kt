@@ -43,6 +43,7 @@ class MainActivity : Activity() {
     private lateinit var tickerInput: EditText
     private lateinit var refInput: EditText
     private lateinit var stockTypeGroup: RadioGroup
+    private lateinit var stockPeriodGroup: RadioGroup
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +68,7 @@ class MainActivity : Activity() {
         tickerInput = findViewById(R.id.tickerInput)
         refInput = findViewById(R.id.refInput)
         stockTypeGroup = findViewById(R.id.stockTypeGroup)
+        stockPeriodGroup = findViewById(R.id.stockPeriodGroup)
 
         // Load persisted appearance.
         autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
@@ -126,6 +128,12 @@ class MainActivity : Activity() {
         } else {
             stockTypeGroup.check(R.id.stockTypeLine)
         }
+        when (Prefs.stockPeriod(this)) {
+            1 -> stockPeriodGroup.check(R.id.stockPeriod1)
+            10 -> stockPeriodGroup.check(R.id.stockPeriod10)
+            60 -> stockPeriodGroup.check(R.id.stockPeriod60)
+            else -> stockPeriodGroup.check(R.id.stockPeriodAuto)
+        }
         updateStockInputsVisibility()
 
         stocksSwitch.setOnCheckedChangeListener { _, checked ->
@@ -152,6 +160,15 @@ class MainActivity : Activity() {
                 this,
                 if (checkedId == R.id.stockTypeCandles) 1 else 0
             )
+        }
+        stockPeriodGroup.setOnCheckedChangeListener { _, checkedId ->
+            val p = when (checkedId) {
+                R.id.stockPeriod1 -> 1
+                R.id.stockPeriod10 -> 10
+                R.id.stockPeriod60 -> 60
+                else -> 0
+            }
+            Prefs.setStockPeriod(this, p)
         }
 
         use24Switch.setOnCheckedChangeListener { _, checked ->

@@ -18,7 +18,9 @@
             android:layout_height="match_parent"
             android:orientation="horizontal"
             android:paddingLeft="44dp"
-            android:paddingRight="36dp">
+            android:paddingRight="36dp"
+            android:paddingTop="26dp"
+            android:paddingBottom="26dp">
 
             <!-- Left: clock column -->
             <LinearLayout

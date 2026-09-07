@@ -46,6 +46,11 @@
     <string name="stock_type_label">Стиль графика</string>
     <string name="stock_type_line">Линия</string>
     <string name="stock_type_candles">Свечи</string>
+    <string name="stock_period_label">Период графика</string>
+    <string name="stock_period_auto">Авто (1/10/60)</string>
+    <string name="stock_period_1">1 минута</string>
+    <string name="stock_period_10">10 минут</string>
+    <string name="stock_period_60">60 минут</string>
     <string name="switch_24h">24-часовой формат</string>
     <string name="switch_seconds">Показывать секунды</string>
     <string name="switch_battery">Показывать заряд батареи и ток зарядки</string>

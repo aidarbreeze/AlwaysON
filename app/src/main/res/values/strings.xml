@@ -46,6 +46,11 @@
     <string name="stock_type_label">Chart style</string>
     <string name="stock_type_line">Line</string>
     <string name="stock_type_candles">Candlesticks</string>
+    <string name="stock_period_label">Chart period</string>
+    <string name="stock_period_auto">Auto (1/10/60)</string>
+    <string name="stock_period_1">1 minute</string>
+    <string name="stock_period_10">10 minutes</string>
+    <string name="stock_period_60">60 minutes</string>
     <string name="switch_24h">24-hour format</string>
     <string name="switch_seconds">Show seconds</string>
     <string name="switch_battery">Show battery level &amp; charge current</string>

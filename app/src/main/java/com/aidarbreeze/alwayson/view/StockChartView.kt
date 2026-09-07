@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import com.aidarbreeze.alwayson.Prefs
@@ -14,16 +15,15 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
- * Monochrome (black & white) stock chart used by the calendar<->stocks
- * alternation mode. Draws:
- *  - a price scale down the left side,
- *  - the close-price polyline OR candlesticks (user choice),
- *  - a horizontal dashed reference line at the price the user entered,
- *  - the ticker top-left and the live change in % (relative to that reference,
- *    e.g. "+2%") top-right,
- *  - a thin time scale (a few HH:MM ticks) along the bottom and a short date
- *    label (dd.MM) at the bottom-left,
- *  - the shown interval (1М/10М/60М) at the bottom-right.
+ * Monochrome (black & white) stock chart used by the calendar<->stocks mode.
+ * Layers are kept in separate bands so nothing overlaps:
+ *  - a top band: ticker (left) and the change in % vs the reference (right),
+ *  - a left gutter: the price scale (3 labels, right-aligned),
+ *  - the plot area: the close polyline or candlesticks, plus the dashed
+ *    reference line at the user's price,
+ *  - a thin bottom band: time (HH:MM) ticks in the middle, the short date
+ *    (dd.MM) on the far left and the shown interval on the far right.
+ * The value range always auto-fits the visible data (with the reference line).
  */
 class StockChartView @JvmOverloads constructor(
     context: Context,
@@ -54,18 +54,18 @@ class StockChartView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
     private val bodyDownPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.TRANSPARENT
+        color = Color.WHITE
         style = Paint.Style.STROKE
-        strokeWidth = dpf(1f)
+        strokeWidth = dpf(1.5f)
     }
     private val refPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x66FFFFFF.toInt()
+        color = 0x80FFFFFF.toInt()
         style = Paint.Style.STROKE
         strokeWidth = dpf(1f)
         pathEffect = DashPathEffect(floatArrayOf(dpf(6f), dpf(6f)), 0f)
     }
     private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x18FFFFFF.toInt() // very thin, faint
+        color = 0x1EFFFFFF.toInt()
         style = Paint.Style.STROKE
         strokeWidth = dpf(0.6f)
     }
@@ -74,19 +74,14 @@ class StockChartView @JvmOverloads constructor(
         textSize = dpf(12f)
         typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
     }
-    private val dimTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xAAFFFFFF.toInt()
-        textSize = dpf(11f)
+        textSize = dpf(10f)
     }
     private val statusPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0x88FFFFFF.toInt()
         textSize = dpf(13f)
         textAlign = Paint.Align.CENTER
-    }
-    private val intervalPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x88FFFFFF.toInt()
-        textSize = dpf(11f)
-        textAlign = Paint.Align.RIGHT
     }
 
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
@@ -114,8 +109,9 @@ class StockChartView @JvmOverloads constructor(
     private fun chartType(): Int = Prefs.stockType(context)
 
     private fun fmtPrice(v: Double): String {
-        val span = (candles.maxOfOrNull { it.high } ?: 0.0) -
-            (candles.minOfOrNull { it.low } ?: 0.0)
+        val high = candles.maxOfOrNull { it.high } ?: 0.0
+        val low = candles.minOfOrNull { it.low } ?: 0.0
+        val span = high - low
         val dec = when {
             span >= 200 -> 0
             span >= 20 -> 1
@@ -134,9 +130,7 @@ class StockChartView @JvmOverloads constructor(
 
     private fun shortDate(): String {
         val c = Calendar.getInstance()
-        val m = c.get(Calendar.MONTH) + 1
-        val d = c.get(Calendar.DAY_OF_MONTH)
-        return String.format(Locale.US, "%02d.%02d", d, m)
+        return String.format(Locale.US, "%02d.%02d", c.get(Calendar.DAY_OF_MONTH), c.get(Calendar.MONTH) + 1)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -145,26 +139,29 @@ class StockChartView @JvmOverloads constructor(
         val h = height.toFloat()
         if (w <= 1f || h <= 1f) return
 
-        val labelH = dpf(20f)
-        val axisW = dpf(46f)   // room for the left price labels
-        val bottomAxisH = dpf(16f)
-        val padR = dpf(4f)
-        val padT = labelH + dpf(4f)
-
         if (candles.size < 2) {
             val msg = if (statusText.isNotEmpty()) statusText else "…"
             canvas.drawText(msg, w / 2f, h / 2f, statusPaint)
             return
         }
 
-        val plotL = axisW
+        // ---- geometry (fixed bands so labels never overlap) ----
+        val titleH = dpf(24f)         // top: symbol / change
+        val gutterW = dpf(52f)        // left: price scale
+        val bottomH = dpf(15f)        // bottom: date / time / interval
+        val padT = titleH + dpf(2f)
+        val padB = bottomH
+        val padL = dpf(2f)
+        val padR = dpf(2f)
+
+        val plotL = gutterW
         val plotT = padT
-        val plotB = h - bottomAxisH
+        val plotB = h - padB
         val plotR = w - padR
         val plotW = plotR - plotL
         val plotH = plotB - plotT
 
-        // ---- vertical range incl. reference ----
+        // ---- vertical range auto-fit (data + reference) ----
         var min = candles.minOfOrNull { it.low } ?: 0.0
         var max = candles.maxOfOrNull { it.high } ?: 0.0
         if (refPrice > 0.0) {
@@ -176,74 +173,71 @@ class StockChartView @JvmOverloads constructor(
         min -= padV
         max += padV
         val vspan = (max - min).let { if (it <= 0.0) 1.0 else it }
-
         fun yFor(v: Double): Float = plotB - ((v - min) / vspan).toFloat() * plotH
 
-        // ---- x mapping by time (fall back to equal spacing) ----
+        // x by time
         val t0 = candles.first().timeMs
         val t1 = candles.last().timeMs
         val tspan = (t1 - t0).toDouble()
         fun xFor(i: Int): Float {
             if (tspan > 0 && candles[i].timeMs > 0) {
-                val t = (candles[i].timeMs - t0) / tspan
-                return plotL + t.toFloat() * plotW
+                return plotL + ((candles[i].timeMs - t0) / tspan).toFloat() * plotW
             }
-            return if (candles.size > 1)
-                plotL + (i.toFloat() / (candles.size - 1)) * plotW else plotL
+            return if (candles.size > 1) plotL + (i.toFloat() / (candles.size - 1)) * plotW else plotL
         }
 
-        // ---- title row ----
+        // ---- title band (never overlaps the price gutter below) ----
         textPaint.textAlign = Paint.Align.LEFT
-        canvas.drawText(symbol, dpf(2f), labelH, textPaint)
+        canvas.drawText(symbol, padL, dpf(16f), textPaint)
         val pct = pctText()
         if (pct.isNotEmpty()) {
-            dimTextPaint.textAlign = Paint.Align.RIGHT
-            canvas.drawText(pct, w - dpf(2f), labelH, dimTextPaint)
+            labelPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(pct, w - padR, dpf(16f), labelPaint)
         }
 
-        // ---- reference line ----
+        // ---- plot grid, reference, price labels ----
+        labelPaint.textAlign = Paint.Align.RIGHT
+        val ticksY = intArrayOf(0, 1, 2)
+        for (i in ticksY) {
+            val f = i / 2f
+            val y = plotT + f * plotH
+            canvas.drawLine(plotL, y, plotR, y, gridPaint)
+            val value = max - (max - min) * f
+            // price label right-aligned just inside the gutter, vertically near the line
+            canvas.drawText(fmtPrice(value), plotL - dpf(4f), y + dpf(3f), labelPaint)
+        }
+
         if (refPrice > 0.0) {
             canvas.drawLine(plotL, yFor(refPrice), plotR, yFor(refPrice), refPaint)
         }
 
-        // ---- left price scale: 3 labels + faint horizontal grid ----
-        dimTextPaint.textAlign = Paint.Align.LEFT
-        for (i in 0..2) {
-            val f = i / 2f
-            val value = min + (max - min) * f
-            val y = yFor(value)
-            canvas.drawLine(plotL, y, plotR, y, gridPaint)
-            canvas.drawText(fmtPrice(value), dpf(2f), y - dpf(3f), dimTextPaint)
-        }
-
-        // ---- draw series (line or candles) ----
+        // ---- series ----
         if (chartType() == 1) {
             drawCandles(canvas, plotL, plotR, plotW, ::xFor, ::yFor)
         } else {
             drawLine(canvas, ::xFor, ::yFor)
         }
 
-        // ---- time scale: a few HH:MM ticks along the bottom ----
+        // ---- bottom band ----
+        val axisBaseline = h - dpf(3f)
+        // time HH:MM ticks: only interior ticks so edges stay free for date/interval
         if (tspan > 0) {
-            val ticks = 4
+            // Three interior HH:MM labels at 25/50/75% so the far edges stay free
+            // for the date (left) and the interval (right).
             val timeFmt = java.text.SimpleDateFormat("HH:mm", Locale.US)
-            for (i in 0..ticks) {
-                val f = i.toFloat() / ticks
-                val x = plotL + f * plotW
-                val t = (t0 + (tspan * f).toLong())
-                canvas.drawLine(x, plotT, x, plotB, gridPaint)
-                val label = timeFmt.format(java.util.Date(t))
-                dimTextPaint.textAlign = Paint.Align.CENTER
-                canvas.drawText(label, x, h - dpf(3f), dimTextPaint)
+            labelPaint.textAlign = Paint.Align.CENTER
+            for (frac in floatArrayOf(0.25f, 0.5f, 0.75f)) {
+                val x = plotL + frac * plotW
+                val t = (t0 + (tspan * frac).toLong())
+                canvas.drawText(timeFmt.format(java.util.Date(t)), x, axisBaseline, labelPaint)
             }
         }
 
-        // short date at the bottom-left
-        dimTextPaint.textAlign = Paint.Align.LEFT
-        canvas.drawText(shortDate(), plotL, h - dpf(3f), dimTextPaint)
-
-        // interval at the bottom-right
-        canvas.drawText(intervalLabel, plotR, h - dpf(3f), intervalPaint)
+        // date (bottom-left) and interval (bottom-right)
+        labelPaint.textAlign = Paint.Align.LEFT
+        canvas.drawText(shortDate(), padL, axisBaseline, labelPaint)
+        labelPaint.textAlign = Paint.Align.RIGHT
+        canvas.drawText(intervalLabel, w - padR, axisBaseline, labelPaint)
     }
 
     private fun drawLine(canvas: Canvas, xFor: (Int) -> Float, yFor: (Double) -> Float) {
@@ -265,25 +259,22 @@ class StockChartView @JvmOverloads constructor(
         yFor: (Double) -> Float
     ) {
         val n = candles.size
-        // average slot width for candle bodies
         val slot = if (n > 1) plotW / (n - 1) else plotW
-        val bodyHalf = (slot * 0.35f).coerceIn(dpf(1.5f), dpf(16f))
+        val bodyHalf = (slot * 0.32f).coerceIn(dpf(1f), dpf(14f))
         for (i in 0 until n) {
             val c = candles[i]
             val x = xFor(i)
             val up = c.close >= c.open
-            val topY = yFor(maxOf(c.open, c.close))
-            val botY = yFor(minOf(c.open, c.close))
-            // wick
             canvas.drawLine(x, yFor(c.high), x, yFor(c.low), wickPaint)
-            // body
-            val body = android.graphics.RectF(
-                x - bodyHalf, topY, x + bodyHalf, botY
+            val body = RectF(
+                x - bodyHalf,
+                yFor(maxOf(c.open, c.close)),
+                x + bodyHalf,
+                yFor(minOf(c.open, c.close))
             )
             if (up) {
                 canvas.drawRect(body, bodyUpPaint)
             } else {
-                bodyDownPaint.color = Color.WHITE
                 canvas.drawRect(body, bodyDownPaint)
             }
         }
