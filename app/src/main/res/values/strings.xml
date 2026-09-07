@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AlwaysON</string>
+    <string name="dream_label">AlwaysON clock</string>
+
+    <!-- Overlay -->
+    <string name="overlay_switch_title">AlwaysON overlay</string>
+    <string name="overlay_switch_summary">Show a dimmed clock above the current screen</string>
+    <string name="btn_show_now">Show now</string>
+    <string name="btn_hide">Hide</string>
+    <string name="overlay_permission_required">Overlay permission is required</string>
+    <string name="overlay_perm_button">Grant overlay permission</string>
+    <string name="overlay_perm_granted">Overlay permission granted</string>
+    <string name="overlay_running_status">Overlay is active. Hide it from the notification, or turn the switch off.</string>
+
+    <!-- Options -->
+    <string name="brightness_label">Overlay brightness</string>
+    <string name="switch_24h">24-hour format</string>
+    <string name="switch_seconds">Show seconds</string>
+    <string name="switch_battery">Show battery level</string>
+
+    <!-- Screensaver -->
+    <string name="section_screensaver">Automatic mode (screen saver)</string>
+    <string name="screensaver_desc">To get a real always-on-clock behaviour (it turns on itself when the phone is idle), pick AlwaysON as the system screen saver. It is most useful while the phone charges or sits in a dock.</string>
+    <string name="btn_open_dream">Open screen saver settings</string>
+    <string name="dream_hint">If “AlwaysON clock” is not in the list, enable the screen saver first, then choose it and set the start condition to “While docked and charging”.</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">AlwaysON overlay</string>
+    <string name="notification_channel_desc">Keeps the AlwaysON clock running</string>
+    <string name="notification_title">AlwaysON is on</string>
+    <string name="notification_text">The clock is shown over the screen</string>
+    <string name="hide_action">Hide</string>
+
+    <!-- Notes -->
+    <string name="tech_note_title">Note</string>
+    <string name="tech_note">On unrooted Android there is no public API to draw a true always-on image with the screen off (that needs the manufacturer AOD). This app gives you the two closest supported things: the overlay for a night-stand clock while the screen is on, and the screen saver that auto-shows the clock when the phone is idle and charging. Battery shown may refresh with a delay.</string>
+</resources>
