@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
+import java.text.DateFormatSymbols
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.min
@@ -22,8 +23,8 @@ class MonthCalendarView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     private val titlePaint = Paint().apply { color = Color.WHITE; isAntiAlias = true }
-    private val weekdayPaint = Paint().apply { color = 0x73FFFFFF.toInt(); isAntiAlias = true }
-    private val dayPaint = Paint().apply { color = 0x99FFFFFF.toInt(); isAntiAlias = true }
+    private val weekdayPaint = Paint().apply { color = 0x8FFFFFFF.toInt(); isAntiAlias = true }
+    private val dayPaint = Paint().apply { color = 0xB3FFFFFF.toInt(); isAntiAlias = true }
     private val todayCirclePaint = Paint().apply { color = Color.WHITE; isAntiAlias = true }
     private val todayNumPaint = Paint().apply { color = Color.BLACK; isAntiAlias = true }
 
@@ -52,47 +53,51 @@ class MonthCalendarView @JvmOverloads constructor(
             rebuild(now, year, month)
         }
 
-        val titleFont = (min(w, h) * 0.10f).coerceIn(22f, 40f)
-        val gridFont = (min(w, h) * 0.075f).coerceIn(16f, 30f)
-        val weekdayFont = gridFont * 0.72f
+        val padX = min(w * 0.05f, 20f)
+        val padTop = min(h * 0.05f, 14f)
+        val padBottom = min(h * 0.04f, 12f)
 
+        val titleFont = (min(w, h) * 0.10f).coerceIn(20f, 36f)
+        val weekdayFont = (min(w, h) * 0.07f).coerceIn(15f, 28f)
+        val gridFont = (min(w, h) * 0.085f).coerceIn(16f, 30f)
+
+        // Month title, centred over the whole calendar, first letter upper.
         titlePaint.textSize = titleFont
-
-        val padX = min(w * 0.04f, 20f)
-        val padTop = min(h * 0.05f, 16f)
-
-        val monthTitle = String.format(
-            Locale.getDefault(), "%s %d",
-            now.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.getDefault()), year
+        val monthName = monthHeading(month)
+        val monthTitle = "$monthName $year"
+        canvas.drawText(
+            monthTitle,
+            (w - titlePaint.measureText(monthTitle)) / 2f,
+            padTop + titleFont,
+            titlePaint
         )
-        canvas.drawText(monthTitle, padX, padTop + titleFont, titlePaint)
 
-        val gridWidth = w - padX * 2f
-        val dayWidth = gridWidth / 7f
+        val dayWidth = (w - padX * 2f) / 7f
 
-        // weekday header baseline right under the title
-        val weekBaseline = padTop + titleFont * 1.7f
+        // Weekday header, centred in each column (grid columns run from the
+        // week's first day, so the label shown is (firstDayOfWeek + i)).
         weekdayPaint.textSize = weekdayFont
-        // The grid's columns run from the week's first day (Calendar) to the
-        // last. weekLabels is indexed by the Calendar.DAY_OF_WEEK constant, so
-        // column i must show the weekday (firstDayOfWeek + i), not a fixed
-        // Sunday-first list - otherwise headers drift off the numbers.
         val firstDow = now.firstDayOfWeek
+        val weekTop = padTop + titleFont * 1.8f
         for (i in 0 until 7) {
             val cx = padX + dayWidth * i + dayWidth / 2f
             val weekday = (firstDow - 1 + i) % 7 + 1
             val label = weekLabels[weekday - 1]
             if (label.isNotEmpty()) {
-                canvas.drawText(label, cx - weekdayPaint.measureText(label) / 2f, weekBaseline, weekdayPaint)
+                canvas.drawText(
+                    label,
+                    cx - weekdayPaint.measureText(label) / 2f,
+                    weekTop + weekdayFont,
+                    weekdayPaint
+                )
             }
         }
 
-        // grid area from below weekday row down to bottom
-        val gridTop = weekBaseline + weekdayFont * 0.5f
-        val gridBottom = h - padTop
-        val rowsAvail = 6
-        val rowH = ((gridBottom - gridTop) / rowsAvail).coerceAtLeast(dayWidth * 0.55f)
-        val circleR = min(rowH * 0.42f, dayWidth * 0.32f)
+        // Grid below the weekday row, spread to the bottom.
+        val gridTop = weekTop + weekdayFont * 1.9f
+        val gridBottom = h - padBottom
+        val rowH = ((gridBottom - gridTop) / 6f).coerceAtLeast(dayWidth * 0.62f)
+        val circleR = min(rowH * 0.40f, dayWidth * 0.30f)
 
         dayPaint.textSize = gridFont
         todayNumPaint.textSize = gridFont
@@ -108,11 +113,19 @@ class MonthCalendarView @JvmOverloads constructor(
                 if (day == todayDay) {
                     canvas.drawCircle(cx, cy, circleR, todayCirclePaint)
                     todayNumPaint.color = Color.BLACK
-                    canvas.drawText(num, cx - todayNumPaint.measureText(num) / 2f,
-                        cy + gridFont * 0.35f, todayNumPaint)
+                    canvas.drawText(
+                        num,
+                        cx - todayNumPaint.measureText(num) / 2f,
+                        cy + gridFont * 0.36f,
+                        todayNumPaint
+                    )
                 } else {
-                    canvas.drawText(num, cx - dayPaint.measureText(num) / 2f,
-                        cy + gridFont * 0.35f, dayPaint)
+                    canvas.drawText(
+                        num,
+                        cx - dayPaint.measureText(num) / 2f,
+                        cy + gridFont * 0.36f,
+                        dayPaint
+                    )
                 }
                 day++
                 col++
@@ -134,11 +147,37 @@ class MonthCalendarView @JvmOverloads constructor(
             Calendar.DAY_OF_WEEK, Calendar.SHORT, Locale.getDefault()
         ) ?: emptyMap()
         for (d in 1..7) {
-            weekLabels[d - 1] = names.entries
+            val raw = names.entries
                 .firstOrNull { it.key != null && it.value == d }
                 ?.key ?: ""
+            // "пн" -> "Пн", "вс" -> "Вс" — readable single word per column.
+            weekLabels[d - 1] = raw.replaceFirstChar {
+                it.titlecase(Locale.getDefault())
+            }
         }
         cachedYear = year
         cachedMonth = month
+    }
+
+    /** Localized month in nominative, first letter capital (e.g. "Сентябрь"). */
+    private fun monthHeading(month: Int): String {
+        val locale = Locale.getDefault()
+        // In Russian a standalone month must be nominative ("Сентябрь"), while
+        // the date formatter gives the genitive ("сентября"); pick the right one.
+        if (locale.language.equals("ru", ignoreCase = true)) {
+            val ru = arrayOf(
+                "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+                "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+            )
+            return ru.getOrElse(month) { "" }
+        }
+        val symbols = DateFormatSymbols.getInstance(locale)
+        val name = symbols.months.getOrNull(month).orEmpty()
+        if (name.isNotBlank()) {
+            return name.replaceFirstChar { it.titlecase(locale) }
+        }
+        return Calendar.getInstance().getDisplayName(
+            Calendar.MONTH, Calendar.LONG, locale
+        )?.replaceFirstChar { it.titlecase(locale) } ?: ""
     }
 }

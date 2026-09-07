@@ -28,7 +28,7 @@
                 android:layout_weight="1"
                 android:orientation="vertical"
                 android:gravity="center_vertical"
-                android:layout_marginEnd="20dp">
+                android:layout_marginEnd="16dp">
 
                 <TextView
                     android:id="@+id/dateText"
@@ -102,6 +102,15 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- Vertical divider separating the clock and the calendar. -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="center_vertical"
+                android:layout_marginTop="26dp"
+                android:layout_marginBottom="26dp"
+                android:background="@color/aod_divider" />
+
             <!-- Right: month calendar card -->
             <com.aidarbreeze.alwayson.view.MonthCalendarView
                 android:id="@+id/monthView"
@@ -109,7 +118,7 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:layout_gravity="center_vertical"
-                android:layout_marginStart="20dp" />
+                android:layout_marginStart="16dp" />
 
         </LinearLayout>
 

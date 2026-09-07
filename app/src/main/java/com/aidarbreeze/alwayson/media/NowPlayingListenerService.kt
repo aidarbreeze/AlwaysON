@@ -6,6 +6,7 @@ import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 
@@ -16,8 +17,7 @@ import android.service.notification.StatusBarNotification
  * [android.media.session.MediaSessionManager.getActiveSessions] on modern
  * Android (it only sees sessions the app is allowed to control). The reliable
  * cross-app way is a notification listener: every music player posts a media
- * notification that carries its [MediaSession.Token], which we use to read the
- * title / artist / play state.
+ * notification carrying the track (in its fields) and its [MediaSession.Token].
  *
  * Requires the user to enable "Notification access" for this app in the system
  * settings (we open that screen from the app). Without it the card simply
@@ -48,8 +48,8 @@ class NowPlayingListenerService : NotificationListenerService() {
         NowPlayingCache.updatedAt = 0L
     }
 
-    /** Scan current notifications and pick the first one that is actually
-     *  playing, then publish it to [NowPlayingCache]. */
+    /** Scan current notifications and publish the first one that is actively
+     *  playing (or whose state we cannot read), so the card shows up. */
     private fun refresh() {
         val notifs = try {
             activeNotifications ?: emptyArray()
@@ -59,38 +59,49 @@ class NowPlayingListenerService : NotificationListenerService() {
 
         var found: NowPlaying? = null
         for (sbn in notifs) {
-            val n = sbn?.notification ?: continue
-            val extras = n.extras ?: continue
-            val token = mediaToken(extras) ?: continue
-            val controller = try {
-                MediaController(this, token)
-            } catch (_: Exception) {
-                continue
+            val n = sbn.notification
+            val extras = n.extras
+
+            // Media-session token (may be absent on some players).
+            val token = mediaToken(extras)
+            var controller: MediaController? = null
+            if (token != null) {
+                controller = try {
+                    MediaController(this, token)
+                } catch (_: Exception) {
+                    null
+                }
             }
+
+            // Title / artist: prefer the session metadata, fall back to the
+            // notification's own title/text (visible to the listener always).
             val meta = try {
-                controller.metadata
+                controller?.metadata
             } catch (_: Exception) {
                 null
-            } ?: continue
-            val title = meta.getString(MediaMetadata.METADATA_KEY_TITLE)
-                ?: meta.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+            }
+            val title = meta?.getString(MediaMetadata.METADATA_KEY_TITLE)
+                ?: meta?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+                ?: extras.getString(Notification.EXTRA_TITLE)
                 ?: continue
             if (title.isBlank()) continue
-            val artist = meta.getString(MediaMetadata.METADATA_KEY_ARTIST)
-                ?: meta.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+
+            val artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+                ?: meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+                ?: extras.getString(Notification.EXTRA_TEXT)
                 ?: ""
 
+            // Play state: treat as playing unless we can tell it is paused.
             val state = try {
-                controller.playbackState?.state
+                controller?.playbackState?.state
             } catch (_: Exception) {
                 null
             }
-            val playing = state == null ||
-                state == PlaybackState.STATE_PLAYING ||
-                state == PlaybackState.STATE_BUFFERING
+            val paused = state == PlaybackState.STATE_PAUSED ||
+                state == PlaybackState.STATE_STOPPED ||
+                state == PlaybackState.STATE_NONE
 
-            // Only show the card while audio is actually playing.
-            if (playing) {
+            if (!paused) {
                 found = NowPlaying(title, artist, playing = true)
                 break
             }
@@ -100,7 +111,7 @@ class NowPlayingListenerService : NotificationListenerService() {
         NowPlayingCache.updatedAt = System.currentTimeMillis()
     }
 
-    private fun mediaToken(extras: android.os.Bundle): MediaSession.Token? {
+    private fun mediaToken(extras: Bundle): MediaSession.Token? {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 extras.getParcelable(

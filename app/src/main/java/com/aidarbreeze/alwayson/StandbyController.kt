@@ -10,7 +10,6 @@ import android.view.View
 import android.widget.TextView
 import com.aidarbreeze.alwayson.media.MediaWatcher
 import com.aidarbreeze.alwayson.view.MonthCalendarView
-import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -58,6 +57,9 @@ class StandbyController(context: Context, root: View) {
             updateClock()
             tickCount++
             updateMedia() // poll every second so playback changes feel instant
+            if (batteryText.visibility == View.VISIBLE && tickCount % 2 == 0) {
+                updateBattery() // refresh the charge current about every 2 s
+            }
             handler.postDelayed(this, 1000)
         }
     }
@@ -84,6 +86,7 @@ class StandbyController(context: Context, root: View) {
         applyOptions()
         updateClock()
         updateMedia()
+        updateBattery()
         lastDay = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
         monthView.invalidate()
         handler.post(tick)
@@ -114,10 +117,20 @@ class StandbyController(context: Context, root: View) {
         // Runs after layout each second, so the digits always fit on one line
         // (needed e.g. when seconds "23:45:33" are shown) and never wrap.
         clockText.post { fitClock() }
-        dateText.text = DateFormat.getDateInstance(DateFormat.LONG).format(millis)
-        if (batteryText.visibility == View.VISIBLE) {
-            batteryText.text = batterySummary()
+        dateText.text = dateLine(now)
+    }
+
+    /** Full date line shown above the clock, e.g. "Понедельник, 8 сентября"
+     *  (weekday + day + month, no year, weekday capitalised). */
+    private fun dateLine(now: Calendar): String {
+        val locale = Locale.getDefault()
+        val pattern = if (locale.language.equals("ru", ignoreCase = true)) {
+            "EEEE, d MMMM"
+        } else {
+            "EEEE, MMMM d"
         }
+        val raw = SimpleDateFormat(pattern, locale).format(now.timeInMillis)
+        return raw.replaceFirstChar { it.titlecase(locale) }
     }
 
     /**
@@ -171,17 +184,34 @@ class StandbyController(context: Context, root: View) {
         }
     }
 
-    private fun batterySummary(): String {
+    /** Battery level plus, while charging, the live charge current in mA. */
+    private fun updateBattery() {
         val intent = appContext.registerReceiver(
             null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        ) ?: return ""
-        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-        val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-        if (level < 0 || scale <= 0) return ""
+        )
+        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        if (level < 0 || scale <= 0) return
         val percent = (level * 100f / scale).toInt()
+
         val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
             status == BatteryManager.BATTERY_STATUS_FULL
-        return if (charging) "$percent% (charging)" else "$percent%"
+        if (!charging) {
+            batteryText.text = "$percent%"
+            return
+        }
+
+        // Live current: microamps via BatteryManager property, if the device
+        // reports it (Integer.MIN_VALUE / 0 means "not available").
+        val bm = appContext.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+        val micro = try {
+            bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
+        } catch (_: Exception) {
+            0
+        }
+        val ma = if (micro == 0 || micro == Int.MIN_VALUE) -1 else kotlin.math.abs(micro) / 1000
+        val unit = appContext.getString(R.string.charging_current_unit)
+        batteryText.text = if (ma > 0) "$percent% · $ma $unit" else "$percent%"
     }
 }

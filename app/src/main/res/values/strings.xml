@@ -28,6 +28,7 @@
     <string name="switch_24h">24-hour format</string>
     <string name="switch_seconds">Show seconds</string>
     <string name="switch_battery">Show battery level</string>
+    <string name="charging_current_unit">mA</string>
 
     <!-- Service notification -->
     <string name="notif_title">AlwaysON StandBy</string>

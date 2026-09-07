@@ -28,6 +28,7 @@
     <string name="switch_24h">24-часовой формат</string>
     <string name="switch_seconds">Показывать секунды</string>
     <string name="switch_battery">Показывать заряд батареи</string>
+    <string name="charging_current_unit">мА</string>
 
     <!-- Уведомление сервиса -->
     <string name="notif_title">AlwaysON StandBy</string>
