@@ -203,10 +203,14 @@ class StandbyController(context: Context, root: View) {
         }
 
         // Live current: microamps via BatteryManager property, if the device
-        // reports it (Integer.MIN_VALUE / 0 means "not available").
+        // reports it (Integer.MIN_VALUE / 0 means "not available"). Try the
+        // instantaneous value first, then the running average.
         val bm = appContext.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
         val micro = try {
-            bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
+            val instant = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
+            if (instant == 0 || instant == Int.MIN_VALUE) {
+                bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) ?: 0
+            } else instant
         } catch (_: Exception) {
             0
         }

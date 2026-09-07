@@ -62,8 +62,16 @@ class NowPlayingListenerService : NotificationListenerService() {
             val n = sbn.notification
             val extras = n.extras
 
-            // Media-session token (may be absent on some players).
+            // Only real media notifications count (they carry a MediaSession
+            // token or are flagged as transport). Skip everything else —
+            // e.g. messenger counters like "142 сообщения".
             val token = mediaToken(extras)
+            if (token == null &&
+                n.category != Notification.CATEGORY_TRANSPORT
+            ) {
+                continue
+            }
+
             var controller: MediaController? = null
             if (token != null) {
                 controller = try {

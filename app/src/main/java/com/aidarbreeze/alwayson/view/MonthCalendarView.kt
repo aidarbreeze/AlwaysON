@@ -9,6 +9,7 @@ import android.view.View
 import java.text.DateFormatSymbols
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.ceil
 import kotlin.math.min
 
 /**
@@ -58,8 +59,7 @@ class MonthCalendarView @JvmOverloads constructor(
         val padBottom = min(h * 0.04f, 12f)
 
         val titleFont = (min(w, h) * 0.10f).coerceIn(20f, 36f)
-        val weekdayFont = (min(w, h) * 0.07f).coerceIn(15f, 28f)
-        val gridFont = (min(w, h) * 0.085f).coerceIn(16f, 30f)
+        val weekdayFont = (min(w, h) * 0.075f).coerceIn(16f, 30f)
 
         // Month title, centred over the whole calendar, first letter upper.
         titlePaint.textSize = titleFont
@@ -93,11 +93,18 @@ class MonthCalendarView @JvmOverloads constructor(
             }
         }
 
-        // Grid below the weekday row, spread to the bottom.
+        // Numeric grid below the weekday row. The month spans weeks rows (not
+        // always six), so there is no wasted blank row and the digits can be
+        // larger while staying compact.
         val gridTop = weekTop + weekdayFont * 1.9f
         val gridBottom = h - padBottom
-        val rowH = ((gridBottom - gridTop) / 6f).coerceAtLeast(dayWidth * 0.62f)
-        val circleR = min(rowH * 0.40f, dayWidth * 0.30f)
+        val availRows = gridBottom - gridTop
+        val weeks = ceil((firstCell + daysInMonth) / 7.0).toInt().coerceIn(4, 6)
+
+        // Day digits as big as both the row height and the column width allow.
+        val rowH = availRows / weeks
+        val gridFont = min(rowH * 0.68f, dayWidth * 0.72f).coerceIn(18f, 48f)
+        val circleR = min(rowH * 0.44f, dayWidth * 0.44f)
 
         dayPaint.textSize = gridFont
         todayNumPaint.textSize = gridFont
