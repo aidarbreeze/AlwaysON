@@ -138,6 +138,8 @@ class ClockView @JvmOverloads constructor(
         paint.typeface = tf
         paint.color = Color.WHITE
         paint.style = Paint.Style.FILL
+        // draw the string centred on the view's middle x
+        paint.textAlign = Paint.Align.CENTER
 
         // Vertical centre of the string; a mechanical flipper has a seam here
         // that splits each digit into a top and a bottom half.
@@ -160,6 +162,8 @@ class ClockView @JvmOverloads constructor(
         canvas.restore()
 
         // faint separator line across the seam (flip hinge)
+        dimPaint.reset()
+        dimPaint.isAntiAlias = true
         dimPaint.color = Color.parseColor("#33FFFFFF")
         dimPaint.strokeWidth = dp(1f)
         canvas.drawLine(0f, midY, w, midY, dimPaint)
@@ -256,6 +260,9 @@ class ClockView @JvmOverloads constructor(
         p: Paint
     ) {
         val fm = p.fontMetrics
+        // Centre horizontally: align to CENTER and anchor at w/2 (not the left
+        // edge — that is what previously shifted the digits to the right).
+        p.textAlign = Paint.Align.CENTER
         val baseline = h / 2f - (fm.ascent + fm.descent) / 2f
         canvas.drawText(text, w / 2f, baseline, p)
     }
