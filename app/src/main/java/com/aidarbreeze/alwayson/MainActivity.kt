@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.widget.Button
+import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
@@ -26,6 +27,10 @@ class MainActivity : Activity() {
     private lateinit var autoBrightSwitch: Switch
     private lateinit var brightnessSeek: SeekBar
     private lateinit var brightnessValue: TextView
+    private lateinit var styleGroup: RadioGroup
+    private lateinit var thicknessSeek: SeekBar
+    private lateinit var thicknessValue: TextView
+    private lateinit var outlineThicknessRow: View
     private lateinit var use24Switch: Switch
     private lateinit var secondsSwitch: Switch
     private lateinit var batterySwitch: Switch
@@ -41,6 +46,10 @@ class MainActivity : Activity() {
         autoBrightSwitch = findViewById(R.id.autoBrightSwitch)
         brightnessSeek = findViewById(R.id.brightnessSeek)
         brightnessValue = findViewById(R.id.brightnessValue)
+        styleGroup = findViewById(R.id.clockStyleGroup)
+        thicknessSeek = findViewById(R.id.thicknessSeek)
+        thicknessValue = findViewById(R.id.thicknessValue)
+        outlineThicknessRow = findViewById(R.id.outlineThicknessRow)
         use24Switch = findViewById(R.id.use24Switch)
         secondsSwitch = findViewById(R.id.secondsSwitch)
         batterySwitch = findViewById(R.id.batterySwitch)
@@ -59,6 +68,40 @@ class MainActivity : Activity() {
             Prefs.setAutoBrightness(this, checked)
             updateBrightnessEnabledState()
         }
+
+        // Load clock style / outline thickness.
+        val style = Prefs.clockStyle(this)
+        when (style) {
+            1 -> styleGroup.check(R.id.styleOutline)
+            2 -> styleGroup.check(R.id.styleDots)
+            3 -> styleGroup.check(R.id.styleFlip)
+            else -> styleGroup.check(R.id.styleNormal)
+        }
+        val thickness = Prefs.clockThickness(this)
+        thicknessSeek.progress = thickness - 1
+        thicknessValue.text = "$thickness dp"
+        updateOutlineThicknessRow()
+
+        styleGroup.setOnCheckedChangeListener { _, checkedId ->
+            val s = when (checkedId) {
+                R.id.styleOutline -> 1
+                R.id.styleDots -> 2
+                R.id.styleFlip -> 3
+                else -> 0
+            }
+            Prefs.setClockStyle(this, s)
+            updateOutlineThicknessRow()
+        }
+
+        thicknessSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val v = (progress + 1).coerceIn(1, 30)
+                thicknessValue.text = "$v dp"
+                if (fromUser) Prefs.setClockThickness(this@MainActivity, v)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         use24Switch.setOnCheckedChangeListener { _, checked ->
             Prefs.setForce24h(this, checked)
@@ -126,6 +169,12 @@ class MainActivity : Activity() {
         // maximum the sensor may reach; when off it is the fixed level.
         val auto = autoBrightSwitch.isChecked
         brightnessSeek.alpha = if (auto) 0.6f else 1f
+    }
+
+    /** Show the outline-thickness slider only while the outline style is picked. */
+    private fun updateOutlineThicknessRow() {
+        val style = Prefs.clockStyle(this)
+        outlineThicknessRow.visibility = if (style == 1) View.VISIBLE else View.GONE
     }
 
     private fun canDraw(): Boolean = Settings.canDrawOverlays(this)

@@ -27,6 +27,13 @@
     <string name="auto_brightness_title">Auto brightness</string>
     <string name="auto_brightness_summary">Automatically adjust to the light sensor — barely visible in the dark, clearly readable in daylight. The slider below becomes the maximum.</string>
     <string name="brightness_label">Maximum clock brightness</string>
+
+    <string name="clock_style_title">Clock style</string>
+    <string name="style_normal">Normal</string>
+    <string name="style_outline">Outline (hollow digits)</string>
+    <string name="style_dots">Dot-matrix “comic” digits</string>
+    <string name="style_flip">Flip clock (откидные)</string>
+    <string name="clock_thickness_label">Outline thickness</string>
     <string name="switch_24h">24-hour format</string>
     <string name="switch_seconds">Show seconds</string>
     <string name="switch_battery">Show battery level &amp; charge current</string>

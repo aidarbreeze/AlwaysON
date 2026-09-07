@@ -15,6 +15,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
 import com.aidarbreeze.alwayson.media.MediaWatcher
+import com.aidarbreeze.alwayson.view.ClockView
 import com.aidarbreeze.alwayson.view.MonthCalendarView
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -35,7 +36,7 @@ class StandbyController(context: Context, root: View) {
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
 
-    private val clockText: TextView = root.findViewById(R.id.clockText)
+    private val clockView: ClockView = root.findViewById(R.id.clockText)
     private val dateText: TextView = root.findViewById(R.id.dateText)
     private val batteryText: TextView = root.findViewById(R.id.batteryText)
     private val mediaGroup: View = root.findViewById(R.id.mediaGroup)
@@ -63,9 +64,6 @@ class StandbyController(context: Context, root: View) {
     private var manualAlpha = 1f
     private val sensorHandler = Handler(Looper.getMainLooper())
     private val minAlpha = 0.22f // lowest: dim but clearly visible in the dark
-
-    // Largest clock size (px) before any shrink, captured from the layout.
-    private var clockBasePx = 0f
 
     // Deterministic small offsets used for OLED burn-in drift (px).
     private val driftX = intArrayOf(0, 3, -2, 5, -5, 2, -3, 0)
@@ -96,6 +94,8 @@ class StandbyController(context: Context, root: View) {
     fun applyOptions() {
         batteryText.visibility =
             if (Prefs.showBattery(appContext)) View.VISIBLE else View.GONE
+        // Clock style / thickness may have changed in settings -> redraw.
+        clockView.refresh()
         // Dim the clock content only; the root background stays pure black.
         manualAlpha = (Prefs.brightness(appContext) / 100f).coerceIn(0f, 1f)
         autoBrightness = Prefs.autoBrightness(appContext)
@@ -203,10 +203,8 @@ class StandbyController(context: Context, root: View) {
             secs -> "h:mm:ss"
             else -> "h:mm"
         }
-        clockText.text = SimpleDateFormat(pattern, Locale.getDefault()).format(millis)
-        // Runs after layout each second, so the digits always fit on one line
-        // (needed e.g. when seconds "23:45:33" are shown) and never wrap.
-        clockText.post { fitClock() }
+        // The clock view self-fits to its column for every style.
+        clockView.setTime(SimpleDateFormat(pattern, Locale.getDefault()).format(millis))
         dateText.text = dateLine(now)
     }
 
@@ -222,37 +220,6 @@ class StandbyController(context: Context, root: View) {
         val raw = SimpleDateFormat(pattern, locale).format(now.timeInMillis)
         return raw.replaceFirstChar { it.titlecase(locale) }
     }
-
-    /**
-     * Keeps the clock digits on a single line: shrinks the font just enough so
-     * the rendered text fits the width available inside its column. Never
-     * grows beyond the size the layout gave it ([clockBasePx]).
-     */
-    private fun fitClock() {
-        val tv = clockText
-        val text = tv.text?.toString().orEmpty()
-        if (text.isEmpty()) return
-        val parent = tv.parent as? View ?: return
-        // Room to breathe inside the column (a few px on each side).
-        val avail = (parent.width - dp(16f)).toFloat()
-        if (avail <= 0f) return // not laid out yet; a later tick will retry
-        if (clockBasePx <= 0f) clockBasePx = tv.textSize
-
-        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = tv.typeface
-            textSize = clockBasePx
-        }
-        val textWidth = paint.measureText(text)
-        val target = if (textWidth <= avail) clockBasePx
-        else clockBasePx * (avail / textWidth)
-
-        if (kotlin.math.abs(tv.textSize - target) > 0.5f) {
-            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, target)
-        }
-    }
-
-    private fun dp(value: Float): Int =
-        (appContext.resources.displayMetrics.density * value).toInt()
 
     private fun updateMedia() {
         val now = mediaWatcher.current()

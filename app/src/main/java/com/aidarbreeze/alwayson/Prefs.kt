@@ -15,6 +15,11 @@ object Prefs {
     // Automatically tune the clock brightness to the ambient light sensor so
     // it is barely visible in the dark yet clearly readable in daylight.
     private const val KEY_AUTO_BRIGHTNESS = "auto_brightness"
+    // Clock face style: 0 = normal text, 1 = outline/hollow digits,
+    // 2 = dot-matrix "comic" digits, 3 = old flip-clock digits.
+    private const val KEY_CLOCK_STYLE = "clock_style"
+    // Line/outline thickness in dp used by the outline style.
+    private const val KEY_CLOCK_THICKNESS = "clock_thickness"
     private const val KEY_AUTO_STANDBY = "auto_standby"
 
     private fun sp(ctx: Context) =
@@ -42,6 +47,17 @@ object Prefs {
         sp(ctx).getBoolean(KEY_AUTO_BRIGHTNESS, true)
     fun setAutoBrightness(ctx: Context, on: Boolean) =
         sp(ctx).edit().putBoolean(KEY_AUTO_BRIGHTNESS, on).apply()
+
+    /** Clock face style: 0 normal, 1 outline, 2 dot-matrix, 3 flip. */
+    fun clockStyle(ctx: Context): Int = sp(ctx).getInt(KEY_CLOCK_STYLE, 0)
+    fun setClockStyle(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_CLOCK_STYLE, v).apply()
+
+    /** Line thickness (dp) for the outline clock, 1..30. */
+    fun clockThickness(ctx: Context): Int =
+        sp(ctx).getInt(KEY_CLOCK_THICKNESS, 6).coerceIn(1, 30)
+    fun setClockThickness(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_CLOCK_THICKNESS, v.coerceIn(1, 30)).apply()
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)

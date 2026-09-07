@@ -39,19 +39,11 @@
                     android:textSize="20sp"
                     android:text="" />
 
-                <TextView
+                <com.aidarbreeze.alwayson.view.ClockView
                     android:id="@+id/clockText"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:fontFamily="sans-serif-light"
-                    android:includeFontPadding="false"
-                    android:gravity="center"
-                    android:maxLines="1"
-                    android:singleLine="true"
-                    android:text="00:00"
-                    android:textColor="@color/aod_clock_text"
-                    android:textSize="118sp" />
+                    android:layout_marginTop="6dp" />
 
                 <TextView
                     android:id="@+id/batteryText"
