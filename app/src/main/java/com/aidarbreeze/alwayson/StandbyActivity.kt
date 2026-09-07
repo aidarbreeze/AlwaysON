@@ -10,8 +10,9 @@ import com.aidarbreeze.alwayson.service.OverlayService
 import com.aidarbreeze.alwayson.ui.StandbyUiState
 
 /**
- * Full-screen landscape preview of the StandBy screen (same layout & logic as
- * the services). Used to show the design instantly and to keep it open as a
+ * Full-screen preview of the StandBy screen (same layout & logic as the
+ * services), following the device orientation (portrait and landscape both
+ * supported). Used to show the design instantly and to keep it open as a
  * manual desk clock. Pressing Back exits — it never locks the user out.
  */
 class StandbyActivity : Activity() {
@@ -45,6 +46,9 @@ class StandbyActivity : Activity() {
         StandbyUiState.previewVisible = false
         controller?.stop()
         controller = null
+        // The preview is gone now, so let the auto-overlay re-sync (it may show
+        // again if the phone is charging and the feature is on).
+        OverlayService.requestReevaluate(this)
         super.onDestroy()
     }
 

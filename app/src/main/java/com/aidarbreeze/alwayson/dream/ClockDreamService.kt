@@ -14,7 +14,7 @@ import com.aidarbreeze.alwayson.StandbyController
  * setting) charging/docked, and stops it the moment the user touches the
  * screen or moves the device. Many OEM builds (e.g. OnePlus/OxygenOS) do not
  * auto-start third-party dreams while charging — for those, use the app's
- * optional "show while charging in landscape" overlay instead.
+ * optional "show while charging" overlay instead.
  */
 class ClockDreamService : DreamService() {
 

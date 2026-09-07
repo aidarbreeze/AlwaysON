@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Auto StandBy overlay ("while charging & landscape") needs to draw over
-         other apps and run as a foreground service. -->
+    <!-- Auto StandBy overlay (shown while charging) needs to draw over other
+         apps and run as a foreground service. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -27,23 +28,35 @@
             </intent-filter>
         </activity>
 
-        <!-- Full-screen preview / manual StandBy (back button exits). -->
+        <!-- Full-screen preview / manual StandBy. Follows the device
+             orientation (portrait & landscape both supported). -->
         <activity
             android:name=".StandbyActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
             android:theme="@style/StandbyTheme" />
 
-        <!-- Auto StandBy: overlay while charging in landscape. Never consumes
-             touches and hides on unplug / portrait / notification action. -->
+        <!-- Auto StandBy: overlay while charging. Hides when the phone is
+             picked up / woken / touched, so it never blocks normal use. -->
         <service
             android:name=".service.OverlayService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="shows a clock while the phone charges in landscape (StandBy mode); never intercepts touches and auto-hides" />
+                android:value="shows a dim clock while the phone charges (StandBy mode); auto-hides on pick-up, wake or touch so it never blocks the phone" />
         </service>
+
+        <!-- Auto-start the StandBy overlay when charging begins or after a
+             reboot while a charge is connected (if the feature is enabled). -->
+        <receiver
+            android:name=".recv.ChargingReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.POWER_CONNECTED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Screen saver (system "daydream"): Android starts it when idle &
              charging on devices whose firmware honours it. -->

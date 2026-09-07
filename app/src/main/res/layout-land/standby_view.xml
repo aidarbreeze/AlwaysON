@@ -9,26 +9,26 @@
     <FrameLayout
         android:id="@+id/standbyContent"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:clipToPadding="false">
 
-        <!-- Portrait: calendar card in the lower area, clock column above it. -->
+        <!-- Two columns: clock on the left, calendar card on the right. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:paddingLeft="30dp"
-            android:paddingRight="30dp"
-            android:paddingTop="20dp"
-            android:paddingBottom="14dp">
+            android:orientation="horizontal"
+            android:paddingLeft="44dp"
+            android:paddingRight="36dp">
 
+            <!-- Left: clock column -->
             <LinearLayout
                 android:id="@+id/leftColumn"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="3"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
                 android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginBottom="6dp">
+                android:gravity="center_vertical"
+                android:layout_marginEnd="20dp">
 
                 <TextView
                     android:id="@+id/dateText"
@@ -36,26 +36,26 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:textColor="@color/aod_secondary_text"
-                    android:textSize="20sp"
+                    android:textSize="19sp"
                     android:text="" />
 
                 <TextView
                     android:id="@+id/clockText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     android:fontFamily="sans-serif-light"
                     android:includeFontPadding="false"
                     android:gravity="center"
                     android:text="00:00"
                     android:textColor="@color/aod_clock_text"
-                    android:textSize="118sp" />
+                    android:textSize="96sp" />
 
                 <TextView
                     android:id="@+id/batteryText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="6dp"
                     android:gravity="center"
                     android:text=""
                     android:textColor="@color/aod_secondary_text"
@@ -67,7 +67,7 @@
                     android:id="@+id/mediaGroup"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
+                    android:layout_marginTop="22dp"
                     android:background="@drawable/media_pill"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
@@ -90,7 +90,7 @@
                         android:id="@+id/mediaText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:maxWidth="260dp"
+                        android:maxWidth="240dp"
                         android:singleLine="true"
                         android:ellipsize="marquee"
                         android:marqueeRepeatLimit="marquee_forever"
@@ -100,13 +100,14 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Month calendar in the lower part, scales to fit. -->
+            <!-- Right: month calendar card -->
             <com.aidarbreeze.alwayson.view.MonthCalendarView
                 android:id="@+id/monthView"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="2"
-                android:layout_marginTop="8dp" />
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="20dp" />
 
         </LinearLayout>
 

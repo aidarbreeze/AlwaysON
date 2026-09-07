@@ -8,8 +8,8 @@
     <string name="preview_desc">Big clock, date, a month calendar and, when music plays, a compact player — in the style of iPhone StandBy. Black OLED background with burn-in protection.</string>
     <string name="btn_preview">Show StandBy now</string>
 
-    <string name="auto_title">Show while charging in landscape</string>
-    <string name="auto_summary">Automatically shows the clock while the phone charges in landscape (great on a stand). It never blocks your taps and hides itself on unplug, on rotation or from the notification.</string>
+    <string name="auto_title">Show while charging</string>
+    <string name="auto_summary">While the phone charges, keeps a dim clock on screen (desk-clock style) in both orientations. It never blocks normal use — a tap, the power/home button, waking the phone or picking it up returns you to the normal screen; it re-appears on the next charge session.</string>
     <string name="overlay_perm_required">The “display over other apps” permission is required.</string>
     <string name="overlay_perm_button">Grant permission</string>
     <string name="overlay_perm_granted">Permission granted</string>
@@ -26,11 +26,11 @@
 
     <!-- Service notification -->
     <string name="notif_title">AlwaysON StandBy</string>
-    <string name="notif_text">Waiting — will show while charging in landscape</string>
+    <string name="notif_text">Active — keeps the clock on while charging</string>
     <string name="notif_hide">Hide now</string>
     <string name="notif_channel">StandBy overlay</string>
 
     <!-- Note -->
     <string name="tech_note_title">How it works</string>
-    <string name="tech_note">There is no public Android API to draw while the screen is fully off (that is the manufacturer AOD). This app uses the closest supported options: the optional “while charging in landscape” overlay for phones like OnePlus that do not auto-start the built-in screen saver, and the system screen saver where the firmware honours it. The now-playing card only appears while music actually plays.</string>
+    <string name="tech_note">There is no public Android API to draw while the screen is fully off (that is the manufacturer AOD). This app uses the closest supported options: an overlay that, while the phone charges, keeps a dim clock on screen in either orientation and hands the phone back on tap / power / home / wake / pick-up, plus the system screen saver where the firmware honours it. The now-playing card only appears while music actually plays.</string>
 </resources>

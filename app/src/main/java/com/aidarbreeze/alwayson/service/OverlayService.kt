@@ -13,6 +13,10 @@ import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.drawable.Icon
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -20,6 +24,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.OrientationEventListener
 import android.view.View
 import android.view.WindowManager
@@ -27,18 +32,23 @@ import com.aidarbreeze.alwayson.Prefs
 import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.StandbyController
 import com.aidarbreeze.alwayson.ui.StandbyUiState
+import kotlin.math.sqrt
 
 /**
- * "StandBy while charging" service. It shows the same black StandBy screen as
- * an overlay, but ONLY while the device is charging AND in landscape, because
- * OnePlus/OxygenOS does not auto-start the built-in screen saver on charge.
+ * "StandBy while charging". Shows a dim, orientation-aware clock overlay while
+ * the device is charging and resting. Two goals:
  *
- * To avoid the earlier "stuck" problem this overlay never consumes touches
- * (FLAG_NOT_TOUCHABLE): all taps pass through to the screen below, and the
- * screen hides itself automatically when you unplug, rotate to portrait, or
- * press "Hide" in the notification. Nothing traps the user.
+ *  1. The screen stays on (dimmed) for the whole charge session, like a desk
+ *     clock / iPhone StandBy on a stand.
+ *  2. It reliably gives the phone back (removes the overlay, revealing the
+ *     normal lock/home screen) the moment the user interacts:
+ *       - tapping the screen anywhere,
+ *       - pressing power / waking the screen,
+ *       - or picking the phone up (detected with the accelerometer).
+ *
+ * It only shows again on the next charging session (or when re-enabled).
  */
-class OverlayService : Service() {
+class OverlayService : Service(), SensorEventListener {
 
     companion object {
         const val ACTION_HIDE = "com.aidarbreeze.alwayson.HIDE"
@@ -46,14 +56,13 @@ class OverlayService : Service() {
         const val NOTIF_ID = 1001
         const val CHANNEL_ID = "alwayson_standby"
 
-        /** Ask a running service to re-check whether the overlay should show. */
         fun requestReevaluate(context: Context) {
             try {
                 val i = Intent(context, OverlayService::class.java)
                 i.action = ACTION_REFRESH
                 context.startService(i)
             } catch (_: Exception) {
-                // service not available; ignore
+                // service unavailable; ignore
             }
         }
 
@@ -65,65 +74,323 @@ class OverlayService : Service() {
             return status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == android.os.BatteryManager.BATTERY_STATUS_FULL
         }
-
-        fun isLandscape(context: Context): Boolean =
-            context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     }
 
+    private val handler = Handler(Looper.getMainLooper())
     private var overlayView: View? = null
     private var controller: StandbyController? = null
     private var orientationListener: OrientationEventListener? = null
+
+    // Once the user takes/wakes the phone we stop showing until the next
+    // charge session starts, so we never nag over a phone that is in use.
+    private var suppressed = false
+    private var shownOrientationType = -1
+
+    // Tracked so we only auto-show the clock when the phone is resting (locked
+    // or screen off), never over an app the user is actively using.
+    private var screenOn = true
+
+    // Accelerometer "pick up" detection.
+    private var sensorManager: SensorManager? = null
+    private var accelRegistered = false
+    private val gravity = FloatArray(3)
+    private var startedAt = 0L
+    private var movementStreak = 0
 
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_POWER_DISCONNECTED -> stopSelf()
-                Intent.ACTION_POWER_CONNECTED -> evaluateAndSync()
+                Intent.ACTION_POWER_CONNECTED -> {
+                    suppressed = false
+                    evaluateAndSync()
+                }
+            }
+        }
+    }
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    screenOn = false
+                    if (overlayView != null) {
+                        // The desk clock was showing (screen held on by us), so
+                        // the user pressed Power to leave it -> hand the phone
+                        // back and stay quiet for this charge session.
+                        exitStandby()
+                    } else {
+                        // Screen went to sleep from normal use. If we're still
+                        // charging, the phone is now resting -> become a clock.
+                        evaluateAndSync()
+                    }
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    screenOn = true
+                    // e.g. plugging the cable / waking. If the phone is resting
+                    // (still locked) and charging, this shows the clock.
+                    evaluateAndSync()
+                }
+            }
+        }
+    }
+
+    /** User unlocked / woke the phone -> hand it back. */
+    private val userPresentReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_USER_PRESENT && overlayView != null) {
+                exitStandby()
             }
         }
     }
 
     override fun onCreate() {
         super.onCreate()
-        registerReceiver(
-            powerReceiver,
-            IntentFilter().apply {
-                addAction(Intent.ACTION_POWER_CONNECTED)
-                addAction(Intent.ACTION_POWER_DISCONNECTED)
-            }
-        )
+        suppressed = false
+
+        registerGuarded(powerReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        })
+        registerGuarded(screenReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        })
+        registerGuarded(userPresentReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_USER_PRESENT)
+        })
+
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         orientationListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
+                val type = currentOrientationType()
+                if (overlayView != null && type != shownOrientationType) {
+                    // Layout depends on orientation -> rebuild it.
+                    removeOverlay()
+                }
                 evaluateAndSync()
             }
         }
         orientationListener?.enable()
+
         startAsForeground()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_HIDE) {
-            Prefs.setAutoStandby(this, false) // keep the in-app switch consistent
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_HIDE -> {
+                Prefs.setAutoStandby(this, false)
+                suppressed = true
+                removeOverlay()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_REFRESH -> {
+                evaluateAndSync()
+                return START_STICKY
+            }
+            else -> {
+                // Fresh start (app enabled / charging connected / boot).
+                suppressed = false
+                evaluateAndSync()
+                return START_STICKY
+            }
         }
-        evaluateAndSync()
-        return START_STICKY
     }
 
     override fun onDestroy() {
         removeOverlay()
+        unregisterSensors()
         try {
             unregisterReceiver(powerReceiver)
         } catch (_: IllegalArgumentException) {
-            // already unregistered
+        }
+        try {
+            unregisterReceiver(screenReceiver)
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            unregisterReceiver(userPresentReceiver)
+        } catch (_: IllegalArgumentException) {
         }
         orientationListener?.disable()
         orientationListener = null
+        handler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** Register a context receiver; on API 33+ also mark it exported so the
+     *  protected system broadcasts (power / screen / user present) reach us. */
+    private fun registerGuarded(receiver: BroadcastReceiver, filter: IntentFilter) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, filter, RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(receiver, filter)
+        }
+    }
+
+    // ---------- screen management ----------
+
+    private fun currentOrientationType(): Int =
+        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 1 else 0
+
+    private fun evaluateAndSync() {
+        if (!isCharging(this)) {
+            // Not charging -> no StandBy screen. Stay armed (as a quiet
+            // foreground service) so that plugging the cable in later is
+            // caught by our own POWER_CONNECTED receiver reliably, without the
+            // app having to launch itself from the background. When the user
+            // turns the feature off, MainActivity stops this service.
+            removeOverlay()
+            return
+        }
+
+        val allowed = Prefs.autoStandby(this) &&
+            !suppressed &&
+            !StandbyUiState.previewVisible &&
+            Settings.canDrawOverlays(this)
+
+        if (!allowed) {
+            removeOverlay()
+            return
+        }
+
+        // Only auto-show while the phone is resting (locked or screen off), so
+        // we never cover an app the user is actively using while it charges.
+        if (atRest()) showOverlay()
+    }
+
+    /** True when the phone is idle enough for a desk clock: screen off, or on
+     *  but behind the keyguard. Never true while the user is using an app. */
+    private fun atRest(): Boolean {
+        if (!screenOn) return true
+        val km = getSystemService(KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        return km?.isKeyguardLocked == true
+    }
+
+    private fun showOverlay() {
+        if (overlayView != null) return
+        val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
+        // R.layout.standby_view resolves to the portrait or landscape layout
+        // automatically based on the current orientation.
+        val view = inflater.inflate(R.layout.standby_view, null)
+
+        // Tap anywhere exits to the normal screen.
+        view.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                exitStandby()
+            }
+            true
+        }
+
+        val flags =
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            flags,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.CENTER
+        try {
+            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+            wm.addView(view, params)
+        } catch (_: Exception) {
+            return
+        }
+        overlayView = view
+        shownOrientationType = currentOrientationType()
+
+        val c = StandbyController(this, view)
+        c.start()
+        controller = c
+
+        startedAt = System.currentTimeMillis()
+        for (i in 0 until 3) gravity[i] = 0f
+        movementStreak = 0
+        registerSensors()
+    }
+
+    private fun removeOverlay() {
+        unregisterSensors()
+        val view = overlayView ?: run {
+            controller?.stop()
+            controller = null
+            return
+        }
+        overlayView = null
+        controller?.stop()
+        controller = null
+        view.setOnTouchListener(null)
+        try {
+            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+            wm.removeView(view)
+        } catch (_: Exception) {
+            // already detached
+        }
+    }
+
+    /** User took/woke the phone: hide now and stay quiet this charge session. */
+    private fun exitStandby() {
+        removeOverlay()
+        suppressed = true
+    }
+
+    // ---------- pick-up detection (accelerometer) ----------
+
+    private fun registerSensors() {
+        val sm = sensorManager ?: return
+        if (accelRegistered) return
+        val sensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (sensor != null) {
+            sm.registerListener(this, sensor, SensorManager.SENSOR_DELAY_UI)
+            accelRegistered = true
+        }
+    }
+
+    private fun unregisterSensors() {
+        if (!accelRegistered) return
+        sensorManager?.unregisterListener(this)
+        accelRegistered = false
+    }
+
+    override fun onSensorChanged(event: SensorEvent) {
+        if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        // Ignore the first moments (placing the phone) so it doesn't exit on
+        // the initial movement when you set it on the charger.
+        if (System.currentTimeMillis() - startedAt < 6000) return
+
+        val alpha = 0.8f
+        for (i in 0 until 3) {
+            gravity[i] = alpha * gravity[i] + (1f - alpha) * event.values[i]
+        }
+        val dx = event.values[0] - gravity[0]
+        val dy = event.values[1] - gravity[1]
+        val dz = event.values[2] - gravity[2]
+        val magnitude = sqrt(dx * dx + dy * dy + dz * dz)
+        if (magnitude > 2.2f) {
+            movementStreak++
+        } else {
+            movementStreak = if (movementStreak > 0) movementStreak - 1 else 0
+        }
+        if (movementStreak > 6) {
+            handler.post { exitStandby() }
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // no-op
+    }
+
+    // ---------- foreground service notification ----------
 
     private fun startAsForeground() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -163,59 +430,6 @@ class OverlayService : Service() {
             startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             startForeground(NOTIF_ID, notif)
-        }
-    }
-
-    private fun evaluateAndSync() {
-        // Never stack the overlay on top of the full-screen StandbyActivity.
-        val show = !StandbyUiState.previewVisible &&
-            isCharging(this) && isLandscape(this) && Settings.canDrawOverlays(this)
-        if (show) showOverlay() else removeOverlay()
-    }
-
-    private fun showOverlay() {
-        if (overlayView != null) return
-        val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
-        val view = inflater.inflate(R.layout.standby_view, null)
-
-        val flags =
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            flags,
-            PixelFormat.TRANSLUCENT
-        )
-        params.gravity = Gravity.CENTER
-        try {
-            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-            wm.addView(view, params)
-        } catch (_: Exception) {
-            return
-        }
-        overlayView = view
-        val c = StandbyController(this, view)
-        c.start()
-        controller = c
-    }
-
-    private fun removeOverlay() {
-        val view = overlayView ?: return
-        overlayView = null
-        controller?.stop()
-        controller = null
-        try {
-            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-            wm.removeView(view)
-        } catch (_: Exception) {
-            // view already detached
         }
     }
 }
