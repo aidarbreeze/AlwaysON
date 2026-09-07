@@ -94,6 +94,26 @@
             android:textSize="13sp"
             android:textColor="#8A000000" />
 
+        <!-- ===== Now-playing access ===== -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="@string/media_access_title" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/media_access_hint"
+            android:textSize="13sp"
+            android:textColor="#8A000000"
+            android:lineSpacingExtra="3dp" />
+
+        <Button
+            android:id="@+id/btnMediaAccess"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/media_access_button" />
+
         <!-- ===== Appearance ===== -->
         <TextView
             style="@style/SectionTitle"

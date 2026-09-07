@@ -46,6 +46,9 @@ class StandbyController(context: Context, root: View) {
     private var lastMedia: String? = null
     private var driftStep = 0
 
+    // Largest clock size (px) before any shrink, captured from the layout.
+    private var clockBasePx = 0f
+
     // Deterministic small offsets used for OLED burn-in drift (px).
     private val driftX = intArrayOf(0, 3, -2, 5, -5, 2, -3, 0)
     private val driftY = intArrayOf(0, 2, 4, 1, -3, -4, 3, 0)
@@ -54,7 +57,7 @@ class StandbyController(context: Context, root: View) {
         override fun run() {
             updateClock()
             tickCount++
-            if (tickCount % 3 == 0) updateMedia()
+            updateMedia() // poll every second so playback changes feel instant
             handler.postDelayed(this, 1000)
         }
     }
@@ -108,11 +111,45 @@ class StandbyController(context: Context, root: View) {
             else -> "h:mm"
         }
         clockText.text = SimpleDateFormat(pattern, Locale.getDefault()).format(millis)
+        // Runs after layout each second, so the digits always fit on one line
+        // (needed e.g. when seconds "23:45:33" are shown) and never wrap.
+        clockText.post { fitClock() }
         dateText.text = DateFormat.getDateInstance(DateFormat.LONG).format(millis)
         if (batteryText.visibility == View.VISIBLE) {
             batteryText.text = batterySummary()
         }
     }
+
+    /**
+     * Keeps the clock digits on a single line: shrinks the font just enough so
+     * the rendered text fits the width available inside its column. Never
+     * grows beyond the size the layout gave it ([clockBasePx]).
+     */
+    private fun fitClock() {
+        val tv = clockText
+        val text = tv.text?.toString().orEmpty()
+        if (text.isEmpty()) return
+        val parent = tv.parent as? View ?: return
+        // Room to breathe inside the column (a few px on each side).
+        val avail = (parent.width - dp(16)).toFloat()
+        if (avail <= 0f) return // not laid out yet; a later tick will retry
+        if (clockBasePx <= 0f) clockBasePx = tv.textSize
+
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = tv.typeface
+            textSize = clockBasePx
+        }
+        val textWidth = paint.measureText(text)
+        val target = if (textWidth <= avail) clockBasePx
+        else clockBasePx * (avail / textWidth)
+
+        if (kotlin.math.abs(tv.textSize - target) > 0.5f) {
+            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, target)
+        }
+    }
+
+    private fun dp(value: Float): Int =
+        (appContext.resources.displayMetrics.density * value).toInt()
 
     private fun updateMedia() {
         val now = mediaWatcher.current()

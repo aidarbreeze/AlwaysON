@@ -17,6 +17,11 @@
     <string name="btn_open_dream">Also use as the system screen saver</string>
     <string name="dream_hint">Android only auto-starts a screen saver when idle and charging on some devices. If yours does, pick “AlwaysON StandBy” as the screen saver in the settings it opens.</string>
 
+    <string name="media_listener_label">AlwaysON media</string>
+    <string name="media_access_title">Show playing music</string>
+    <string name="media_access_button">Grant notification access</string>
+    <string name="media_access_hint">To show the player card for music from any app, Android needs “Notification access” for AlwaysON. Tap to open the system list, then turn AlwaysON on.</string>
+
     <!-- Appearance -->
     <string name="section_appearance">Appearance</string>
     <string name="brightness_label">Clock brightness</string>

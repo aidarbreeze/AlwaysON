@@ -8,17 +8,26 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 
 /**
- * Best-effort reader of whatever music is currently playing. It is polled
- * periodically by [com.aidarbreeze.alwayson.StandbyController]. On some OEM
- * builds reading active media sessions requires extra system permissions, so
- * every call is guarded — if it is not allowed the media card simply stays
- * hidden and the clock/calendar keep working.
+ * Supplies the currently playing track to the StandBy screens.
+ *
+ * It prefers the fresh snapshot written by [NowPlayingListenerService] (the
+ * reliable cross-app path). As a fallback it polls active media sessions
+ * directly; on many Android/OEM builds that returns nothing unless the app is
+ * the active media-button handler, which is exactly why the notification
+ * listener exists. Every call is guarded so the card simply stays hidden when
+ * it cannot see any music.
  */
 class MediaWatcher(private val context: Context) {
 
-    data class NowPlaying(val title: String, val artist: String, val playing: Boolean)
-
     fun current(): NowPlaying? {
+        // Preferred path: what the notification listener just saw.
+        val cached = NowPlayingCache.current
+        if (cached != null &&
+            System.currentTimeMillis() - NowPlayingCache.updatedAt < 5_000
+        ) {
+            return cached
+        }
+        // Fallback: poll media sessions directly (playing ones only).
         return try {
             val manager =
                 context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
@@ -26,28 +35,24 @@ class MediaWatcher(private val context: Context) {
             val controllers = manager.getActiveSessions(receiver)
 
             var best: MediaController? = null
-            var bestPlaying = false
             for (c in controllers) {
                 val ps = c.playbackState ?: continue
                 if (c.metadata == null) continue
-                val playing = ps.state == PlaybackState.STATE_PLAYING
-                if (playing && !bestPlaying) {
+                if (ps.state == PlaybackState.STATE_PLAYING) {
                     best = c
-                    bestPlaying = true
-                } else if (best == null) {
-                    best = c
+                    break
                 }
             }
             val controller = best ?: return null
             val md = controller.metadata ?: return null
             val title = md.getString(MediaMetadata.METADATA_KEY_TITLE)
                 ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
-            if (title.isNullOrBlank()) return null
+                ?: return null
+            if (title.isBlank()) return null
             val artist = md.getString(MediaMetadata.METADATA_KEY_ARTIST)
                 ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
                 ?: ""
-            val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
-            NowPlaying(title, artist, playing)
+            NowPlaying(title, artist, playing = true)
         } catch (_: Exception) {
             null
         }

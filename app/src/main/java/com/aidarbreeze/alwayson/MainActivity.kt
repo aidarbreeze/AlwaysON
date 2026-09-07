@@ -86,6 +86,10 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.btnOpenDream).setOnClickListener {
             openDreamSettings()
         }
+
+        findViewById<Button>(R.id.btnMediaAccess).setOnClickListener {
+            openNotificationListenerSettings()
+        }
     }
 
     override fun onResume() {
@@ -167,6 +171,18 @@ class MainActivity : Activity() {
         } catch (_: Exception) {
             try {
                 startActivity(Intent("android.settings.DREAM_SETTINGS"))
+            } catch (_: Exception) {
+                // ignore
+            }
+        }
+    }
+
+    private fun openNotificationListenerSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
             } catch (_: Exception) {
                 // ignore
             }

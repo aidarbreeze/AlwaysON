@@ -17,6 +17,11 @@
     <string name="btn_open_dream">Также использовать как системную заставку</string>
     <string name="dream_hint">Системная заставка сама запускается при зарядке только на части устройств. Если на вашем — выберите «AlwaysON StandBy» в открывшихся настройках заставки.</string>
 
+    <string name="media_listener_label">AlwaysON media</string>
+    <string name="media_access_title">Показывать играющую музыку</string>
+    <string name="media_access_button">Выдать доступ к уведомлениям</string>
+    <string name="media_access_hint">Чтобы карточка плеера появлялась для музыки из любого приложения, Android требует «Доступ к уведомлениям» для AlwaysON. Нажмите, чтобы открыть системный список, и включите AlwaysON.</string>
+
     <!-- Оформление -->
     <string name="section_appearance">Внешний вид</string>
     <string name="brightness_label">Яркость часов</string>
