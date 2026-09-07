@@ -73,32 +73,52 @@
                     android:background="@drawable/media_pill"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingLeft="16dp"
+                    android:paddingLeft="12dp"
                     android:paddingTop="8dp"
-                    android:paddingRight="16dp"
+                    android:paddingRight="12dp"
                     android:paddingBottom="8dp"
                     android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/mediaPrev"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingLeft="6dp"
+                        android:paddingRight="10dp"
+                        android:text="\u23EE"
+                        android:textColor="@color/aod_secondary_text"
+                        android:textSize="20sp" />
 
                     <TextView
                         android:id="@+id/mediaGlyph"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginRight="8dp"
+                        android:layout_marginRight="10dp"
                         android:text=""
                         android:textColor="@color/aod_secondary_text"
-                        android:textSize="14sp" />
+                        android:textSize="13sp" />
 
                     <TextView
                         android:id="@+id/mediaText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:maxWidth="260dp"
+                        android:maxWidth="150dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
                         android:singleLine="true"
-                        android:ellipsize="marquee"
-                        android:marqueeRepeatLimit="marquee_forever"
                         android:text=""
                         android:textColor="@color/aod_clock_text"
                         android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/mediaNext"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingLeft="10dp"
+                        android:paddingRight="6dp"
+                        android:text="\u23ED"
+                        android:textColor="@color/aod_secondary_text"
+                        android:textSize="20sp" />
                 </LinearLayout>
             </LinearLayout>
 

@@ -3,13 +3,16 @@ package com.aidarbreeze.alwayson
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
 import com.aidarbreeze.alwayson.media.MediaWatcher
 import com.aidarbreeze.alwayson.view.MonthCalendarView
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -35,6 +38,8 @@ class StandbyController(context: Context, root: View) {
     private val mediaGroup: View = root.findViewById(R.id.mediaGroup)
     private val mediaGlyph: TextView = root.findViewById(R.id.mediaGlyph)
     private val mediaText: TextView = root.findViewById(R.id.mediaText)
+    private val mediaPrev: TextView = root.findViewById(R.id.mediaPrev)
+    private val mediaNext: TextView = root.findViewById(R.id.mediaNext)
     private val monthView: MonthCalendarView = root.findViewById(R.id.monthView)
     private val content: View = root.findViewById(R.id.standbyContent)
 
@@ -87,6 +92,8 @@ class StandbyController(context: Context, root: View) {
         updateClock()
         updateMedia()
         updateBattery()
+        mediaPrev.setOnClickListener { sendMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
+        mediaNext.setOnClickListener { sendMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT) }
         lastDay = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
         monthView.invalidate()
         handler.post(tick)
@@ -202,9 +209,20 @@ class StandbyController(context: Context, root: View) {
             return
         }
 
-        // Live current: microamps via BatteryManager property, if the device
-        // reports it (Integer.MIN_VALUE / 0 means "not available"). Try the
-        // instantaneous value first, then the running average.
+        val ma = readChargeMa()
+        val unit = appContext.getString(R.string.charging_current_unit)
+        batteryText.text = if (ma > 0) "$percent% · $ma $unit" else "$percent%"
+    }
+
+    /**
+     * Charge current in mA. Tries the [BatteryManager] property first, then —
+     * like AIDA64 does — reads the raw values straight from the kernel's
+     * battery nodes under /sys/class/power_supply, which report current on
+     * more devices (the property often returns 0 even when the node works).
+     * Returns <= 0 when no source reports a value.
+     */
+    private fun readChargeMa(): Int {
+        // 1) Android property (µA).
         val bm = appContext.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
         val micro = try {
             val instant = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
@@ -214,8 +232,52 @@ class StandbyController(context: Context, root: View) {
         } catch (_: Exception) {
             0
         }
-        val ma = if (micro == 0 || micro == Int.MIN_VALUE) -1 else kotlin.math.abs(micro) / 1000
-        val unit = appContext.getString(R.string.charging_current_unit)
-        batteryText.text = if (ma > 0) "$percent% · $ma $unit" else "$percent%"
+        if (micro > 0) return micro / 1000
+
+        // 2) sysfs battery nodes (AIDA64 style).
+        val nodes = arrayOf(
+            "/sys/class/power_supply/battery/current_now",
+            "/sys/class/power_supply/battery/current_average",
+            "/sys/class/power_supply/battery/current",
+            "/sys/class/power_supply/main/current_now",
+            "/sys/class/power_supply/usb/current_now",
+            "/sys/class/power_supply/usb/current_average",
+            "/sys/class/power_supply/charger/current_now",
+            "/sys/class/power_supply/wireless/current_now"
+        )
+        for (path in nodes) {
+            val raw = readSysLong(path) ?: continue
+            if (raw == 0L) continue
+            return normalizeSysCurrent(raw)
+        }
+        return -1
+    }
+
+    private fun readSysLong(path: String): Long? {
+        return try {
+            val f = File(path)
+            if (!f.canRead()) return null
+            f.readText().trim().toLongOrNull()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** sysfs usually reports µA (thousands); some ROMs already give mA. */
+    private fun normalizeSysCurrent(raw: Long): Int {
+        val abs = kotlin.math.abs(raw)
+        val ma = if (abs > 200_000L) abs / 1000L else abs
+        return ma.toInt()
+    }
+
+    /** Sends a hardware-style media key (previous/next) to control playback. */
+    private fun sendMediaKey(code: Int) {
+        try {
+            val am = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
+            am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+        } catch (_: Exception) {
+            // media control not allowed / no target; ignore
+        }
     }
 }

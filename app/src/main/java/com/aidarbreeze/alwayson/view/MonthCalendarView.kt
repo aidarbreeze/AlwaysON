@@ -55,10 +55,11 @@ class MonthCalendarView @JvmOverloads constructor(
         }
 
         val padX = min(w * 0.05f, 20f)
-        val padTop = min(h * 0.05f, 14f)
+        val padTop = min(h * 0.07f, 22f)
         val padBottom = min(h * 0.04f, 12f)
 
-        val titleFont = (min(w, h) * 0.10f).coerceIn(20f, 36f)
+        // Month title must stand out — keep it clearly larger than the day grid.
+        val titleFont = (min(w, h) * 0.14f).coerceIn(28f, 64f)
         val weekdayFont = (min(w, h) * 0.075f).coerceIn(16f, 30f)
 
         // Month title, centred over the whole calendar, first letter upper.
@@ -99,6 +100,7 @@ class MonthCalendarView @JvmOverloads constructor(
         val gridTop = weekTop + weekdayFont * 1.9f
         val gridBottom = h - padBottom
         val availRows = gridBottom - gridTop
+        if (availRows <= 0f) return // too little room left after the header
         val weeks = ceil((firstCell + daysInMonth) / 7.0).toInt().coerceIn(4, 6)
 
         // Day digits as big as both the row height and the column width allow.
