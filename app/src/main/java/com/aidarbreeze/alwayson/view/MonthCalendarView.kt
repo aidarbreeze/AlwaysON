@@ -73,9 +73,15 @@ class MonthCalendarView @JvmOverloads constructor(
         // weekday header baseline right under the title
         val weekBaseline = padTop + titleFont * 1.7f
         weekdayPaint.textSize = weekdayFont
+        // The grid's columns run from the week's first day (Calendar) to the
+        // last. weekLabels is indexed by the Calendar.DAY_OF_WEEK constant, so
+        // column i must show the weekday (firstDayOfWeek + i), not a fixed
+        // Sunday-first list - otherwise headers drift off the numbers.
+        val firstDow = now.firstDayOfWeek
         for (i in 0 until 7) {
             val cx = padX + dayWidth * i + dayWidth / 2f
-            val label = weekLabels[i]
+            val weekday = (firstDow - 1 + i) % 7 + 1
+            val label = weekLabels[weekday - 1]
             if (label.isNotEmpty()) {
                 canvas.drawText(label, cx - weekdayPaint.measureText(label) / 2f, weekBaseline, weekdayPaint)
             }
