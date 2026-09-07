@@ -18,7 +18,7 @@ import kotlin.math.abs
  * fallback we read the raw nodes under /sys/class/power_supply/* (the same
  * source AIDA64 / Ampere use): every battery appears there as a symlink, so a
  * single directory scan covers all device-specific paths (battery, bms, main,
- * usb, ac, dc, charger, wireless, fuel-gauges like bq*/max*/ds2784 ...).
+ * usb, ac, dc, charger, wireless and the various fuel-gauge chips).
  */
 object BatteryInfo {
 
