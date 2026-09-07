@@ -1,128 +1,116 @@
 package com.aidarbreeze.alwayson.stock
 
 import org.json.JSONObject
-import java.net.CookieHandler
-import java.net.CookieManager
-import java.net.CookiePolicy
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 /**
- * Minimal, dependency-free client for Yahoo Finance's unofficial chart JSON
- * endpoint (the "lightweight" option the design referenced). It returns a
- * closing-price series for a symbol at a given intraday interval (e.g. 5m,
- * 15m, 30m). Yahoo sometimes requires a cookie + crumb, so we obtain both and
- * send them along; if that fails we retry the plain query once. Runs on a
- * caller-provided background thread (never on the UI thread).
+ * Fetches intraday candle series for a security listed on the Moscow Exchange
+ * from the public, keyless MOEX ISS endpoint. This is the reliable source for
+ * Russian tickers such as TATN (Tatneft) that Yahoo/other Western providers do
+ * not serve from inside Russia.
+ *
+ * MOEX ISS natively offers intraday candles at 1 / 10 / 60 minutes
+ * (interval codes 1 / 10 / 60). We bound each request with a recent "from"
+ * window so a 1-minute fetch stays well under ISS's 500-row page limit.
+ *
+ * All network happens on the caller-provided background thread.
  */
 object StockApi {
 
-    private const val UA =
-        "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+    private const val BASE =
+        "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/"
+    private const val TZ = "Europe/Moscow"
 
-    private const val CHART =
-        "https://query1.finance.yahoo.com/v8/finance/chart/"
+    /** how far back (ms) to request for each ISS interval code */
+    private fun windowMs(code: Int): Long = when (code) {
+        1 -> 150L * 60_000L      // 1-min: last 2.5 h keeps it < 500 rows
+        10 -> 2L * 24L * 60L * 60_000L
+        else -> 5L * 24L * 60L * 60_000L // 60-min: last 5 days
+    }
 
-    /** Fetch the intraday close series for [symbol] at [interval]. Returns null
-     *  on any failure (no network, symbol unknown, blocked endpoint, parse). */
-    fun fetchSeries(symbol: String, interval: String): List<Double>? {
+    /**
+     * Fetch the closing-price series (chronological, oldest -> newest) for
+     * [symbol] at MOEX interval [code] (1, 10 or 60). Returns null on any
+     * failure or when there is no data for the chosen window.
+     */
+    fun fetchSeries(symbol: String, code: Int): List<Double>? {
         return try {
-            // Auto-manage cookies across the crumb + chart calls.
-            val manager = CookieManager()
-            manager.setCookiePolicy(CookiePolicy.ACCEPT_ALL)
-            CookieHandler.setDefault(manager)
-
-            val crumb = obtainCrumb()
-            val url = buildUrl(symbol, interval, crumb)
-            val body = httpGet(url)
-            parse(body) ?: return null
+            val from = Date(System.currentTimeMillis() - windowMs(code))
+            val url = buildUrl(symbol, code, from)
+            val body = httpGet(url) ?: return null
+            parse(body)
         } catch (_: Exception) {
             null
         }
     }
 
-    /** Returns the crumb string, or null when the endpoint is not reachable.
-     *  The cookie needed for it is stored in the shared CookieManager. */
-    private fun obtainCrumb(): String? {
-        return try {
-            // Hit the home host so it sets its A1/A3 cookies in our store.
-            val home = httpGetRaw("https://fc.yahoo.com")
-            // discard body, we only care about cookies being stored.
-            home
-            val text = httpGet(
-                "https://query1.finance.yahoo.com/v1/test/getcrumb"
-            )
-            text?.trim()?.takeIf { it.isNotBlank() && it.length < 64 }
-        } catch (_: Exception) {
-            null
+    private fun buildUrl(symbol: String, code: Int, from: Date): String {
+        val sym = URLEncoder.encode(symbol.uppercase(Locale.US), "UTF-8")
+        val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone(TZ)
         }
-    }
-
-    private fun buildUrl(symbol: String, interval: String, crumb: String?): String {
-        val sym = URLEncoder.encode(symbol, "UTF-8")
-        var url = CHART + sym +
-            "?interval=" + interval +
-            "&range=5d&includePrePost=false&events=div%2Csplit"
-        if (!crumb.isNullOrBlank()) {
-            url += "&crumb=" + URLEncoder.encode(crumb, "UTF-8")
-        }
-        return url
+        val fromStr = URLEncoder.encode(fmt.format(from), "UTF-8")
+        // till = now, also in Moscow time
+        val tillStr = URLEncoder.encode(
+            fmt.format(Calendar.getInstance(TimeZone.getTimeZone(TZ)).time),
+            "UTF-8"
+        )
+        return BASE + sym + "/candles.json?interval=" + code +
+            "&from=" + fromStr + "&till=" + tillStr +
+            "&iss.meta=off&iss.only=candles"
     }
 
     private fun httpGet(url: String): String? {
-        val conn = open(url)
-        return try {
-            if (conn.responseCode !in 200..299) null
-            else conn.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    private fun httpGetRaw(url: String): Unit {
-        val conn = open(url)
-        try {
-            conn.inputStream.bufferedReader().use { it.readLines() }
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    private fun open(url: String): HttpURLConnection {
         val c = (URL(url).openConnection() as HttpURLConnection)
-        c.requestMethod = "GET"
-        c.connectTimeout = 9000
-        c.readTimeout = 9000
-        c.setRequestProperty("User-Agent", UA)
-        c.setRequestProperty("Accept", "*/*")
-        return c
+        return try {
+            c.requestMethod = "GET"
+            c.connectTimeout = 9000
+            c.readTimeout = 9000
+            c.setRequestProperty("Accept", "application/json")
+            if (c.responseCode !in 200..299) null
+            else c.inputStream.bufferedReader().use { it.readText() }
+        } catch (_: Exception) {
+            null
+        } finally {
+            c.disconnect()
+        }
     }
 
-    /** Parse the v8 chart JSON into a flat closing-price series. */
+    /** Parse the ISS candles JSON into a flat chronological close series. */
     private fun parse(body: String?): List<Double>? {
         if (body.isNullOrBlank()) return null
-        val root = JSONObject(body)
-        val chart = root.getJSONObject("chart")
-        if (chart.has("error") && !chart.isNull("error")) {
-            return null
-        }
-        if (!chart.has("result") || chart.isNull("result")) return null
-        val result = chart.getJSONArray("result").getJSONObject(0)
-        val timestamps = result.optJSONArray("timestamp") ?: return null
-        if (timestamps.length() == 0) return null
+        return try {
+            val root = JSONObject(body)
+            val candles = root.getJSONObject("candles")
+            val data = candles.optJSONArray("data") ?: return null
+            if (data.length() == 0) return null
+            val columns = candles.getJSONArray("columns")
+            // close column index
+            var closeIdx = -1
+            for (i in 0 until columns.length()) {
+                if (columns.getString(i).equals("close", ignoreCase = true)) {
+                    closeIdx = i
+                    break
+                }
+            }
+            if (closeIdx < 0) return null
 
-        val indicators = result.getJSONObject("indicators")
-        val quote = indicators.getJSONArray("quote").getJSONObject(0)
-        val closes = quote.optJSONArray("close")
-
-        val prices = ArrayList<Double>(timestamps.length())
-        for (i in 0 until timestamps.length()) {
-            if (closes == null) break
-            if (closes.isNull(i)) continue
-            prices.add(closes.getDouble(i))
+            val closes = ArrayList<Double>(data.length())
+            for (i in 0 until data.length()) {
+                val row = data.getJSONArray(i)
+                if (row.isNull(closeIdx)) continue
+                closes.add(row.getDouble(closeIdx))
+            }
+            if (closes.size < 2) null else closes
+        } catch (_: Exception) {
+            null
         }
-        return if (prices.size >= 2) prices else null
     }
 }

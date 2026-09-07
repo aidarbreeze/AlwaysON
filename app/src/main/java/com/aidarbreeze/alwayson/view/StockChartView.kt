@@ -28,6 +28,7 @@ class StockChartView @JvmOverloads constructor(
     private var prices: List<Double> = emptyList()
     private var symbol = ""
     private var refPrice = 0.0
+    private var intervalLabel = ""
     private var statusText = "" // e.g. loading / error / "no data"
 
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -58,14 +59,20 @@ class StockChartView @JvmOverloads constructor(
         textSize = dpf(13f)
         textAlign = Paint.Align.CENTER
     }
+    private val intervalPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x88FFFFFF.toInt()
+        textSize = dpf(11f)
+        textAlign = Paint.Align.CENTER
+    }
 
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
 
-    /** Set the raw series; the symbol and the user reference come from prefs
-     *  but are passed in for cleanliness. */
-    fun setData(symbol: String, refPrice: Double, prices: List<Double>) {
+    /** Set the raw series and the interval shown (e.g. "1М", "10М", "60М"),
+     *  which is drawn at the bottom of the chart. */
+    fun setData(symbol: String, refPrice: Double, interval: String, prices: List<Double>) {
         this.symbol = symbol.uppercase()
         this.refPrice = refPrice
+        this.intervalLabel = interval
         this.prices = prices
         statusText = ""
         invalidate()
@@ -96,7 +103,7 @@ class StockChartView @JvmOverloads constructor(
         val padL = dpf(6f)
         val padR = dpf(6f)
         val padT = labelH + dpf(6f)
-        val padB = dpf(8f)
+        val padB = dpf(16f)
 
         if (prices.size < 2) {
             val msg = if (statusText.isNotEmpty()) statusText
@@ -156,5 +163,10 @@ class StockChartView @JvmOverloads constructor(
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
         canvas.drawPath(path, linePaint)
+
+        // which interval is shown, bottom-centre (e.g. 5М / 15М / 30М)
+        if (intervalLabel.isNotEmpty()) {
+            canvas.drawText(intervalLabel, w / 2f, h - dpf(2f), intervalPaint)
+        }
     }
 }

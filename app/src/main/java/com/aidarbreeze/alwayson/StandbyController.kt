@@ -58,12 +58,11 @@ class StandbyController(context: Context, root: View) {
     private var driftStep = 0
 
     // --- calendar <-> stock chart alternation ---
-    // null means "show the calendar" for that step; a string is the chart
-    // interval to fetch. Sequence: calendar, 30m chart, calendar, 15m chart,
-    // calendar, 5m chart, then it repeats.
-    private val panelSteps = arrayOf<String?>(null, "30m", null, "15m", null, "5m")
+    // null = show the calendar; an Int = MOEX ISS candle interval (code 1/10/60
+    // minutes). Sequence: calendar, 60М, calendar, 10М, calendar, 1М, repeat.
+    private val panelSteps = arrayOf<Int?>(null, 60, null, 10, null, 1)
     private var panelStep = 0
-    private val stockCached = HashMap<String, List<Double>>()
+    private val stockCached = HashMap<Int, List<Double>>()
     private var fetchGen = 0L
     private val panelTickMs = 10_000L
     private val panelRunnable = object : Runnable {
@@ -72,6 +71,14 @@ class StandbyController(context: Context, root: View) {
             renderPanel()
             handler.postDelayed(this, panelTickMs)
         }
+    }
+
+    /** Short label for an ISS interval code, shown at the bottom of the chart. */
+    private fun intervalLabel(code: Int): String = when (code) {
+        1 -> "1М"
+        10 -> "10М"
+        60 -> "60М"
+        else -> "${code}М"
     }
 
     // --- auto brightness (ambient light sensor) ---
@@ -166,11 +173,11 @@ class StandbyController(context: Context, root: View) {
     }
 
     private fun renderPanel() {
-        val interval = panelSteps[panelStep]
-        if (interval == null) {
+        val code = panelSteps[panelStep]
+        if (code == null) {
             showCalendarOnly()
         } else {
-            showChart(interval)
+            showChart(code)
         }
     }
 
@@ -179,36 +186,37 @@ class StandbyController(context: Context, root: View) {
         stockView.visibility = View.GONE
     }
 
-    private fun showChart(interval: String) {
+    private fun showChart(code: Int) {
         monthView.visibility = View.GONE
         stockView.visibility = View.VISIBLE
 
         val symbol = Prefs.stockTicker(appContext)
         val ref = Prefs.stockReference(appContext)
+        val label = intervalLabel(code)
         if (symbol.isEmpty()) {
             stockView.setStatus("—")
             return
         }
-        val cached = stockCached[interval]
+        val cached = stockCached[code]
         if (cached != null && cached.size >= 2) {
-            stockView.setData(symbol, ref, cached)
+            stockView.setData(symbol, ref, label, cached)
         } else {
             stockView.setStatus("Загрузка…")
         }
-        fetchStock(symbol, interval, ref)
+        fetchStock(symbol, code, ref, label)
     }
 
     /** Fetch a chart interval on a background thread; ignore stale results. */
-    private fun fetchStock(symbol: String, interval: String, ref: Double) {
+    private fun fetchStock(symbol: String, code: Int, ref: Double, label: String) {
         val gen = ++fetchGen
         Thread {
-            val data = StockApi.fetchSeries(symbol, interval)
+            val data = StockApi.fetchSeries(symbol, code)
             handler.post {
                 if (gen != fetchGen) return@post
                 if (data != null && data.size >= 2) {
-                    stockCached[interval] = data
+                    stockCached[code] = data
                     if (stockView.visibility == View.VISIBLE) {
-                        stockView.setData(symbol, ref, data)
+                        stockView.setData(symbol, ref, label, data)
                     }
                 } else if (stockView.visibility == View.VISIBLE) {
                     stockView.setStatus("нет данных / нет сети")
