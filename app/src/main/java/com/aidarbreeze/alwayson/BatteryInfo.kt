@@ -37,6 +37,16 @@ object BatteryInfo {
         "BatteryAverageCurrent"
     )
 
+    // Supply directory names to try by direct path. On many ROMs (e.g.
+    // OxygenOS/ColorOS) an app is NOT allowed to *list* /sys/class/power_supply
+    // (readdir -> EACCES, so a dynamic scan finds 0 entries) but IS allowed to
+    // open a specific known file. So we always try these well-known names
+    // directly in addition to whatever a listing gives us.
+    private val SUPPLY_DIRS = arrayOf(
+        "battery", "Battery", "bms", "gauge",
+        "charger", "main", "usb", "ac", "dc", "pc_port", "wireless"
+    )
+
     /** Highest-resolution single measurement: current in mA, or <=0 if the
      *  device does not report it. Sign is normalised to positive. */
     fun readCurrentMa(context: Context): Int {
@@ -47,16 +57,10 @@ object BatteryInfo {
         val propertyMa = propertyCurrentMa(bm)
         if (propertyMa > 0) return propertyMa
 
-        // 2) sysfs (AIDA64/Ampere style). Battery node first, then any other
-        //    supply that reports a current (e.g. the charger input node).
-        val batteryMa = sysfsMa("/sys/class/power_supply/battery")
-        if (batteryMa > 0) return batteryMa
-
-        // Every other supply, preferring charger/main/usb/ac/dc/wireless.
-        val others = powerSupplies()
-            .filter { it.name != "battery" }
-            .sortedBy { kindRank(it.name) }
-        for (dir in others) {
+        // 2) sysfs (AIDA64/Ampere style). Walk every power-supply we can find
+        //    (dynamic listing where allowed, plus the well-known direct paths
+        //    where the listing is blocked). Battery first, then charger/input.
+        for (dir in candidateSupplies()) {
             val ma = sysfsMa(dir.absolutePath)
             if (ma > 0) return ma
         }
@@ -73,6 +77,29 @@ object BatteryInfo {
         } catch (_: Throwable) {
             0
         }
+    }
+
+    /** Supply dirs to probe: the known well-known names (always tried, since a
+     *  listing may be blocked) merged with a dynamic listing when it works.
+     *  Sorted so battery/gauge come first, then charger/input sources. */
+    private fun candidateSupplies(): List<File> {
+        val known = SUPPLY_DIRS.map { File("/sys/class/power_supply", it) }
+        val dynamic = powerSupplies()
+        return (known + dynamic)
+            .distinctBy { it.absolutePath }
+            .sortedWith(compareBy({ supplyOrder(it.name) }, { it.name }))
+    }
+
+    private fun supplyOrder(name: String): Int = when {
+        name.contains("battery", ignoreCase = true) -> 0
+        name.equals("bms", ignoreCase = true) -> 0
+        name.contains("gauge") -> 1
+        name.contains("charger") -> 2
+        name.contains("main") -> 3
+        name.contains("usb") || name.contains("ac") || name.contains("dc") ||
+            name.contains("pc_port") -> 4
+        name.contains("wireless") -> 5
+        else -> 6
     }
 
     /** Reads the best current file under one supply dir, returning mA. */
@@ -128,14 +155,6 @@ object BatteryInfo {
         }
     }
 
-    private fun kindRank(name: String): Int = when {
-        name.contains("charger") -> 0
-        name.contains("usb") || name.contains("ac") || name.contains("dc") -> 1
-        name.contains("main") -> 2
-        name.contains("wireless") -> 3
-        else -> 4
-    }
-
     /** True while the phone is plugged in and taking a charge. */
     fun isCharging(context: Context): Boolean {
         val status = status(context)
@@ -173,22 +192,28 @@ object BatteryInfo {
             out.add("BatteryManager property threw: ${t.message}")
         }
 
-        val supplies = powerSupplies()
-        out.add("power_supply entries: ${supplies.size}")
+        out.add("raw power_supply listing: ${powerSupplies().size} entries")
+
+        // Probe each candidate node (direct known paths + any listed supply)
+        // and report exactly what the app can open without root.
+        val supplies = candidateSupplies()
+        out.add("probed supply dirs: ${supplies.size}")
+        var anyReadableNode = false
         for (dir in supplies) {
             for (name in CURRENT_FILES) {
                 val f = File(dir, name)
+                if (!f.exists()) continue
                 val value = readLong(f)
-                val exists = f.exists()
-                val readable = try {
-                    f.canRead() && value != null
-                } catch (_: Exception) {
-                    false
-                }
-                if (exists || value != null) {
-                    out.add("${f.path} = $value (readable=$readable)")
+                if (value != null) {
+                    anyReadableNode = true
+                    out.add("${f.path} = $value")
+                } else {
+                    out.add("${f.path} exists but is NOT readable (permission)")
                 }
             }
+        }
+        if (!anyReadableNode) {
+            out.add("no battery/current node readable without root")
         }
         out.add("final readCurrentMa = ${readCurrentMa(context)}")
         return out
