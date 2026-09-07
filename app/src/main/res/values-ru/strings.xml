@@ -27,8 +27,10 @@
     <string name="brightness_label">Яркость часов</string>
     <string name="switch_24h">24-часовой формат</string>
     <string name="switch_seconds">Показывать секунды</string>
-    <string name="switch_battery">Показывать заряд батареи</string>
+    <string name="switch_battery">Показывать заряд батареи и ток зарядки</string>
     <string name="charging_current_unit">мА</string>
+    <string name="btn_battery_probe">Что мой телефон сообщает о токе зарядки?</string>
+    <string name="battery_probe_hint">Показывает сырые показания (статус + узлы батареи), чтобы подобрать правильный источник для вашего устройства. Нажмите во время зарядки.</string>
 
     <!-- Уведомление сервиса -->
     <string name="notif_title">AlwaysON StandBy</string>

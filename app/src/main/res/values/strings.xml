@@ -27,8 +27,10 @@
     <string name="brightness_label">Clock brightness</string>
     <string name="switch_24h">24-hour format</string>
     <string name="switch_seconds">Show seconds</string>
-    <string name="switch_battery">Show battery level</string>
+    <string name="switch_battery">Show battery level &amp; charge current</string>
     <string name="charging_current_unit">mA</string>
+    <string name="btn_battery_probe">What does my phone report for charge current?</string>
+    <string name="battery_probe_hint">Shows the raw readings (status + battery nodes) so we can find the right source for your device. Tap while charging.</string>
 
     <!-- Service notification -->
     <string name="notif_title">AlwaysON StandBy</string>

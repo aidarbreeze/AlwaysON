@@ -28,6 +28,7 @@ class MainActivity : Activity() {
     private lateinit var use24Switch: Switch
     private lateinit var secondsSwitch: Switch
     private lateinit var batterySwitch: Switch
+    private lateinit var batteryProbe: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +42,7 @@ class MainActivity : Activity() {
         use24Switch = findViewById(R.id.use24Switch)
         secondsSwitch = findViewById(R.id.secondsSwitch)
         batterySwitch = findViewById(R.id.batterySwitch)
+        batteryProbe = findViewById(R.id.batteryProbe)
 
         // Load persisted appearance.
         use24Switch.isChecked = Prefs.force24h(this)
@@ -89,6 +91,14 @@ class MainActivity : Activity() {
 
         findViewById<Button>(R.id.btnMediaAccess).setOnClickListener {
             openNotificationListenerSettings()
+        }
+
+        findViewById<Button>(R.id.btnBatteryProbe).setOnClickListener {
+            // Diagnostic: what the device reports for charge current, so we can
+            // pick the right node for a specific phone/ROM.
+            val lines = BatteryInfo.probe(this)
+            batteryProbe.text = lines.joinToString("\n")
+            batteryProbe.visibility = View.VISIBLE
         }
     }
 

@@ -12,7 +12,6 @@ import android.view.View
 import android.widget.TextView
 import com.aidarbreeze.alwayson.media.MediaWatcher
 import com.aidarbreeze.alwayson.view.MonthCalendarView
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -198,76 +197,21 @@ class StandbyController(context: Context, root: View) {
         )
         val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
         if (level < 0 || scale <= 0) return
         val percent = (level * 100f / scale).toInt()
 
-        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-            status == BatteryManager.BATTERY_STATUS_FULL
-        if (!charging) {
-            batteryText.text = "$percent%"
-            return
-        }
+        val charging = BatteryInfo.isCharging(appContext)
+        // Show the live current whenever it is measurable and the battery is
+        // not draining, even if the status flag lags (some ROMs report a fresh
+        // current while the status reads stale). Never show a "charge" current
+        // while actually discharging.
+        val currentMa = BatteryInfo.readCurrentMa(appContext)
+        val showCurrent = currentMa > 0 &&
+            (charging || !BatteryInfo.isDischarging(appContext))
 
-        val ma = readChargeMa()
         val unit = appContext.getString(R.string.charging_current_unit)
-        batteryText.text = if (ma > 0) "$percent% · $ma $unit" else "$percent%"
-    }
-
-    /**
-     * Charge current in mA. Tries the [BatteryManager] property first, then —
-     * like AIDA64 does — reads the raw values straight from the kernel's
-     * battery nodes under /sys/class/power_supply, which report current on
-     * more devices (the property often returns 0 even when the node works).
-     * Returns <= 0 when no source reports a value.
-     */
-    private fun readChargeMa(): Int {
-        // 1) Android property (µA).
-        val bm = appContext.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
-        val micro = try {
-            val instant = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
-            if (instant == 0 || instant == Int.MIN_VALUE) {
-                bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) ?: 0
-            } else instant
-        } catch (_: Exception) {
-            0
-        }
-        if (micro > 0) return micro / 1000
-
-        // 2) sysfs battery nodes (AIDA64 style).
-        val nodes = arrayOf(
-            "/sys/class/power_supply/battery/current_now",
-            "/sys/class/power_supply/battery/current_average",
-            "/sys/class/power_supply/battery/current",
-            "/sys/class/power_supply/main/current_now",
-            "/sys/class/power_supply/usb/current_now",
-            "/sys/class/power_supply/usb/current_average",
-            "/sys/class/power_supply/charger/current_now",
-            "/sys/class/power_supply/wireless/current_now"
-        )
-        for (path in nodes) {
-            val raw = readSysLong(path) ?: continue
-            if (raw == 0L) continue
-            return normalizeSysCurrent(raw)
-        }
-        return -1
-    }
-
-    private fun readSysLong(path: String): Long? {
-        return try {
-            val f = File(path)
-            if (!f.canRead()) return null
-            f.readText().trim().toLongOrNull()
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /** sysfs usually reports µA (thousands); some ROMs already give mA. */
-    private fun normalizeSysCurrent(raw: Long): Int {
-        val abs = kotlin.math.abs(raw)
-        val ma = if (abs > 200_000L) abs / 1000L else abs
-        return ma.toInt()
+        batteryText.text =
+            if (showCurrent) "$percent% · $currentMa $unit" else "$percent%"
     }
 
     /** Sends a hardware-style media key (previous/next) to control playback. */
