@@ -24,6 +24,8 @@ object Prefs {
     private const val KEY_STOCKS_ENABLED = "stocks_enabled"
     private const val KEY_STOCK_TICKER = "stock_ticker"
     private const val KEY_STOCK_REF = "stock_reference"
+    // Stock chart rendering: 0 = line of closes, 1 = candlesticks.
+    private const val KEY_STOCK_TYPE = "stock_type"
     private const val KEY_AUTO_STANDBY = "auto_standby"
 
     private fun sp(ctx: Context) =
@@ -79,6 +81,11 @@ object Prefs {
         sp(ctx).getFloat(KEY_STOCK_REF, 0f).toDouble()
     fun setStockReference(ctx: Context, v: Double) =
         sp(ctx).edit().putFloat(KEY_STOCK_REF, v.toFloat()).apply()
+
+    /** Stock chart style: 0 = line, 1 = candles. Default line. */
+    fun stockType(ctx: Context): Int = sp(ctx).getInt(KEY_STOCK_TYPE, 0)
+    fun setStockType(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_STOCK_TYPE, v.coerceIn(0, 1)).apply()
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)

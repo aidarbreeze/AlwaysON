@@ -43,6 +43,9 @@
     <string name="stock_ticker_hint">e.g. TATN, SBER, LKOH, GAZP</string>
     <string name="stock_ref_label">Reference price (base for the % change)</string>
     <string name="stock_ref_hint">e.g. 184.25</string>
+    <string name="stock_type_label">Chart style</string>
+    <string name="stock_type_line">Line</string>
+    <string name="stock_type_candles">Candlesticks</string>
     <string name="switch_24h">24-hour format</string>
     <string name="switch_seconds">Show seconds</string>
     <string name="switch_battery">Show battery level &amp; charge current</string>

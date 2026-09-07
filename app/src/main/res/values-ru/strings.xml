@@ -43,6 +43,9 @@
     <string name="stock_ticker_hint">напр. TATN, SBER, LKOH, GAZP</string>
     <string name="stock_ref_label">Референсная цена (база для % изменения)</string>
     <string name="stock_ref_hint">напр. 184.25</string>
+    <string name="stock_type_label">Стиль графика</string>
+    <string name="stock_type_line">Линия</string>
+    <string name="stock_type_candles">Свечи</string>
     <string name="switch_24h">24-часовой формат</string>
     <string name="switch_seconds">Показывать секунды</string>
     <string name="switch_battery">Показывать заряд батареи и ток зарядки</string>

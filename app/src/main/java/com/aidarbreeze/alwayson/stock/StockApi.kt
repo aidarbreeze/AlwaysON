@@ -10,9 +10,18 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
+/** One MOEX ISS candle with its opening time in milliseconds. */
+data class Candle(
+    val open: Double,
+    val high: Double,
+    val low: Double,
+    val close: Double,
+    val timeMs: Long
+)
+
 /**
- * Fetches intraday candle series for a security listed on the Moscow Exchange
- * from the public, keyless MOEX ISS endpoint. This is the reliable source for
+ * Fetches intraday candles for a security listed on the Moscow Exchange from
+ * the public, keyless MOEX ISS endpoint. This is the reliable source for
  * Russian tickers such as TATN (Tatneft) that Yahoo/other Western providers do
  * not serve from inside Russia.
  *
@@ -36,11 +45,11 @@ object StockApi {
     }
 
     /**
-     * Fetch the closing-price series (chronological, oldest -> newest) for
-     * [symbol] at MOEX interval [code] (1, 10 or 60). Returns null on any
-     * failure or when there is no data for the chosen window.
+     * Fetch candles (OHLC + time) for [symbol] at MOEX interval [code]
+     * (1, 10 or 60), chronological oldest -> newest. Returns null on failure
+     * or when there is no data in the chosen window.
      */
-    fun fetchSeries(symbol: String, code: Int): List<Double>? {
+    fun fetchCandles(symbol: String, code: Int): List<Candle>? {
         return try {
             val from = Date(System.currentTimeMillis() - windowMs(code))
             val url = buildUrl(symbol, code, from)
@@ -57,7 +66,6 @@ object StockApi {
             timeZone = TimeZone.getTimeZone(TZ)
         }
         val fromStr = URLEncoder.encode(fmt.format(from), "UTF-8")
-        // till = now, also in Moscow time
         val tillStr = URLEncoder.encode(
             fmt.format(Calendar.getInstance(TimeZone.getTimeZone(TZ)).time),
             "UTF-8"
@@ -83,8 +91,8 @@ object StockApi {
         }
     }
 
-    /** Parse the ISS candles JSON into a flat chronological close series. */
-    private fun parse(body: String?): List<Double>? {
+    /** Parse ISS candles JSON into a chronological list of [Candle]. */
+    private fun parse(body: String?): List<Candle>? {
         if (body.isNullOrBlank()) return null
         return try {
             val root = JSONObject(body)
@@ -92,23 +100,41 @@ object StockApi {
             val data = candles.optJSONArray("data") ?: return null
             if (data.length() == 0) return null
             val columns = candles.getJSONArray("columns")
-            // close column index
-            var closeIdx = -1
-            for (i in 0 until columns.length()) {
-                if (columns.getString(i).equals("close", ignoreCase = true)) {
-                    closeIdx = i
-                    break
+            fun idx(name: String): Int {
+                for (i in 0 until columns.length()) {
+                    if (columns.getString(i).equals(name, ignoreCase = true)) return i
                 }
+                return -1
             }
-            if (closeIdx < 0) return null
+            val iOpen = idx("open")
+            val iHigh = idx("high")
+            val iLow = idx("low")
+            val iClose = idx("close")
+            val iBegin = idx("begin")
+            if (iClose < 0) return null
 
-            val closes = ArrayList<Double>(data.length())
+            val timeFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone(TZ)
+            }
+            val list = ArrayList<Candle>(data.length())
             for (i in 0 until data.length()) {
                 val row = data.getJSONArray(i)
-                if (row.isNull(closeIdx)) continue
-                closes.add(row.getDouble(closeIdx))
+                if (row.isNull(iClose)) continue
+                val close = row.getDouble(iClose)
+                val open = if (iOpen >= 0 && !row.isNull(iOpen)) row.getDouble(iOpen) else close
+                val high = if (iHigh >= 0 && !row.isNull(iHigh)) row.getDouble(iHigh) else close
+                val low = if (iLow >= 0 && !row.isNull(iLow)) row.getDouble(iLow) else close
+                var timeMs = 0L
+                if (iBegin >= 0 && !row.isNull(iBegin)) {
+                    timeMs = try {
+                        timeFmt.parse(row.getString(iBegin))?.time ?: 0L
+                    } catch (_: Exception) {
+                        0L
+                    }
+                }
+                list.add(Candle(open, high, low, close, timeMs))
             }
-            if (closes.size < 2) null else closes
+            if (list.size < 2) null else list
         } catch (_: Exception) {
             null
         }

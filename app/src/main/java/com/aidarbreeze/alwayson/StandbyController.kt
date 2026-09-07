@@ -15,6 +15,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
 import com.aidarbreeze.alwayson.media.MediaWatcher
+import com.aidarbreeze.alwayson.stock.Candle
 import com.aidarbreeze.alwayson.stock.StockApi
 import com.aidarbreeze.alwayson.view.ClockView
 import com.aidarbreeze.alwayson.view.MonthCalendarView
@@ -62,7 +63,7 @@ class StandbyController(context: Context, root: View) {
     // minutes). Sequence: calendar, 60М, calendar, 10М, calendar, 1М, repeat.
     private val panelSteps = arrayOf<Int?>(null, 60, null, 10, null, 1)
     private var panelStep = 0
-    private val stockCached = HashMap<Int, List<Double>>()
+    private val stockCached = HashMap<Int, List<Candle>>()
     private var fetchGen = 0L
     private val panelTickMs = 10_000L
     private val panelRunnable = object : Runnable {
@@ -206,11 +207,11 @@ class StandbyController(context: Context, root: View) {
         fetchStock(symbol, code, ref, label)
     }
 
-    /** Fetch a chart interval on a background thread; ignore stale results. */
+    /** Fetch candles for an interval on a background thread; drop stale results. */
     private fun fetchStock(symbol: String, code: Int, ref: Double, label: String) {
         val gen = ++fetchGen
         Thread {
-            val data = StockApi.fetchSeries(symbol, code)
+            val data = StockApi.fetchCandles(symbol, code)
             handler.post {
                 if (gen != fetchGen) return@post
                 if (data != null && data.size >= 2) {
