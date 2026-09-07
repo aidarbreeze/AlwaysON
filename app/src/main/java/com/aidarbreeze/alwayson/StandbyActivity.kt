@@ -1,10 +1,13 @@
 package com.aidarbreeze.alwayson
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
+import com.aidarbreeze.alwayson.service.OverlayService
+import com.aidarbreeze.alwayson.ui.StandbyUiState
 
 /**
  * Full-screen landscape preview of the StandBy screen (same layout & logic as
@@ -25,7 +28,21 @@ class StandbyActivity : Activity() {
         controller?.start()
     }
 
+    override fun onResume() {
+        super.onResume()
+        StandbyUiState.previewVisible = true
+        // Ask the auto-overlay service to back off while this screen is shown,
+        // so we never stack two StandBy windows.
+        OverlayService.requestReevaluate(this)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        StandbyUiState.previewVisible = false
+    }
+
     override fun onDestroy() {
+        StandbyUiState.previewVisible = false
         controller?.stop()
         controller = null
         super.onDestroy()

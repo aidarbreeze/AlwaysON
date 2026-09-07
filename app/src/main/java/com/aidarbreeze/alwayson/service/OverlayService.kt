@@ -26,6 +26,7 @@ import android.view.WindowManager
 import com.aidarbreeze.alwayson.Prefs
 import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.StandbyController
+import com.aidarbreeze.alwayson.ui.StandbyUiState
 
 /**
  * "StandBy while charging" service. It shows the same black StandBy screen as
@@ -41,8 +42,20 @@ class OverlayService : Service() {
 
     companion object {
         const val ACTION_HIDE = "com.aidarbreeze.alwayson.HIDE"
+        const val ACTION_REFRESH = "com.aidarbreeze.alwayson.REFRESH"
         const val NOTIF_ID = 1001
         const val CHANNEL_ID = "alwayson_standby"
+
+        /** Ask a running service to re-check whether the overlay should show. */
+        fun requestReevaluate(context: Context) {
+            try {
+                val i = Intent(context, OverlayService::class.java)
+                i.action = ACTION_REFRESH
+                context.startService(i)
+            } catch (_: Exception) {
+                // service not available; ignore
+            }
+        }
 
         fun isCharging(context: Context): Boolean {
             val intent = context.registerReceiver(
@@ -154,11 +167,10 @@ class OverlayService : Service() {
     }
 
     private fun evaluateAndSync() {
-        if (isCharging(this) && isLandscape(this) && Settings.canDrawOverlays(this)) {
-            showOverlay()
-        } else {
-            removeOverlay()
-        }
+        // Never stack the overlay on top of the full-screen StandbyActivity.
+        val show = !StandbyUiState.previewVisible &&
+            isCharging(this) && isLandscape(this) && Settings.canDrawOverlays(this)
+        if (show) showOverlay() else removeOverlay()
     }
 
     private fun showOverlay() {

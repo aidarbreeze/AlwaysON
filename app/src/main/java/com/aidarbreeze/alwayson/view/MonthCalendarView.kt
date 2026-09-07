@@ -8,11 +8,12 @@ import android.util.AttributeSet
 import android.view.View
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.min
 
 /**
- * A minimal month calendar (like the iPhone StandBy clock's calendar) drawn
- * directly on the canvas. Shows the current month with today highlighted, in a
- * dark OLED-friendly style — only the drawn pixels light up.
+ * A month calendar (like the iPhone StandBy one) drawn on the canvas so it is
+ * OLED-friendly. Layout is computed from the view's measured size, so the grid
+ * always fits — nothing is clipped on short landscape screens.
  */
 class MonthCalendarView @JvmOverloads constructor(
     context: Context,
@@ -20,82 +21,92 @@ class MonthCalendarView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private val monthPaint = Paint().apply {
-        color = Color.WHITE
-        textSize = 42f
-        isAntiAlias = true
-    }
-    private val gridPaint = Paint().apply {
-        color = 0x99FFFFFF.toInt()
-        textSize = 30f
-        isAntiAlias = true
-    }
-    private val weekdayPaint = Paint().apply {
-        color = 0x73FFFFFF.toInt()
-        textSize = 22f
-        isAntiAlias = true
-    }
-    private val todayCirclePaint = Paint().apply { color = Color.WHITE }
-    private val todayNumberPaint = Paint().apply {
-        color = Color.BLACK
-        textSize = 30f
-        isAntiAlias = true
-    }
+    private val titlePaint = Paint().apply { color = Color.WHITE; isAntiAlias = true }
+    private val weekdayPaint = Paint().apply { color = 0x73FFFFFF.toInt(); isAntiAlias = true }
+    private val dayPaint = Paint().apply { color = 0x99FFFFFF.toInt(); isAntiAlias = true }
+    private val todayCirclePaint = Paint().apply { color = Color.WHITE; isAntiAlias = true }
+    private val todayNumPaint = Paint().apply { color = Color.BLACK; isAntiAlias = true }
 
     private var cachedYear = -1
     private var cachedMonth = -1
     private var daysInMonth = 31
-    private var firstCell = 0        // grid column of the 1st of month
+    private var firstCell = 0
     private var todayDay = 0
-    private var widthPx = 0f
-    private var weekLabels: Array<String> = Array(7) { "" }
+    private var weekLabels = arrayOf("", "", "", "", "", "", "")
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        widthPx = w.toFloat()
+        invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0 || h <= 0) return
+
         val now = Calendar.getInstance()
         val year = now.get(Calendar.YEAR)
         val month = now.get(Calendar.MONTH)
         if (year != cachedYear || month != cachedMonth) {
-            buildMonth(now, year, month)
+            rebuild(now, year, month)
         }
+
+        val titleFont = (min(w, h) * 0.10f).coerceIn(22f, 40f)
+        val gridFont = (min(w, h) * 0.075f).coerceIn(16f, 30f)
+        val weekdayFont = gridFont * 0.72f
+
+        titlePaint.textSize = titleFont
+
+        val padX = min(w * 0.04f, 20f)
+        val padTop = min(h * 0.05f, 16f)
 
         val monthTitle = String.format(
             Locale.getDefault(), "%s %d",
-            now.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.getDefault()),
-            year
+            now.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.getDefault()), year
         )
-        canvas.drawText(monthTitle, 0f, 50f, monthPaint)
+        canvas.drawText(monthTitle, padX, padTop + titleFont, titlePaint)
 
-        val dayWidth = widthPx / 7f
-        val headerY = 88f
-        val rowH = 29f
-        val startRowY = headerY + rowH
+        val gridWidth = w - padX * 2f
+        val dayWidth = gridWidth / 7f
 
-        val fDow = now.firstDayOfWeek
-        // Weekday header.
+        // weekday header baseline right under the title
+        val weekBaseline = padTop + titleFont * 1.7f
+        weekdayPaint.textSize = weekdayFont
         for (i in 0 until 7) {
-            val dow = ((fDow - 1 + i) % 7) + 1 // 1..7
-            canvas.drawText(weekLabels[dow - 1], i * dayWidth, headerY, weekdayPaint)
+            val cx = padX + dayWidth * i + dayWidth / 2f
+            val label = weekLabels[i]
+            if (label.isNotEmpty()) {
+                canvas.drawText(label, cx - weekdayPaint.measureText(label) / 2f, weekBaseline, weekdayPaint)
+            }
         }
 
-        // Body: days row-major starting at firstCell of row 0.
+        // grid area from below weekday row down to bottom
+        val gridTop = weekBaseline + weekdayFont * 0.5f
+        val gridBottom = h - padTop
+        val rowsAvail = 6
+        val rowH = ((gridBottom - gridTop) / rowsAvail).coerceAtLeast(dayWidth * 0.55f)
+        val circleR = min(rowH * 0.42f, dayWidth * 0.32f)
+
+        dayPaint.textSize = gridFont
+        todayNumPaint.textSize = gridFont
+
         var day = 1
         var row = 0
         while (day <= daysInMonth) {
             var col = if (row == 0) firstCell else 0
             while (col < 7 && day <= daysInMonth) {
-                val cx = col * dayWidth + dayWidth / 2f
-                val cy = startRowY + row * rowH + rowH * 0.6f
+                val cx = padX + dayWidth * col + dayWidth / 2f
+                val cy = gridTop + row * rowH + rowH * 0.5f
+                val num = day.toString()
                 if (day == todayDay) {
-                    canvas.drawCircle(cx, cy + 2f, 17f, todayCirclePaint)
-                    drawCentered(canvas, day.toString(), cx, cy, todayNumberPaint)
+                    canvas.drawCircle(cx, cy, circleR, todayCirclePaint)
+                    todayNumPaint.color = Color.BLACK
+                    canvas.drawText(num, cx - todayNumPaint.measureText(num) / 2f,
+                        cy + gridFont * 0.35f, todayNumPaint)
                 } else {
-                    drawCentered(canvas, day.toString(), cx, cy, gridPaint)
+                    canvas.drawText(num, cx - dayPaint.measureText(num) / 2f,
+                        cy + gridFont * 0.35f, dayPaint)
                 }
                 day++
                 col++
@@ -104,30 +115,22 @@ class MonthCalendarView @JvmOverloads constructor(
         }
     }
 
-    private fun drawCentered(canvas: Canvas, text: String, cx: Float, cy: Float, paint: Paint) {
-        val w = paint.measureText(text)
-        canvas.drawText(text, cx - w / 2f, cy, paint)
-    }
-
-    private fun buildMonth(now: Calendar, year: Int, month: Int) {
+    private fun rebuild(now: Calendar, year: Int, month: Int) {
         val c = Calendar.getInstance()
         c.clear()
         c.set(year, month, 1)
-        val firstDow = c.get(Calendar.DAY_OF_WEEK) // 1..7 of the 1st
         val fDow = now.firstDayOfWeek
-        firstCell = (firstDow - fDow + 7) % 7
+        firstCell = (c.get(Calendar.DAY_OF_WEEK) - fDow + 7) % 7
         daysInMonth = c.getActualMaximum(Calendar.DAY_OF_MONTH)
         todayDay = now.get(Calendar.DAY_OF_MONTH)
 
-        // Weekday labels (Sun..Sat) in the current locale.
         val names = now.getDisplayNames(
             Calendar.DAY_OF_WEEK, Calendar.SHORT, Locale.getDefault()
         ) ?: emptyMap()
         for (d in 1..7) {
             weekLabels[d - 1] = names.entries
                 .firstOrNull { it.key != null && it.value == d }
-                ?.key
-                ?: ""
+                ?.key ?: ""
         }
         cachedYear = year
         cachedMonth = month
