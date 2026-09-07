@@ -44,7 +44,7 @@ class MediaWatcher(private val context: Context) {
                 ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
             if (title.isNullOrBlank()) return null
             val artist = md.getString(MediaMetadata.METADATA_KEY_ARTIST)
-                ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_ARTIST)
+                ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
                 ?: ""
             val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
             NowPlaying(title, artist, playing)
