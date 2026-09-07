@@ -68,17 +68,18 @@ object BatteryInfo {
     }
 
     /**
-     * The live current straight from [BatteryManager.BATTERY_PROPERTY_CURRENT_NOW],
-     * converted to mA and preserving the raw sign (on many ROMs a negative
-     * value means the battery is charging). Returns null when the device does
-     * not report a reading (0 / Int.MIN_VALUE / unsupported).
+     * The raw live value straight from
+     * [BatteryManager.BATTERY_PROPERTY_CURRENT_NOW], preserved as-is (no unit
+     * scaling). On many ROMs a negative value means the battery is charging.
+     * Returns null when the device does not report a reading
+     * (0 / Int.MIN_VALUE / unsupported).
      */
-    fun readCurrentNowMa(context: Context): Int? {
+    fun readCurrentNowRaw(context: Context): Int? {
         val bm = context.applicationContext
             .getSystemService(Context.BATTERY_SERVICE) as? BatteryManager ?: return null
         return try {
             val ua = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-            if (ua == 0 || ua == Int.MIN_VALUE) null else ua / 1000
+            if (ua == 0 || ua == Int.MIN_VALUE) null else ua
         } catch (_: Throwable) {
             null
         }

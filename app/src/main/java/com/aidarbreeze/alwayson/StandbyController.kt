@@ -191,10 +191,11 @@ class StandbyController(context: Context, root: View) {
     }
 
     /**
-     * Battery level plus the live current read straight from
-     * BATTERY_PROPERTY_CURRENT_NOW. The raw value is negative while charging on
-     * this ROM, so we invert the sign for display: a minus reading is shown as
-     * "+", a plus reading as "-" (per the user's requested convention).
+     * Battery level plus the live raw value read straight from
+     * BATTERY_PROPERTY_CURRENT_NOW (shown as-is, no unit scaling, so a number
+     * like 1847 or -215 is displayed). The raw value is negative while
+     * charging on this ROM, so we invert the sign for display: a minus reading
+     * is shown as "+", a plus reading as "-" (per the user's convention).
      */
     private fun updateBattery() {
         val intent = appContext.registerReceiver(
@@ -205,19 +206,17 @@ class StandbyController(context: Context, root: View) {
         if (level < 0 || scale <= 0) return
         val percent = (level * 100f / scale).toInt()
 
-        val unit = appContext.getString(R.string.charging_current_unit)
-
-        // signed mA, negative while charging on this device
-        val signedMa = BatteryInfo.readCurrentNowMa(appContext)
-        if (signedMa == null) {
+        // Raw signed value (negative while charging on this device).
+        val raw = BatteryInfo.readCurrentNowRaw(appContext)
+        if (raw == null) {
             batteryText.text = "$percent%"
             return
         }
 
         // Invert the sign so charging shows as a positive number with "+".
-        val display = -signedMa
+        val display = -raw
         val withSign = if (display > 0) "+$display" else "$display"
-        batteryText.text = "$percent% · $withSign $unit"
+        batteryText.text = "$percent% · $withSign"
     }
 
     /** Sends a hardware-style media key (previous/next) to control playback. */
