@@ -123,14 +123,26 @@
                 android:layout_marginBottom="26dp"
                 android:background="@color/aod_divider" />
 
-            <!-- Right: month calendar card -->
-            <com.aidarbreeze.alwayson.view.MonthCalendarView
-                android:id="@+id/monthView"
+            <!-- Right panel: alternates month calendar and a stock chart
+                 (black & white) when the stocks mode is enabled. -->
+            <FrameLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:layout_gravity="center_vertical"
-                android:layout_marginStart="16dp" />
+                android:layout_marginStart="16dp">
+
+                <com.aidarbreeze.alwayson.view.MonthCalendarView
+                    android:id="@+id/monthView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <com.aidarbreeze.alwayson.view.StockChartView
+                    android:id="@+id/stockView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
 
         </LinearLayout>
 

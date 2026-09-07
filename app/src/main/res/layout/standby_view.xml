@@ -114,13 +114,26 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Month calendar in the lower part, scales to fit. -->
-            <com.aidarbreeze.alwayson.view.MonthCalendarView
-                android:id="@+id/monthView"
+            <!-- Lower panel: alternates month calendar and a stock chart
+                 (black & white) when the stocks mode is enabled. -->
+            <FrameLayout
+                android:id="@+id/bottomPanel"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="2"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="8dp">
+
+                <com.aidarbreeze.alwayson.view.MonthCalendarView
+                    android:id="@+id/monthView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <com.aidarbreeze.alwayson.view.StockChartView
+                    android:id="@+id/stockView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
 
         </LinearLayout>
 

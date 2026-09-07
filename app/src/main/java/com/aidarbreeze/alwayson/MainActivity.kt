@@ -8,8 +8,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.Switch
@@ -35,6 +38,10 @@ class MainActivity : Activity() {
     private lateinit var secondsSwitch: Switch
     private lateinit var batterySwitch: Switch
     private lateinit var batteryProbe: TextView
+    private lateinit var stocksSwitch: Switch
+    private lateinit var stockInputs: View
+    private lateinit var tickerInput: EditText
+    private lateinit var refInput: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +61,10 @@ class MainActivity : Activity() {
         secondsSwitch = findViewById(R.id.secondsSwitch)
         batterySwitch = findViewById(R.id.batterySwitch)
         batteryProbe = findViewById(R.id.batteryProbe)
+        stocksSwitch = findViewById(R.id.stocksSwitch)
+        stockInputs = findViewById(R.id.stockInputs)
+        tickerInput = findViewById(R.id.tickerInput)
+        refInput = findViewById(R.id.refInput)
 
         // Load persisted appearance.
         autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
@@ -101,6 +112,33 @@ class MainActivity : Activity() {
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // Load stocks settings.
+        stocksSwitch.isChecked = Prefs.stocksEnabled(this)
+        tickerInput.setText(Prefs.stockTicker(this))
+        val ref = Prefs.stockReference(this)
+        refInput.setText(if (ref > 0.0) ref.toString() else "")
+        updateStockInputsVisibility()
+
+        stocksSwitch.setOnCheckedChangeListener { _, checked ->
+            Prefs.setStocksEnabled(this, checked)
+            updateStockInputsVisibility()
+        }
+        tickerInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                Prefs.setStockTicker(this@MainActivity, s?.toString() ?: "")
+            }
+        })
+        refInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val d = s?.toString()?.toDoubleOrNull()
+                if (d != null) Prefs.setStockReference(this@MainActivity, d)
+            }
         })
 
         use24Switch.setOnCheckedChangeListener { _, checked ->
@@ -175,6 +213,11 @@ class MainActivity : Activity() {
     private fun updateOutlineThicknessRow() {
         val style = Prefs.clockStyle(this)
         outlineThicknessRow.visibility = if (style == 1) View.VISIBLE else View.GONE
+    }
+
+    /** Hide the stock input fields while the stocks feature is switched off. */
+    private fun updateStockInputsVisibility() {
+        stockInputs.visibility = if (stocksSwitch.isChecked) View.VISIBLE else View.GONE
     }
 
     private fun canDraw(): Boolean = Settings.canDrawOverlays(this)

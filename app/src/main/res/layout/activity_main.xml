@@ -317,6 +317,84 @@
             android:visibility="gone"
             android:text="" />
 
+        <!-- ===== Stocks panel ===== -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="@string/stocks_section" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="4dp">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/stocks_switch_title"
+                    android:textSize="16sp"
+                    android:textColor="#DE000000" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/stocks_switch_summary"
+                    android:textSize="13sp"
+                    android:textColor="#8A000000" />
+            </LinearLayout>
+            <Switch
+                android:id="@+id/stocksSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/stockInputs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="4dp"
+            android:paddingRight="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/stock_ticker_label"
+                android:textSize="15sp"
+                android:textColor="#DE000000" />
+
+            <EditText
+                android:id="@+id/tickerInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/stock_ticker_hint"
+                android:inputType="textCapCharacters"
+                android:singleLine="true"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/stock_ref_label"
+                android:textSize="15sp"
+                android:textColor="#DE000000" />
+
+            <EditText
+                android:id="@+id/refInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/stock_ref_hint"
+                android:inputType="numberDecimal"
+                android:singleLine="true"
+                android:textSize="15sp" />
+        </LinearLayout>
+
         <!-- ===== Note ===== -->
         <TextView
             style="@style/SectionTitle"

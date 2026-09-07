@@ -34,6 +34,15 @@
     <string name="style_dots">Dot-matrix “comic” digits</string>
     <string name="style_flip">Flip clock (откидные)</string>
     <string name="clock_thickness_label">Outline thickness</string>
+
+    <!-- Stocks / calendar alternation -->
+    <string name="stocks_section">Stocks panel</string>
+    <string name="stocks_switch_title">Show a stock chart between calendar views</string>
+    <string name="stocks_switch_summary">Alternates every 10 s: calendar → 30-min chart → calendar → 15-min → calendar → 5-min, repeating.</string>
+    <string name="stock_ticker_label">Ticker symbol</string>
+    <string name="stock_ticker_hint">e.g. AAPL, MSFT, SBER.ME</string>
+    <string name="stock_ref_label">Reference price (base for the % change)</string>
+    <string name="stock_ref_hint">e.g. 184.25</string>
     <string name="switch_24h">24-hour format</string>
     <string name="switch_seconds">Show seconds</string>
     <string name="switch_battery">Show battery level &amp; charge current</string>

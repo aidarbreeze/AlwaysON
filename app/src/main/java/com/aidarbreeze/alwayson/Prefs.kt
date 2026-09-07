@@ -20,6 +20,10 @@ object Prefs {
     private const val KEY_CLOCK_STYLE = "clock_style"
     // Line/outline thickness in dp used by the outline style.
     private const val KEY_CLOCK_THICKNESS = "clock_thickness"
+    // Calendar <-> stock chart alternation mode.
+    private const val KEY_STOCKS_ENABLED = "stocks_enabled"
+    private const val KEY_STOCK_TICKER = "stock_ticker"
+    private const val KEY_STOCK_REF = "stock_reference"
     private const val KEY_AUTO_STANDBY = "auto_standby"
 
     private fun sp(ctx: Context) =
@@ -58,6 +62,23 @@ object Prefs {
         sp(ctx).getInt(KEY_CLOCK_THICKNESS, 6).coerceIn(1, 30)
     fun setClockThickness(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(KEY_CLOCK_THICKNESS, v.coerceIn(1, 30)).apply()
+
+    /** Calendar <-> stock chart alternation mode. */
+    fun stocksEnabled(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_STOCKS_ENABLED, false)
+    fun setStocksEnabled(ctx: Context, on: Boolean) =
+        sp(ctx).edit().putBoolean(KEY_STOCKS_ENABLED, on).apply()
+
+    /** Stock ticker symbol, e.g. "AAPL" or "SBER.ME". */
+    fun stockTicker(ctx: Context): String =
+        (sp(ctx).getString(KEY_STOCK_TICKER, null) ?: "").trim().uppercase()
+    fun setStockTicker(ctx: Context, v: String) =
+        sp(ctx).edit().putString(KEY_STOCK_TICKER, v.trim().uppercase()).apply()
+
+    /** User-entered reference price the change percentage is computed from. */
+    fun stockReference(ctx: Context): Double =
+        sp(ctx).getFloat(KEY_STOCK_REF, 0f).toDouble()
+    fun setStockReference(ctx: Context, v: Double) =
+        sp(ctx).edit().putFloat(KEY_STOCK_REF, v.toFloat()).apply()
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)

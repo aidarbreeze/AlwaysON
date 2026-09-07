@@ -15,8 +15,10 @@ import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
 import com.aidarbreeze.alwayson.media.MediaWatcher
+import com.aidarbreeze.alwayson.stock.StockApi
 import com.aidarbreeze.alwayson.view.ClockView
 import com.aidarbreeze.alwayson.view.MonthCalendarView
+import com.aidarbreeze.alwayson.view.StockChartView
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -45,6 +47,7 @@ class StandbyController(context: Context, root: View) {
     private val mediaPrev: TextView = root.findViewById(R.id.mediaPrev)
     private val mediaNext: TextView = root.findViewById(R.id.mediaNext)
     private val monthView: MonthCalendarView = root.findViewById(R.id.monthView)
+    private val stockView: StockChartView = root.findViewById(R.id.stockView)
     private val content: View = root.findViewById(R.id.standbyContent)
 
     private val mediaWatcher = MediaWatcher(appContext)
@@ -53,6 +56,23 @@ class StandbyController(context: Context, root: View) {
     private var tickCount = 0
     private var lastMedia: String? = null
     private var driftStep = 0
+
+    // --- calendar <-> stock chart alternation ---
+    // null means "show the calendar" for that step; a string is the chart
+    // interval to fetch. Sequence: calendar, 30m chart, calendar, 15m chart,
+    // calendar, 5m chart, then it repeats.
+    private val panelSteps = arrayOf<String?>(null, "30m", null, "15m", null, "5m")
+    private var panelStep = 0
+    private val stockCached = HashMap<String, List<Double>>()
+    private var fetchGen = 0L
+    private val panelTickMs = 10_000L
+    private val panelRunnable = object : Runnable {
+        override fun run() {
+            panelStep = (panelStep + 1) % panelSteps.size
+            renderPanel()
+            handler.postDelayed(this, panelTickMs)
+        }
+    }
 
     // --- auto brightness (ambient light sensor) ---
     private var sensorManager: SensorManager? = null
@@ -119,11 +139,82 @@ class StandbyController(context: Context, root: View) {
         monthView.invalidate()
         handler.post(tick)
         handler.post(drift)
+        startPanelCycle()
     }
 
     fun stop() {
         stopLightSensor()
         handler.removeCallbacksAndMessages(null)
+        showCalendarOnly()
+    }
+
+    // ---------- calendar <-> stock chart alternation ----------
+
+    private fun panelEnabled(): Boolean =
+        Prefs.stocksEnabled(appContext) &&
+            Prefs.stockTicker(appContext).isNotEmpty()
+
+    private fun startPanelCycle() {
+        handler.removeCallbacks(panelRunnable)
+        if (!panelEnabled()) {
+            showCalendarOnly()
+            return
+        }
+        panelStep = 0
+        renderPanel()
+        handler.postDelayed(panelRunnable, panelTickMs)
+    }
+
+    private fun renderPanel() {
+        val interval = panelSteps[panelStep]
+        if (interval == null) {
+            showCalendarOnly()
+        } else {
+            showChart(interval)
+        }
+    }
+
+    private fun showCalendarOnly() {
+        monthView.visibility = View.VISIBLE
+        stockView.visibility = View.GONE
+    }
+
+    private fun showChart(interval: String) {
+        monthView.visibility = View.GONE
+        stockView.visibility = View.VISIBLE
+
+        val symbol = Prefs.stockTicker(appContext)
+        val ref = Prefs.stockReference(appContext)
+        if (symbol.isEmpty()) {
+            stockView.setStatus("—")
+            return
+        }
+        val cached = stockCached[interval]
+        if (cached != null && cached.size >= 2) {
+            stockView.setData(symbol, ref, cached)
+        } else {
+            stockView.setStatus("Загрузка…")
+        }
+        fetchStock(symbol, interval, ref)
+    }
+
+    /** Fetch a chart interval on a background thread; ignore stale results. */
+    private fun fetchStock(symbol: String, interval: String, ref: Double) {
+        val gen = ++fetchGen
+        Thread {
+            val data = StockApi.fetchSeries(symbol, interval)
+            handler.post {
+                if (gen != fetchGen) return@post
+                if (data != null && data.size >= 2) {
+                    stockCached[interval] = data
+                    if (stockView.visibility == View.VISIBLE) {
+                        stockView.setData(symbol, ref, data)
+                    }
+                } else if (stockView.visibility == View.VISIBLE) {
+                    stockView.setStatus("нет данных / нет сети")
+                }
+            }
+        }.start()
     }
 
     // ---------- auto brightness (ambient light) ----------
