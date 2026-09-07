@@ -131,7 +131,7 @@ class StandbyController(context: Context, root: View) {
         if (text.isEmpty()) return
         val parent = tv.parent as? View ?: return
         // Room to breathe inside the column (a few px on each side).
-        val avail = (parent.width - dp(16)).toFloat()
+        val avail = (parent.width - dp(16f)).toFloat()
         if (avail <= 0f) return // not laid out yet; a later tick will retry
         if (clockBasePx <= 0f) clockBasePx = tv.textSize
 
