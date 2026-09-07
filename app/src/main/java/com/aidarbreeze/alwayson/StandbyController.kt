@@ -3,6 +3,10 @@ package com.aidarbreeze.alwayson
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Handler
@@ -49,6 +53,17 @@ class StandbyController(context: Context, root: View) {
     private var lastMedia: String? = null
     private var driftStep = 0
 
+    // --- auto brightness (ambient light sensor) ---
+    private var sensorManager: SensorManager? = null
+    private var lightSensor: Sensor? = null
+    private var lightListener: SensorEventListener? = null
+    private var autoBrightness = false
+    // Smoothed current alpha so the light sensor does not cause flicker.
+    private var currentAlpha = -1f
+    private var manualAlpha = 1f
+    private val sensorHandler = Handler(Looper.getMainLooper())
+    private val minAlpha = 0.06f // barely visible in total darkness
+
     // Largest clock size (px) before any shrink, captured from the layout.
     private var clockBasePx = 0f
 
@@ -82,8 +97,15 @@ class StandbyController(context: Context, root: View) {
         batteryText.visibility =
             if (Prefs.showBattery(appContext)) View.VISIBLE else View.GONE
         // Dim the clock content only; the root background stays pure black.
-        val a = Prefs.brightness(appContext) / 100f
-        content.alpha = a.coerceIn(0.1f, 1f)
+        manualAlpha = (Prefs.brightness(appContext) / 100f).coerceIn(0f, 1f)
+        autoBrightness = Prefs.autoBrightness(appContext)
+        if (!autoBrightness) {
+            // Fixed manual level (kept at least slightly visible).
+            content.alpha = manualAlpha.coerceIn(minAlpha, 1f)
+            stopLightSensor()
+        } else {
+            startLightSensor()
+        }
     }
 
     fun start() {
@@ -100,7 +122,69 @@ class StandbyController(context: Context, root: View) {
     }
 
     fun stop() {
+        stopLightSensor()
         handler.removeCallbacksAndMessages(null)
+    }
+
+    // ---------- auto brightness (ambient light) ----------
+
+    /**
+     * Registers the ambient light sensor. On every reading we map lux to an
+     * alpha target (dark room -> barely visible, bright/sun -> full manual
+     * brightness) and ease the actual alpha toward it to avoid flicker.
+     */
+    private fun startLightSensor() {
+        if (lightListener != null) return // already listening
+        val sm = appContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            ?: return
+        sensorManager = sm
+        val sensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT) ?: return
+        lightSensor = sensor
+        currentAlpha = if (currentAlpha < 0f) minAlpha else currentAlpha
+        content.alpha = currentAlpha
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                if (event.sensor.type != Sensor.TYPE_LIGHT) return
+                val lux = event.values[0]
+                // Target between min (dark) and manualAlpha (bright).
+                val target = targetAlpha(lux)
+                // Ease toward it on the main thread (a few % per reading).
+                sensorHandler.post {
+                    currentAlpha = if (currentAlpha < 0f) target
+                    else currentAlpha + (target - currentAlpha) * 0.25f
+                    content.alpha = currentAlpha
+                }
+            }
+
+            override fun onAccuracyChanged(s: Sensor?, a: Int) {}
+        }
+        lightListener = listener
+        // Deliver on the main thread so we can touch the view directly.
+        sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI, sensorHandler)
+    }
+
+    private fun stopLightSensor() {
+        val listener = lightListener ?: return
+        lightListener = null
+        try {
+            sensorManager?.unregisterListener(listener, lightSensor)
+        } catch (_: Exception) {
+            // already unregistered
+        }
+        lightSensor = null
+        sensorManager = null
+    }
+
+    /** Maps lux to a target content alpha. Logarithmic so both the very dark
+     *  and the bright end get usable range. */
+    private fun targetAlpha(lux: Float): Float {
+        if (lux <= 0f) return minAlpha
+        // log scale ~1..20000 lux -> 0..1, saturating on both ends.
+        val t = (kotlin.math.log10(lux + 1f) - kotlin.math.log10(2f)) /
+            (kotlin.math.log10(20001f) - kotlin.math.log10(2f))
+        val f = t.coerceIn(0f, 1f)
+        val top = manualAlpha.coerceAtLeast(minAlpha).coerceAtMost(1f)
+        return minAlpha + (top - minAlpha) * f
     }
 
     private fun updateClock() {

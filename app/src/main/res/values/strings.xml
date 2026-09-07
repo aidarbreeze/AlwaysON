@@ -24,7 +24,9 @@
 
     <!-- Appearance -->
     <string name="section_appearance">Appearance</string>
-    <string name="brightness_label">Clock brightness</string>
+    <string name="auto_brightness_title">Auto brightness</string>
+    <string name="auto_brightness_summary">Automatically adjust to the light sensor — barely visible in the dark, clearly readable in daylight. The slider below becomes the maximum.</string>
+    <string name="brightness_label">Maximum clock brightness</string>
     <string name="switch_24h">24-hour format</string>
     <string name="switch_seconds">Show seconds</string>
     <string name="switch_battery">Show battery level &amp; charge current</string>

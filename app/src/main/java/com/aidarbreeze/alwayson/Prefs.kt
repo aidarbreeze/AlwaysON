@@ -12,6 +12,9 @@ object Prefs {
     // How bright the clock content should be (0..100). Applied to the clock
     // text only, never to the black background.
     private const val KEY_BRIGHTNESS = "brightness"
+    // Automatically tune the clock brightness to the ambient light sensor so
+    // it is barely visible in the dark yet clearly readable in daylight.
+    private const val KEY_AUTO_BRIGHTNESS = "auto_brightness"
     private const val KEY_AUTO_STANDBY = "auto_standby"
 
     private fun sp(ctx: Context) =
@@ -33,6 +36,12 @@ object Prefs {
         sp(ctx).getInt(KEY_BRIGHTNESS, 100).coerceIn(0, 100)
     fun setBrightness(ctx: Context, value: Int) =
         sp(ctx).edit().putInt(KEY_BRIGHTNESS, value.coerceIn(0, 100)).apply()
+
+    /** Auto-tune brightness to the ambient light sensor. Default on. */
+    fun autoBrightness(ctx: Context): Boolean =
+        sp(ctx).getBoolean(KEY_AUTO_BRIGHTNESS, true)
+    fun setAutoBrightness(ctx: Context, on: Boolean) =
+        sp(ctx).edit().putBoolean(KEY_AUTO_BRIGHTNESS, on).apply()
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)

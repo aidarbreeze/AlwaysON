@@ -24,7 +24,9 @@
 
     <!-- Оформление -->
     <string name="section_appearance">Внешний вид</string>
-    <string name="brightness_label">Яркость часов</string>
+    <string name="auto_brightness_title">Автояркость</string>
+    <string name="auto_brightness_summary">Автоматически подстраиваться под датчик света — еле заметно в темноте и хорошо видно днём. Ползунок ниже задаёт максимум.</string>
+    <string name="brightness_label">Максимальная яркость часов</string>
     <string name="switch_24h">24-часовой формат</string>
     <string name="switch_seconds">Показывать секунды</string>
     <string name="switch_battery">Показывать заряд батареи и ток зарядки</string>

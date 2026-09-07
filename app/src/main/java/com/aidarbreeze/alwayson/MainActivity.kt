@@ -23,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var autoSwitch: Switch
     private lateinit var permStatus: TextView
     private lateinit var btnGrantPerm: Button
+    private lateinit var autoBrightSwitch: Switch
     private lateinit var brightnessSeek: SeekBar
     private lateinit var brightnessValue: TextView
     private lateinit var use24Switch: Switch
@@ -37,6 +38,7 @@ class MainActivity : Activity() {
         autoSwitch = findViewById(R.id.autoSwitch)
         permStatus = findViewById(R.id.permStatus)
         btnGrantPerm = findViewById(R.id.btnGrantPerm)
+        autoBrightSwitch = findViewById(R.id.autoBrightSwitch)
         brightnessSeek = findViewById(R.id.brightnessSeek)
         brightnessValue = findViewById(R.id.brightnessValue)
         use24Switch = findViewById(R.id.use24Switch)
@@ -45,11 +47,18 @@ class MainActivity : Activity() {
         batteryProbe = findViewById(R.id.batteryProbe)
 
         // Load persisted appearance.
+        autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
         use24Switch.isChecked = Prefs.force24h(this)
         secondsSwitch.isChecked = Prefs.showSeconds(this)
         batterySwitch.isChecked = Prefs.showBattery(this)
         brightnessSeek.progress = Prefs.brightness(this)
         updateBrightnessLabel()
+        updateBrightnessEnabledState()
+
+        autoBrightSwitch.setOnCheckedChangeListener { _, checked ->
+            Prefs.setAutoBrightness(this, checked)
+            updateBrightnessEnabledState()
+        }
 
         use24Switch.setOnCheckedChangeListener { _, checked ->
             Prefs.setForce24h(this, checked)
@@ -110,6 +119,13 @@ class MainActivity : Activity() {
 
     private fun updateBrightnessLabel() {
         brightnessValue.text = "${brightnessSeek.progress}%"
+    }
+
+    private fun updateBrightnessEnabledState() {
+        // The slider always controls Prefs.brightness: when auto is on it is the
+        // maximum the sensor may reach; when off it is the fixed level.
+        val auto = autoBrightSwitch.isChecked
+        brightnessSeek.alpha = if (auto) 0.6f else 1f
     }
 
     private fun canDraw(): Boolean = Settings.canDrawOverlays(this)
