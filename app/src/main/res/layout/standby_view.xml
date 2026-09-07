@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/standbyRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/aod_background">
+
+    <!-- This container is drifted a few pixels now and then to protect OLED
+         pixels from burn-in. Its edges reveal the pure black root. -->
+    <FrameLayout
+        android:id="@+id/standbyContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- Month calendar, top-right -->
+        <com.aidarbreeze.alwayson.view.MonthCalendarView
+            android:id="@+id/monthView"
+            android:layout_width="196dp"
+            android:layout_height="172dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="36dp"
+            android:layout_marginEnd="30dp" />
+
+        <!-- Clock column, centre -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/clockText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-light"
+                android:includeFontPadding="false"
+                android:gravity="center"
+                android:text="00:00"
+                android:textColor="@color/aod_clock_text"
+                android:textSize="150sp" />
+
+            <TextView
+                android:id="@+id/dateText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text=""
+                android:textColor="@color/aod_secondary_text"
+                android:textSize="24sp" />
+
+            <TextView
+                android:id="@+id/batteryText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:gravity="center"
+                android:text=""
+                android:textColor="@color/aod_secondary_text"
+                android:textSize="18sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Compact now-playing card, bottom centre -->
+        <LinearLayout
+            android:id="@+id/mediaGroup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal|bottom"
+            android:layout_marginBottom="30dp"
+            android:background="@drawable/media_pill"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="18dp"
+            android:paddingTop="10dp"
+            android:paddingRight="18dp"
+            android:paddingBottom="10dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/mediaGlyph"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginRight="10dp"
+                android:text=""
+                android:textColor="@color/aod_secondary_text"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/mediaText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:singleLine="true"
+                android:text=""
+                android:textColor="@color/aod_clock_text"
+                android:textSize="20sp" />
+        </LinearLayout>
+
+    </FrameLayout>
+</FrameLayout>

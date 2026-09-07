@@ -9,4 +9,11 @@
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">#DE000000</item>
     </style>
+
+    <!-- Full black, borderless theme used by the StandBy preview activity. -->
+    <style name="StandbyTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@color/aod_background</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>

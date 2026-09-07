@@ -1,16 +1,28 @@
 package com.aidarbreeze.alwayson
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.widget.Button
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
+import com.aidarbreeze.alwayson.service.OverlayService
 
 class MainActivity : Activity() {
 
+    private val reqOverlay = 1001
+    private val reqNotif = 1002
+
+    private lateinit var autoSwitch: Switch
+    private lateinit var permStatus: TextView
+    private lateinit var btnGrantPerm: Button
     private lateinit var brightnessSeek: SeekBar
     private lateinit var brightnessValue: TextView
     private lateinit var use24Switch: Switch
@@ -21,13 +33,16 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        autoSwitch = findViewById(R.id.autoSwitch)
+        permStatus = findViewById(R.id.permStatus)
+        btnGrantPerm = findViewById(R.id.btnGrantPerm)
         brightnessSeek = findViewById(R.id.brightnessSeek)
         brightnessValue = findViewById(R.id.brightnessValue)
         use24Switch = findViewById(R.id.use24Switch)
         secondsSwitch = findViewById(R.id.secondsSwitch)
         batterySwitch = findViewById(R.id.batterySwitch)
 
-        // --- load persisted values ---
+        // Load persisted appearance.
         use24Switch.isChecked = Prefs.force24h(this)
         secondsSwitch.isChecked = Prefs.showSeconds(this)
         batterySwitch.isChecked = Prefs.showBattery(this)
@@ -52,25 +67,117 @@ class MainActivity : Activity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
+        findViewById<Button>(R.id.btnPreview).setOnClickListener {
+            startActivity(Intent(this, StandbyActivity::class.java))
+        }
+
+        btnGrantPerm.setOnClickListener {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            startActivityForResult(intent, reqOverlay)
+        }
+
+        autoSwitch.setOnCheckedChangeListener { _, checked ->
+            if (checked) enableAuto() else disableAuto()
+        }
+
         findViewById<Button>(R.id.btnOpenDream).setOnClickListener {
             openDreamSettings()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshPermissionUi()
+        refreshSwitchState()
     }
 
     private fun updateBrightnessLabel() {
         brightnessValue.text = "${brightnessSeek.progress}%"
     }
 
+    private fun canDraw(): Boolean = Settings.canDrawOverlays(this)
+
+    private fun refreshPermissionUi() {
+        if (canDraw()) {
+            permStatus.text = getString(R.string.overlay_perm_granted)
+            btnGrantPerm.visibility = View.GONE
+        } else {
+            permStatus.text = getString(R.string.overlay_perm_required)
+            btnGrantPerm.visibility = View.VISIBLE
+        }
+    }
+
+    private fun refreshSwitchState() {
+        val on = Prefs.autoStandby(this) && canDraw()
+        autoSwitch.setOnCheckedChangeListener(null)
+        autoSwitch.isChecked = on
+        autoSwitch.setOnCheckedChangeListener { _, checked ->
+            if (checked) enableAuto() else disableAuto()
+        }
+    }
+
+    private fun enableAuto() {
+        if (!canDraw()) {
+            // Turn the switch back off and ask for the permission.
+            autoSwitch.setOnCheckedChangeListener(null)
+            autoSwitch.isChecked = false
+            autoSwitch.setOnCheckedChangeListener { _, checked ->
+                if (checked) enableAuto() else disableAuto()
+            }
+            refreshPermissionUi()
+            return
+        }
+        Prefs.setAutoStandby(this, true)
+        startOverlayService()
+        maybeRequestNotificationPermission()
+    }
+
+    private fun disableAuto() {
+        Prefs.setAutoStandby(this, false)
+        stopService(Intent(this, OverlayService::class.java))
+    }
+
+    private fun startOverlayService() {
+        val i = Intent(this, OverlayService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(i)
+        } else {
+            startService(i)
+        }
+    }
+
+    private fun maybeRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS), reqNotif
+                )
+            }
+        }
+    }
+
     private fun openDreamSettings() {
         try {
             startActivity(Intent(Settings.ACTION_DREAM_SETTINGS))
         } catch (_: Exception) {
-            // Rare: no dream settings activity available. Try the fallback intent.
             try {
                 startActivity(Intent("android.settings.DREAM_SETTINGS"))
             } catch (_: Exception) {
                 // ignore
             }
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == reqOverlay) {
+            refreshPermissionUi()
+            refreshSwitchState()
         }
     }
 }

@@ -12,6 +12,7 @@ object Prefs {
     // How bright the clock content should be (0..100). Applied to the clock
     // text only, never to the black background.
     private const val KEY_BRIGHTNESS = "brightness"
+    private const val KEY_AUTO_STANDBY = "auto_standby"
 
     private fun sp(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -32,4 +33,9 @@ object Prefs {
         sp(ctx).getInt(KEY_BRIGHTNESS, 100).coerceIn(0, 100)
     fun setBrightness(ctx: Context, value: Int) =
         sp(ctx).edit().putInt(KEY_BRIGHTNESS, value.coerceIn(0, 100)).apply()
+
+    /** User asked to auto-show StandBy while charging in landscape. */
+    fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)
+    fun setAutoStandby(ctx: Context, on: Boolean) =
+        sp(ctx).edit().putBoolean(KEY_AUTO_STANDBY, on).apply()
 }

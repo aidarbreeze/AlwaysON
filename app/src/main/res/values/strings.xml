@@ -1,22 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AlwaysON</string>
-    <string name="dream_label">AlwaysON clock</string>
+    <string name="dream_label">AlwaysON StandBy</string>
 
-    <!-- Options -->
-    <string name="section_options">Clock</string>
+    <!-- StandBy -->
+    <string name="section_standby">StandBy screen</string>
+    <string name="preview_desc">Big clock, date, a month calendar and, when music plays, a compact player — in the style of iPhone StandBy. Black OLED background with burn-in protection.</string>
+    <string name="btn_preview">Show StandBy now</string>
+
+    <string name="auto_title">Show while charging in landscape</string>
+    <string name="auto_summary">Automatically shows the clock while the phone charges in landscape (great on a stand). It never blocks your taps and hides itself on unplug, on rotation or from the notification.</string>
+    <string name="overlay_perm_required">The “display over other apps” permission is required.</string>
+    <string name="overlay_perm_button">Grant permission</string>
+    <string name="overlay_perm_granted">Permission granted</string>
+
+    <string name="btn_open_dream">Also use as the system screen saver</string>
+    <string name="dream_hint">Android only auto-starts a screen saver when idle and charging on some devices. If yours does, pick “AlwaysON StandBy” as the screen saver in the settings it opens.</string>
+
+    <!-- Appearance -->
+    <string name="section_appearance">Appearance</string>
     <string name="brightness_label">Clock brightness</string>
     <string name="switch_24h">24-hour format</string>
     <string name="switch_seconds">Show seconds</string>
     <string name="switch_battery">Show battery level</string>
 
-    <!-- Screen saver -->
-    <string name="section_screensaver">Enable as a screen saver</string>
-    <string name="screensaver_desc">To use the clock as an always-on screen, set it as the system screen saver. The clock then appears automatically whenever the phone is idle and charging or docked, and goes away as soon as you touch the screen.</string>
-    <string name="btn_open_dream">Open screen saver settings</string>
-    <string name="dream_hint">If “AlwaysON clock” is not listed, first turn the screen saver on, then pick it and set the start condition to “While charging”.</string>
+    <!-- Service notification -->
+    <string name="notif_title">AlwaysON StandBy</string>
+    <string name="notif_text">Waiting — will show while charging in landscape</string>
+    <string name="notif_hide">Hide now</string>
+    <string name="notif_channel">StandBy overlay</string>
 
     <!-- Note -->
-    <string name="tech_note_title">Note</string>
-    <string name="tech_note">On Android the always-on-clock behaviour is provided by the system screen saver, because there is no public API to draw on the screen while it is fully off. This app registers a screen saver with a pure black, OLED-friendly background; only the clock text is dimmable.</string>
+    <string name="tech_note_title">How it works</string>
+    <string name="tech_note">There is no public Android API to draw while the screen is fully off (that is the manufacturer AOD). This app uses the closest supported options: the optional “while charging in landscape” overlay for phones like OnePlus that do not auto-start the built-in screen saver, and the system screen saver where the firmware honours it. The now-playing card only appears while music actually plays.</string>
 </resources>

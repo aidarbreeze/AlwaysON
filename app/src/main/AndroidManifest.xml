@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Settings screen -->
+    <!-- Auto StandBy overlay ("while charging & landscape") needs to draw over
+         other apps and run as a foreground service. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -10,6 +16,7 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.DarkActionBar">
 
+        <!-- Settings screen -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -20,11 +27,26 @@
             </intent-filter>
         </activity>
 
-        <!-- Screen saver: Android starts it automatically when the device is
-             idle and (per the system setting) charging/docked. This is the
-             always-on clock experience: pure-black background with a dimmed,
-             OLED-friendly clock. Selected in Settings > Display > Screen saver.
-             It stops by itself as soon as the user touches / moves the device. -->
+        <!-- Full-screen preview / manual StandBy (back button exits). -->
+        <activity
+            android:name=".StandbyActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/StandbyTheme" />
+
+        <!-- Auto StandBy: overlay while charging in landscape. Never consumes
+             touches and hides on unplug / portrait / notification action. -->
+        <service
+            android:name=".service.OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="shows a clock while the phone charges in landscape (StandBy mode); never intercepts touches and auto-hides" />
+        </service>
+
+        <!-- Screen saver (system "daydream"): Android starts it when idle &
+             charging on devices whose firmware honours it. -->
         <service
             android:name=".dream.ClockDreamService"
             android:exported="true"
@@ -37,6 +59,15 @@
                 android:name="android.service.dream"
                 android:resource="@xml/dream_info" />
         </service>
+
+        <!-- Declared so the app may list currently-playing media sessions. -->
+        <receiver
+            android:name=".media.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

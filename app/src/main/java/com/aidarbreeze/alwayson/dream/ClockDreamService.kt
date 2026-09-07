@@ -1,38 +1,24 @@
 package com.aidarbreeze.alwayson.dream
 
-import android.os.Handler
-import android.os.Looper
 import android.service.dreams.DreamService
 import android.view.LayoutInflater
-import android.view.View
-import com.aidarbreeze.alwayson.AodViews
-import com.aidarbreeze.alwayson.Prefs
 import com.aidarbreeze.alwayson.R
+import com.aidarbreeze.alwayson.StandbyController
 
 /**
- * Screen saver ("daydream") that shows an always-on style clock on a pure
- * black background.
+ * Screen saver ("daydream") showing the iPhone-StandBy-style clock: big time,
+ * date, month calendar and (when music plays) a compact now-playing card, all
+ * on a pure black OLED-friendly background with burn-in protection.
  *
  * Android starts it automatically when the device is idle and (per the system
  * setting) charging/docked, and stops it the moment the user touches the
- * screen or moves the device — so there is never a "stuck in the mode"
- * situation.
- *
- * Enable it: Android Settings > Display > Screen saver, pick "AlwaysON clock"
- * and set "Start when: charging / docked".
+ * screen or moves the device. Many OEM builds (e.g. OnePlus/OxygenOS) do not
+ * auto-start third-party dreams while charging — for those, use the app's
+ * optional "show while charging in landscape" overlay instead.
  */
 class ClockDreamService : DreamService() {
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var views: AodViews? = null
-    private var contentView: View? = null
-
-    private val tick = object : Runnable {
-        override fun run() {
-            views?.updateNow()
-            handler.postDelayed(this, 1000)
-        }
-    }
+    private var controller: StandbyController? = null
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -40,34 +26,25 @@ class ClockDreamService : DreamService() {
         isFullscreen = true
 
         val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
-        val view = inflater.inflate(R.layout.aod_view, null)
-
-        contentView = view.findViewById(R.id.aodContent)
-        // Dim only the clock content, keep the background pure black so OLED
-        // pixels are truly off outside the digits.
-        contentView?.alpha = Prefs.brightness(this) / 100f
-
+        val view = inflater.inflate(R.layout.standby_view, null)
         setContentView(view)
-        views = AodViews(this, view)
+
+        controller = StandbyController(this, view)
     }
 
     override fun onDreamingStarted() {
         super.onDreamingStarted()
-        views?.applyOptions()
-        views?.updateNow()
-        handler.removeCallbacks(tick)
-        handler.post(tick)
+        controller?.start()
     }
 
     override fun onDreamingStopped() {
-        handler.removeCallbacks(tick)
+        controller?.stop()
         super.onDreamingStopped()
     }
 
     override fun onDetachedFromWindow() {
-        handler.removeCallbacks(tick)
-        contentView = null
-        views = null
+        controller?.stop()
+        controller = null
         super.onDetachedFromWindow()
     }
 }

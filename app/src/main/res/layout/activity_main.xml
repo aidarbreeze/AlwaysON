@@ -10,10 +10,94 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Clock options -->
+        <!-- ===== StandBy ===== -->
         <TextView
             style="@style/SectionTitle"
-            android:text="@string/section_options" />
+            android:text="@string/section_standby" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/preview_desc"
+            android:textSize="14sp"
+            android:lineSpacingExtra="3dp"
+            android:textColor="#DE000000" />
+
+        <Button
+            android:id="@+id/btnPreview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/btn_preview" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:layout_marginTop="12dp">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/auto_title"
+                    android:textSize="16sp"
+                    android:textColor="#DE000000" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/auto_summary"
+                    android:textSize="13sp"
+                    android:textColor="#8A000000" />
+            </LinearLayout>
+            <Switch
+                android:id="@+id/autoSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/permStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:textSize="13sp"
+            android:textColor="#CC000000"
+            android:text="" />
+
+        <Button
+            android:id="@+id/btnGrantPerm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/overlay_perm_button"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnOpenDream"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/btn_open_dream" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/dream_hint"
+            android:textSize="13sp"
+            android:textColor="#8A000000" />
+
+        <!-- ===== Appearance ===== -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="@string/section_appearance" />
 
         <TextView
             android:layout_width="match_parent"
@@ -70,35 +154,7 @@
             android:textSize="16sp"
             android:textColor="#DE000000" />
 
-        <!-- Screen saver -->
-        <TextView
-            style="@style/SectionTitle"
-            android:text="@string/section_screensaver" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/screensaver_desc"
-            android:textSize="14sp"
-            android:lineSpacingExtra="3dp"
-            android:textColor="#DE000000" />
-
-        <Button
-            android:id="@+id/btnOpenDream"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_open_dream" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/dream_hint"
-            android:textSize="13sp"
-            android:textColor="#8A000000" />
-
-        <!-- Note -->
+        <!-- ===== Note ===== -->
         <TextView
             style="@style/SectionTitle"
             android:text="@string/tech_note_title" />
