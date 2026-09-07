@@ -15,7 +15,7 @@ import kotlin.math.abs
  * The charge current is the tricky part: [BatteryManager] only reports it when
  * the kernel exposes it through the battery HAL, and the sign is not defined
  * consistently across devices (some report it negative while charging). As a
- * fallback we read the raw nodes under /sys/class/power_supply/* (the same
+ * fallback we read the raw nodes under /sys/class/power_supply (the same
  * source AIDA64 / Ampere use): every battery appears there as a symlink, so a
  * single directory scan covers all device-specific paths (battery, bms, main,
  * usb, ac, dc, charger, wireless and the various fuel-gauge chips).
