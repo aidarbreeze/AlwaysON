@@ -243,7 +243,11 @@ class ClockView @JvmOverloads constructor(
         for (row in 0 until rows) {
             val bits = pat[row]
             for (col in 0 until cols) {
-                if (((bits shr col) and 1) != 0) {
+                // Bit 0 of the literal is its right-most character, but column 0
+                // is drawn left-most, so read the bits from the other side
+                // (otherwise the digit comes out mirrored).
+                val bit = cols - 1 - col
+                if (((bits shr bit) and 1) != 0) {
                     val cx = left + (col + 1) * colSpacing
                     val cy = top + (row + 1) * rowSpacing
                     canvas.drawCircle(cx, cy, r, paint)
