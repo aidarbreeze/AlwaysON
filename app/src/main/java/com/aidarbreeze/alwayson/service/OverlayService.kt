@@ -127,6 +127,8 @@ class OverlayService : Service() {
         }
     }
 
+    @Suppress("DEPRECATION") // FLAG_SHOW_WHEN_LOCKED is a no-op on API 33+ but still
+    // needed to cover the keyguard on API 26-32, so we keep it.
     private fun addOverlay() {
         if (!Settings.canDrawOverlays(this)) return
         if (overlayView != null) return
