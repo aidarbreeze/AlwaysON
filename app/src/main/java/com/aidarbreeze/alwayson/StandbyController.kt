@@ -190,7 +190,12 @@ class StandbyController(context: Context, root: View) {
         }
     }
 
-    /** Battery level plus, while charging, the live charge current in mA. */
+    /**
+     * Battery level plus the live current read straight from
+     * BATTERY_PROPERTY_CURRENT_NOW. The raw value is negative while charging on
+     * this ROM, so we invert the sign for display: a minus reading is shown as
+     * "+", a plus reading as "-" (per the user's requested convention).
+     */
     private fun updateBattery() {
         val intent = appContext.registerReceiver(
             null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)
@@ -200,18 +205,19 @@ class StandbyController(context: Context, root: View) {
         if (level < 0 || scale <= 0) return
         val percent = (level * 100f / scale).toInt()
 
-        val charging = BatteryInfo.isCharging(appContext)
-        // Show the live current whenever it is measurable and the battery is
-        // not draining, even if the status flag lags (some ROMs report a fresh
-        // current while the status reads stale). Never show a "charge" current
-        // while actually discharging.
-        val currentMa = BatteryInfo.readCurrentMa(appContext)
-        val showCurrent = currentMa > 0 &&
-            (charging || !BatteryInfo.isDischarging(appContext))
-
         val unit = appContext.getString(R.string.charging_current_unit)
-        batteryText.text =
-            if (showCurrent) "$percent% · $currentMa $unit" else "$percent%"
+
+        // signed mA, negative while charging on this device
+        val signedMa = BatteryInfo.readCurrentNowMa(appContext)
+        if (signedMa == null) {
+            batteryText.text = "$percent%"
+            return
+        }
+
+        // Invert the sign so charging shows as a positive number with "+".
+        val display = -signedMa
+        val withSign = if (display > 0) "+$display" else "$display"
+        batteryText.text = "$percent% · $withSign $unit"
     }
 
     /** Sends a hardware-style media key (previous/next) to control playback. */
