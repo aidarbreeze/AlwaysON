@@ -10,78 +10,18 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Status -->
-        <TextView
-            android:id="@+id/statusText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:textColor="#FF3D3D3D"
-            android:textStyle="italic"
-            android:textSize="14sp"
-            android:text="" />
-
-        <!-- Overlay section -->
+        <!-- Clock options -->
         <TextView
             style="@style/SectionTitle"
-            android:text="AlwaysON" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:padding="8dp">
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/overlay_switch_title"
-                    android:textSize="16sp"
-                    android:textColor="#DE000000" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/overlay_switch_summary"
-                    android:textSize="13sp"
-                    android:textColor="#8A000000" />
-            </LinearLayout>
-            <Switch
-                android:id="@+id/overlaySwitch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
+            android:text="@string/section_options" />
 
         <TextView
-            android:id="@+id/overlayPermStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingLeft="8dp"
-            android:paddingRight="8dp"
-            android:textSize="13sp"
-            android:textColor="#CC000000"
-            android:text="" />
-
-        <Button
-            android:id="@+id/btnOverlayPerm"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="@string/overlay_perm_button"
-            android:visibility="gone" />
-
-        <!-- Brightness -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:text="@string/brightness_label"
             android:textSize="15sp"
             android:textColor="#DE000000" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -99,7 +39,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="end"
                 android:textSize="14sp"
-                android:text="60%" />
+                android:text="100%" />
         </LinearLayout>
 
         <Switch
@@ -130,7 +70,7 @@
             android:textSize="16sp"
             android:textColor="#DE000000" />
 
-        <!-- Screensaver -->
+        <!-- Screen saver -->
         <TextView
             style="@style/SectionTitle"
             android:text="@string/section_screensaver" />

@@ -4,5 +4,4 @@
     <color name="aod_background">#000000</color>
     <color name="aod_clock_text">#F2F2F2</color>
     <color name="aod_secondary_text">#B0B0B0</color>
-    <color name="notification_icon">#FFFFFF</color>
 </resources>

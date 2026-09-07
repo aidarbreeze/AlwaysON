@@ -6,6 +6,7 @@
     android:background="@color/aod_background">
 
     <LinearLayout
+        android:id="@+id/aodContent"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"

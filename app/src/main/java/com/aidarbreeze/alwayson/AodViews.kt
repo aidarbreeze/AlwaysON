@@ -12,8 +12,7 @@ import java.util.Locale
 
 /**
  * Owns the three text views of the AOD layout and refreshes them with the
- * current time / date / battery. Used both by the overlay service and the
- * screen-saver service so the clock looks identical in both modes.
+ * current time / date / battery. Used by the screen-saver service.
  */
 class AodViews(private val context: Context, private val root: View) {
 

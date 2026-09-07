@@ -3,36 +3,20 @@
     <string name="app_name">AlwaysON</string>
     <string name="dream_label">AlwaysON часы</string>
 
-    <!-- Наложение -->
-    <string name="overlay_switch_title">Наложение AlwaysON</string>
-    <string name="overlay_switch_summary">Показывать приглушённые часы поверх текущего экрана</string>
-    <string name="btn_show_now">Показать сейчас</string>
-    <string name="btn_hide">Скрыть</string>
-    <string name="overlay_permission_required">Требуется разрешение на поверх других приложений</string>
-    <string name="overlay_perm_button">Разрешить поверх других приложений</string>
-    <string name="overlay_perm_granted">Разрешение выдано</string>
-    <string name="overlay_running_status">Наложение активно. Скрыть можно из уведомления или выключив переключатель.</string>
-
-    <!-- Параметры -->
-    <string name="brightness_label">Яркость наложения</string>
+    <!-- Параметры часов -->
+    <string name="section_options">Часы</string>
+    <string name="brightness_label">Яркость часов</string>
     <string name="switch_24h">24-часовой формат</string>
     <string name="switch_seconds">Показывать секунды</string>
     <string name="switch_battery">Показывать заряд батареи</string>
 
-    <!-- Автоматический режим -->
-    <string name="section_screensaver">Автоматический режим (заставка)</string>
-    <string name="screensaver_desc">Чтобы получить настоящее поведение «всегда включённых часов» (они сами включаются, когда телефон простаивает), выберите AlwaysON системной заставкой. Удобнее всего это работает, когда телефон заряжается или стоит в доке.</string>
+    <!-- Заставка -->
+    <string name="section_screensaver">Включить как заставку</string>
+    <string name="screensaver_desc">Чтобы использовать часы как «всегда включённый» экран, назначьте приложение системной заставкой. Тогда часы будут сами появляться, когда телефон простаивает и заряжается или стоит в доке, и исчезать при первом касании экрана.</string>
     <string name="btn_open_dream">Открыть настройки заставки</string>
-    <string name="dream_hint">Если «AlwaysON часов» нет в списке — сначала включите заставку, затем выберите её и укажите условие запуска «В доке и при зарядке».</string>
+    <string name="dream_hint">Если «AlwaysON часов» нет в списке — сначала включите заставку, затем выберите её и укажите условие запуска «Во время зарядки».</string>
 
-    <!-- Уведомление -->
-    <string name="notification_channel_name">Наложение AlwaysON</string>
-    <string name="notification_channel_desc">Поддерживает работу часов AlwaysON</string>
-    <string name="notification_title">AlwaysON включён</string>
-    <string name="notification_text">Часы показаны поверх экрана</string>
-    <string name="hide_action">Скрыть</string>
-
-    <!-- Примечания -->
+    <!-- Примечание -->
     <string name="tech_note_title">Примечание</string>
-    <string name="tech_note">На устройстве без root нет открытого API, чтобы рисовать настоящее «always-on» изображение при выключенном экране (для этого нужен AOD производителя). Поэтому в приложении два максимально близких и поддерживаемых режима: наложение для «ночных» часов, пока экран включён, и заставка, которая сама показывает часы, когда телефон простаивает и заряжается. Заряд может обновляться с задержкой.</string>
+    <string name="tech_note">Поведение «всегда включённых часов» в Android обеспечивает системная заставка: публичного API для отрисовки при полностью выключенном экране нет. Приложение регистрирует заставку с чисто чёрным OLED-дружелюбным фоном; яркость применима только к тексту часов.</string>
 </resources>
