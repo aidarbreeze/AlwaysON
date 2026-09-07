@@ -62,7 +62,7 @@ class StandbyController(context: Context, root: View) {
     private var currentAlpha = -1f
     private var manualAlpha = 1f
     private val sensorHandler = Handler(Looper.getMainLooper())
-    private val minAlpha = 0.06f // barely visible in total darkness
+    private val minAlpha = 0.22f // lowest: dim but clearly visible in the dark
 
     // Largest clock size (px) before any shrink, captured from the layout.
     private var clockBasePx = 0f
