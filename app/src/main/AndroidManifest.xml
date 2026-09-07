@@ -64,7 +64,7 @@
             android:name=".dream.ClockDreamService"
             android:exported="true"
             android:label="@string/dream_label"
-            android:permission="android.permission.BIND_DREAM">
+            android:permission="android.permission.BIND_DREAM_SERVICE">
             <intent-filter>
                 <action android:name="android.service.dreams.DreamService" />
             </intent-filter>
