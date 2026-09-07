@@ -1,9 +1,12 @@
 package com.aidarbreeze.alwayson.dream
 
 import android.content.res.Configuration
+import android.os.Build
 import android.service.dreams.DreamService
 import android.view.LayoutInflater
 import android.view.OrientationEventListener
+import android.view.View
+import android.view.WindowManager
 import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.StandbyController
 
@@ -37,6 +40,11 @@ class ClockDreamService : DreamService() {
         super.onAttachedToWindow()
         isInteractive = false
         isFullscreen = true
+
+        // Hide the status & navigation bars for a clean, immersive full-screen
+        // clock. isFullscreen alone is not honoured by every ROM (OxygenOS
+        // keeps showing the status bar), so apply the window flags too.
+        hideSystemUi()
 
         orientationListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
@@ -73,6 +81,30 @@ class ClockDreamService : DreamService() {
         orientationListener?.disable()
         orientationListener = null
         super.onDetachedFromWindow()
+    }
+
+    private fun hideSystemUi() {
+        try {
+            val decor = window.decorView
+            decor.systemUiVisibility = decor.systemUiVisibility or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        } catch (_: Exception) {
+            // best effort only
+        }
     }
 
     /** Picks the layout that matches the current orientation and (re)shows it. */
