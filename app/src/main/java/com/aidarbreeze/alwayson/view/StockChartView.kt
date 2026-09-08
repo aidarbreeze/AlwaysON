@@ -11,26 +11,31 @@ import android.util.AttributeSet
 import android.view.View
 import com.aidarbreeze.alwayson.Prefs
 import com.aidarbreeze.alwayson.stock.Candle
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Monochrome (black & white) stock chart used by the calendar<->stocks mode.
  *
  * Layers are kept in separate bands so nothing overlaps:
- *  - a top band: ticker (left) and the last price + change % vs the reference
- *    (right, last price in large bold),
+ *  - a top band: ticker (left) and the last price + changes (right: day
+ *    change vs the previous session close and change vs the reference),
  *  - a left gutter: the price scale — "nice" round values (1/2/5 steps) with
  *    grid lines,
- *  - the plot area: the close polyline or candlesticks, a small marker on the
- *    right edge at the last price, and the dashed reference line (drawn only
- *    when the reference falls inside the visible range),
- *  - a thin bottom band: short date (left), time (HH:MM) ticks in the middle,
- *    the shown interval on the far right.
+ *  - the plot area: the close polyline or candlesticks. Candles are spaced
+ *    by index (trading sessions compressed, like every real intraday chart);
+ *    the polyline BREAKS across session gaps (night/weekend) instead of
+ *    connecting them. A small marker on the right edge shows the last price,
+ *    and the dashed reference line is drawn only when it is inside range.
+ *  - a thin bottom band: short date (left), time (HH:MM) ticks in the
+ *    middle, the shown interval + "closed" badge on the far right.
  *
  * The value range always auto-fits the visible DATA. The reference price is
- * deliberately excluded from the fit so a far-off reference cannot stretch the
- * axis and flatten the actual price movement.
+ * deliberately excluded from the fit so a far-off reference cannot stretch
+ * the axis and flatten the actual price movement.
  */
 class StockChartView @JvmOverloads constructor(
     context: Context,
@@ -42,6 +47,7 @@ class StockChartView @JvmOverloads constructor(
     private var symbol = ""
     private var refPrice = 0.0
     private var intervalLabel = ""
+    private var intervalSec = 0
     private var statusText = ""
 
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -98,16 +104,23 @@ class StockChartView @JvmOverloads constructor(
 
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
 
+    /**
+     * [intervalSec] is the nominal candle interval (60/600/3600): it decides
+     * how big a time hole between two consecutive candles counts as a session
+     * gap for the line-break.
+     */
     fun setData(
         symbol: String,
         refPrice: Double,
         interval: String,
-        candles: List<Candle>
+        candles: List<Candle>,
+        intervalSec: Int = 0
     ) {
         this.symbol = symbol.uppercase()
         this.refPrice = refPrice
         this.intervalLabel = interval
         this.candles = candles
+        this.intervalSec = intervalSec
         statusText = ""
         invalidate()
     }
@@ -171,12 +184,42 @@ class StockChartView @JvmOverloads constructor(
         return out
     }
 
-    private fun pctText(): String {
-        val last = candles.lastOrNull()?.close ?: return ""
-        if (refPrice <= 0.0) return ""
-        val pct = (last - refPrice) / refPrice * 100.0
-        val sign = if (pct > 0) "+" else ""
-        return String.format(Locale.US, "%s%.2f%%", sign, pct)
+    private fun pct(v: Double): String {
+        val sign = if (v > 0) "+" else ""
+        return String.format(Locale.US, "%s%.2f%%", sign, v)
+    }
+
+    /**
+     * Day change %: last close vs the close of the last candle of the
+     * PREVIOUS trading session. Only computable when the fetched window spans
+     * at least two sessions (10-min / 60-min windows do; a short 1-min
+     * window does not).
+     */
+    private fun dayChangePct(): Double? {
+        val list = candles
+        if (list.size < 4) return null
+        val msk = TimeZone.getTimeZone("Europe/Moscow")
+        val cal = Calendar.getInstance(msk)
+        val lastCal = cal.apply { timeInMillis = list.last().timeMs }
+        val lastDay = lastCal.get(Calendar.DAY_OF_YEAR)
+        var prevClose: Double? = null
+        for (c in list.reversed()) {
+            cal.timeInMillis = c.timeMs
+            if (cal.get(Calendar.DAY_OF_YEAR) == lastDay) continue
+            prevClose = c.close
+            break
+        }
+        if (prevClose == null || prevClose <= 0.0) return null
+        return (list.last().close - prevClose) / prevClose * 100.0
+    }
+
+    /** True when the MOEX TQBR regular session is open right now. */
+    private fun marketOpenNow(): Boolean {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"))
+        val dow = cal.get(Calendar.DAY_OF_WEEK)
+        if (dow == Calendar.SATURDAY || dow == Calendar.SUNDAY) return false
+        val mins = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        return mins in (10 * 60 + 30)..(18 * 60 + 45)
     }
 
     private fun shortDate(): String {
@@ -212,8 +255,6 @@ class StockChartView @JvmOverloads constructor(
         val plotH = plotB - plotT
 
         // ---- vertical range: fit the visible DATA only ----
-        // The reference price is intentionally excluded here; forcing it into
-        // the range would stretch the axis and flatten the price movement.
         val dMin = candles.minOfOrNull { it.low } ?: 0.0
         val dMax = candles.maxOfOrNull { it.high } ?: 0.0
         val dSpan = (dMax - dMin).let { if (it <= 0.0) 1.0 else it }
@@ -223,31 +264,38 @@ class StockChartView @JvmOverloads constructor(
         val vspan = (hi - lo).let { if (it <= 0.0) 1.0 else it }
         fun yFor(v: Double): Float = plotB - ((v - lo) / vspan).toFloat() * plotH
 
-        // x by time — but only when EVERY candle has a valid timestamp. If a
-        // single time failed to parse (timeMs == 0) we fall back to index
-        // spacing for the whole series; mixing the two scales per point would
-        // shoot the line to the wrong edge of the plot.
-        val t0 = candles.first().timeMs
-        val t1 = candles.last().timeMs
-        val tspan = (t1 - t0).toDouble()
-        val timeScale = tspan > 0 && candles.all { it.timeMs > 0 }
-        fun xFor(i: Int): Float {
-            if (timeScale) {
-                return plotL + ((candles[i].timeMs - t0) / tspan).toFloat() * plotW
-            }
-            return if (candles.size > 1) plotL + (i.toFloat() / (candles.size - 1)) * plotW else plotL
-        }
+        // x by INDEX: every candle gets an equal slot, so trading sessions
+        // are compressed (no empty night/weekend regions) — the standard
+        // intraday-chart layout.
+        fun xFor(i: Int): Float =
+            if (candles.size > 1) plotL + (i.toFloat() / (candles.size - 1)) * plotW else plotL
 
-        // ---- top band: ticker (left), last price + change (right) ----
+        // A time hole bigger than this between consecutive candles is a
+        // session gap: the line must not be drawn across it.
+        val gapThresholdMs = maxOf(2L * intervalSec * 1000L, 30L * 60L * 1000L)
+        fun isGap(i: Int): Boolean = i > 0 &&
+            candles[i].timeMs > 0 && candles[i - 1].timeMs > 0 &&
+            candles[i].timeMs - candles[i - 1].timeMs > gapThresholdMs
+
+        // ---- top band: ticker (left), last price + changes (right) ----
         val last = candles.last().close
         textPaint.textAlign = Paint.Align.LEFT
         canvas.drawText(symbol, padL, dpf(20f), textPaint)
         priceBigPaint.textAlign = Paint.Align.RIGHT
         canvas.drawText(fmt(last, priceDecimals(dSpan)), w - padR, dpf(21f), priceBigPaint)
-        val pct = pctText()
-        if (pct.isNotEmpty()) {
+
+        // "day" = vs the previous session close, "base" = vs your reference.
+        val changes = buildString {
+            val day = dayChangePct()
+            if (day != null) append(pct(day)).append(" день")
+            if (refPrice > 0.0) {
+                if (isNotEmpty()) append("  ")
+                append(pct((last - refPrice) / refPrice * 100.0)).append(" база")
+            }
+        }
+        if (changes.isNotEmpty()) {
             labelPaint.textAlign = Paint.Align.RIGHT
-            canvas.drawText(pct, w - padR, dpf(35f), labelPaint)
+            canvas.drawText(changes, w - padR, dpf(35f), labelPaint)
         }
 
         // ---- price grid: nice round tick values ----
@@ -267,11 +315,11 @@ class StockChartView @JvmOverloads constructor(
             canvas.drawLine(plotL, ry, plotR, ry, refPaint)
         }
 
-        // ---- series ----
+        // ---- series (line breaks across session gaps) ----
         if (chartType() == 1) {
-            drawCandles(canvas, plotL, plotR, plotW, ::xFor, ::yFor)
+            drawCandles(canvas, plotW, ::xFor, ::yFor)
         } else {
-            drawLine(canvas, ::xFor, ::yFor)
+            drawLine(canvas, ::xFor, ::yFor, ::isGap)
         }
 
         // ---- last price marker on the right edge ----
@@ -280,41 +328,46 @@ class StockChartView @JvmOverloads constructor(
 
         // ---- bottom band ----
         val axisBaseline = h - dpf(3f)
-        // time HH:MM ticks: only interior ticks so edges stay free for date/interval.
-        // Only meaningful when the series is actually plotted by time.
-        if (timeScale) {
-            // Three interior HH:MM labels at 25/50/75% so the far edges stay free
-            // for the date (left) and the interval (right).
-            val timeFmt = java.text.SimpleDateFormat("HH:mm", Locale.US)
+        // Three interior HH:MM labels (index positions) so the far edges stay
+        // free for the date (left) and the interval (right).
+        val hasTimes = candles.any { it.timeMs > 0 }
+        if (hasTimes) {
+            val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
             labelPaint.textAlign = Paint.Align.CENTER
             for (frac in floatArrayOf(0.25f, 0.5f, 0.75f)) {
-                val x = plotL + frac * plotW
-                val t = (t0 + (tspan * frac).toLong())
-                canvas.drawText(timeFmt.format(java.util.Date(t)), x, axisBaseline, labelPaint)
+                val idx = (frac * (candles.size - 1)).toInt()
+                val t = candles[idx].timeMs
+                if (t <= 0) continue
+                canvas.drawText(timeFmt.format(Date(t)), xFor(idx), axisBaseline, labelPaint)
             }
         }
 
-        // date (bottom-left) and interval (bottom-right)
+        // date (bottom-left) and interval + market state (bottom-right)
         labelPaint.textAlign = Paint.Align.LEFT
         canvas.drawText(shortDate(), padL, axisBaseline, labelPaint)
         labelPaint.textAlign = Paint.Align.RIGHT
-        canvas.drawText(intervalLabel, w - padR, axisBaseline, labelPaint)
+        val intervalText = if (marketOpenNow()) intervalLabel
+        else "$intervalLabel · закрыт"
+        canvas.drawText(intervalText, w - padR, axisBaseline, labelPaint)
     }
 
-    private fun drawLine(canvas: Canvas, xFor: (Int) -> Float, yFor: (Double) -> Float) {
+    private fun drawLine(
+        canvas: Canvas,
+        xFor: (Int) -> Float,
+        yFor: (Double) -> Float,
+        isGap: (Int) -> Boolean
+    ) {
         val path = Path()
         for (i in candles.indices) {
             val x = xFor(i)
             val y = yFor(candles[i].close)
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            if (i == 0 || isGap(i)) path.moveTo(x, y) else path.lineTo(x, y)
         }
         canvas.drawPath(path, linePaint)
     }
 
     private fun drawCandles(
         canvas: Canvas,
-        plotL: Float,
-        plotR: Float,
         plotW: Float,
         xFor: (Int) -> Float,
         yFor: (Double) -> Float

@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
 import com.aidarbreeze.alwayson.service.OverlayService
 import com.aidarbreeze.alwayson.ui.StandbyUiState
 
@@ -27,6 +28,19 @@ class StandbyActivity : Activity() {
         setContentView(R.layout.standby_view)
         controller = StandbyController(this, findViewById(R.id.standbyRoot))
         controller?.start()
+
+        // Long-press toggles pinning the current window (pauses the rotation);
+        // a second long-press resumes it from the same window.
+        findViewById<View>(R.id.standbyRoot).setOnLongClickListener {
+            val isPinned = controller?.togglePinned() ?: false
+            Toast.makeText(
+                this,
+                if (isPinned) "Окно закреплено — ещё раз, чтобы вернуться к смене"
+                else "Смена окон включена",
+                Toast.LENGTH_SHORT
+            ).show()
+            true
+        }
     }
 
     override fun onResume() {

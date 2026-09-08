@@ -42,6 +42,34 @@
                 android:textSize="15sp"
                 android:textColor="@color/preview_text_secondary"
                 android:text="" />
+
+            <!-- Full StandBy mini-panel: rotates the same windows (calendar /
+                 chart / weather) with the same per-window durations as the
+                 real overlay, so the preview is the whole screen saver. -->
+            <FrameLayout
+                android:id="@+id/miniRoot"
+                android:layout_width="match_parent"
+                android:layout_height="170dp"
+                android:layout_marginTop="10dp">
+
+                <com.aidarbreeze.alwayson.view.MonthCalendarView
+                    android:id="@+id/miniMonth"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+
+                <com.aidarbreeze.alwayson.view.StockChartView
+                    android:id="@+id/miniStock"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+
+                <com.aidarbreeze.alwayson.view.WeatherPanelView
+                    android:id="@+id/miniWeather"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
         </LinearLayout>
 
         <!-- ================= StandBy ================= -->
@@ -102,6 +130,194 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <!-- When the auto StandBy should be allowed (night by default). -->
+            <LinearLayout
+                android:id="@+id/scheduleRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <RadioGroup
+                    android:id="@+id/schedGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="2dp">
+
+                    <RadioButton
+                        android:id="@+id/schedAlways"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="16dp"
+                        android:text="@string/sched_always"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/schedByTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="16dp"
+                        android:paddingBottom="2dp"
+                        android:text="@string/sched_by_time"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                </RadioGroup>
+
+                <LinearLayout
+                    android:id="@+id/schedHoursRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:minHeight="48dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="12dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/sched_from" />
+
+                    <Spinner
+                        android:id="@+id/schedFromSpinner"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="10dp" />
+
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/sched_to" />
+
+                    <Spinner
+                        android:id="@+id/schedToSpinner"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Window rotation: how long each window stays on the screen -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card">
+
+            <TextView
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:text="@string/window_durations_title" />
+
+            <TextView
+                style="@style/PrefSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/window_durations_summary" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/dur_cal_label" />
+
+                <Spinner
+                    android:id="@+id/durCalSpinner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/dur_stock_label" />
+
+                <Spinner
+                    android:id="@+id/durStockSpinner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/dur_weather_label" />
+
+                <Spinner
+                    android:id="@+id/durWeatherSpinner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginBottom="6dp" />
             </LinearLayout>
         </LinearLayout>
 
@@ -576,11 +792,12 @@
 
                 <TextView
                     style="@style/PrefSummary"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
                     android:paddingTop="10dp"
-                    android:text="@string/stock_ticker_label" />
+                    android:text="@string/stock_tickers_label" />
 
                 <EditText
                     android:id="@+id/tickerInput"

@@ -109,10 +109,21 @@ class OverlayService : Service(), SensorEventListener {
             when (intent.action) {
                 Intent.ACTION_POWER_DISCONNECTED -> stopSelf()
                 Intent.ACTION_POWER_CONNECTED -> {
+                    // A fresh charge session lifts the "user took the phone"
+                    // suppression (persisted, so it survives process death).
                     suppressed = false
+                    Prefs.setStandbySuppressed(this@OverlayService, false)
                     evaluateAndSync()
                 }
             }
+        }
+    }
+
+    // The auto-standby is schedule-gated (e.g. night only). The clock hour
+    // change is the only moment the answer can flip while charging continues.
+    private val timeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            evaluateAndSync()
         }
     }
 
@@ -153,7 +164,9 @@ class OverlayService : Service(), SensorEventListener {
 
     override fun onCreate() {
         super.onCreate()
-        suppressed = false
+        // Remembered across process death: a dismissed overlay must not come
+        // back on its own during the same charge session.
+        suppressed = Prefs.standbySuppressed(this)
 
         // Seed the screen state from the device, not from a guess: the service
         // is often started by a POWER_CONNECTED broadcast while the phone is
@@ -164,6 +177,9 @@ class OverlayService : Service(), SensorEventListener {
         registerGuarded(powerReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
+        })
+        registerGuarded(timeReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_TIME_CHANGED)
         })
         registerGuarded(screenReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
@@ -205,6 +221,7 @@ class OverlayService : Service(), SensorEventListener {
             ACTION_HIDE -> {
                 Prefs.setAutoStandby(this, false)
                 suppressed = true
+                Prefs.setStandbySuppressed(this, true)
                 removeOverlay()
                 stopSelf()
                 return START_NOT_STICKY
@@ -213,7 +230,10 @@ class OverlayService : Service(), SensorEventListener {
                 // Fresh start (app enabled / charging connected / boot) resets
                 // the "user took the phone" suppression; ACTION_REFRESH
                 // (preview opened/closed) must not.
-                if (intent?.action != ACTION_REFRESH) suppressed = false
+                if (intent?.action != ACTION_REFRESH) {
+                    suppressed = false
+                    Prefs.setStandbySuppressed(this, false)
+                }
                 evaluateAndSync()
                 // A disabled feature must not keep (or revive) us: the system
                 // would otherwise restart a sticky service we just stopped.
@@ -227,6 +247,10 @@ class OverlayService : Service(), SensorEventListener {
         unregisterSensors()
         try {
             unregisterReceiver(powerReceiver)
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            unregisterReceiver(timeReceiver)
         } catch (_: IllegalArgumentException) {
         }
         try {
@@ -282,6 +306,7 @@ class OverlayService : Service(), SensorEventListener {
 
         val allowed = Prefs.autoStandby(this) &&
             !suppressed &&
+            Prefs.isStandbyTimeAllowed(this, java.util.Calendar.getInstance()) &&
             !StandbyUiState.previewVisible &&
             Settings.canDrawOverlays(this)
 
@@ -380,6 +405,7 @@ class OverlayService : Service(), SensorEventListener {
     private fun exitStandby() {
         removeOverlay()
         suppressed = true
+        Prefs.setStandbySuppressed(this, true)
     }
 
     // ---------- pick-up detection (accelerometer) ----------

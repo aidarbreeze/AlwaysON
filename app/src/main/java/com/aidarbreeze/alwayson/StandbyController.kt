@@ -14,6 +14,7 @@ import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
+import com.aidarbreeze.alwayson.media.MediaArtView
 import com.aidarbreeze.alwayson.media.MediaWatcher
 import com.aidarbreeze.alwayson.stock.Candle
 import com.aidarbreeze.alwayson.stock.StockApi
@@ -23,6 +24,7 @@ import com.aidarbreeze.alwayson.view.StockChartView
 import com.aidarbreeze.alwayson.view.WeatherPanelView
 import com.aidarbreeze.alwayson.weather.WeatherApi
 import com.aidarbreeze.alwayson.weather.WeatherInfo
+import com.aidarbreeze.alwayson.weather.WeatherSharedCache
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -48,6 +50,7 @@ class StandbyController(context: Context, root: View) {
     private val mediaGroup: View = root.findViewById(R.id.mediaGroup)
     private val mediaGlyph: TextView = root.findViewById(R.id.mediaGlyph)
     private val mediaText: TextView = root.findViewById(R.id.mediaText)
+    private val mediaArt: MediaArtView = root.findViewById(R.id.mediaArt)
     private val mediaPrev: TextView = root.findViewById(R.id.mediaPrev)
     private val mediaNext: TextView = root.findViewById(R.id.mediaNext)
     private val monthView: MonthCalendarView = root.findViewById(R.id.monthView)
@@ -69,23 +72,28 @@ class StandbyController(context: Context, root: View) {
     // Weather is only included once a forecast point (geolocation or a manually
     // entered city) is available.
     private enum class Kind { CAL, STOCK, WEATHER }
-    private class Panel(val kind: Kind, val interval: Int = 0)
+    private class Panel(val kind: Kind, val interval: Int = 0, val symbol: String = "")
 
-    private val stockCached = HashMap<Int, List<Candle>>()
-    // When each interval was last attempted, so the 10 s panel cycle does not
-    // hit the network again for data we just received (or for a bad ticker
-    // that keeps returning nothing).
-    private val stockAttemptAt = HashMap<Int, Long>()
+    // Stock data, keyed by "SYMBOL-INTERVAL" so the watchlist (up to 3
+    // tickers) does not clobber each other's cache.
+    private val stockCached = HashMap<String, List<Candle>>()
+    // When each key was last attempted, so the panel cycle does not hit the
+    // network again for data we just received (or a bad ticker that keeps
+    // returning nothing). The timestamp doubles as the fetch-generation:
+    // a result is applied only if no newer fetch for the same key started.
+    private val stockAttemptAt = HashMap<String, Long>()
+    // Which ticker+interval the chart view is currently showing.
+    private var currentStock: Pair<String, Int>? = null
     private val stockFreshMs = 60_000L
     private var weatherCached: WeatherInfo? = null
     private var weatherFetchedAt = 0L
     private var weatherFetching = false
     private var panelSeq: List<Panel> = emptyList()
     private var panelStep = 0
-    private var fetchGen = 0L
     private var weatherGen = 0L
-    private val panelTickMs = 10_000L
     private val weatherFreshMs = 55L * 60L * 1000L // refetch the forecast hourly
+    // Long-press in the preview pins the current window (pauses rotation).
+    private var pinned = false
 
     // Smooth window transition: the current panel fades out to black, a short
     // hold, then the next panel is swapped in and fades back in. Driven by the
@@ -98,14 +106,39 @@ class StandbyController(context: Context, root: View) {
     private var transitionGen = 0L
     private val panelRunnable = object : Runnable {
         override fun run() {
+            if (panelSeq.isEmpty()) return
             // Never advance while a fade is in flight, or a window would be
             // skipped; the next tick retries the step.
             if (!panelAnimating) {
                 panelStep = (panelStep + 1) % panelSeq.size
                 renderPanel()
             }
-            handler.postDelayed(this, panelTickMs)
+            // Each window type has its own on-screen duration (user setting);
+            // the delay is measured for the panel that is on screen now.
+            handler.postDelayed(this, durationMs(panelSeq.getOrNull(panelStep)))
         }
+    }
+
+    /** The user-set on-screen duration (ms) of a window type. */
+    private fun durationMs(panel: Panel?): Long {
+        val sec = when (panel?.kind) {
+            Kind.CAL -> Prefs.panelDurationCal(appContext)
+            Kind.STOCK -> Prefs.panelDurationStock(appContext)
+            Kind.WEATHER -> Prefs.panelDurationWeather(appContext)
+            null -> 10
+        }
+        return sec * 1000L
+    }
+
+    /** Toggle pinning; returns true while pinned. */
+    fun togglePinned(): Boolean {
+        pinned = !pinned
+        if (pinned) {
+            handler.removeCallbacks(panelRunnable)
+        } else {
+            handler.postDelayed(panelRunnable, durationMs(panelSeq.getOrNull(panelStep)))
+        }
+        return pinned
     }
 
     /** Short label for an ISS interval code, shown at the bottom of the chart. */
@@ -200,6 +233,7 @@ class StandbyController(context: Context, root: View) {
         // no window is left half-faded when the screen goes away.
         transitionGen++
         panelAnimating = false
+        pinned = false
         handler.removeCallbacksAndMessages(null)
         monthView.alpha = 1f
         stockView.alpha = 1f
@@ -209,9 +243,8 @@ class StandbyController(context: Context, root: View) {
 
     // ---------- calendar <-> stock chart alternation ----------
 
-    private fun panelEnabled(): Boolean =
-        Prefs.stocksEnabled(appContext) &&
-            Prefs.stockTicker(appContext).isNotEmpty()
+    /** The watchlist (1-3 MOEX tickers), empty when nothing usable is set. */
+    private fun tickers(): List<String> = Prefs.stockTickers(appContext)
 
     private fun weatherReady(): Boolean =
         Prefs.weatherEnabled(appContext) && Prefs.hasWeatherLocation(appContext)
@@ -234,43 +267,38 @@ class StandbyController(context: Context, root: View) {
         }
         panelStep = 0
         renderPanel()
-        handler.postDelayed(panelRunnable, panelTickMs)
+        if (!pinned) handler.postDelayed(panelRunnable, durationMs(panelSeq[0]))
     }
 
-    /** The rotating set of windows for the currently enabled modes. */
+    /**
+     * The rotating set of windows for the currently enabled modes. Every
+     * watchlist ticker gets its own chart window(s): a fixed period gives one
+     * window per ticker; "auto" cycles 60/10/1 for a single ticker and shows
+     * one 60-min window per ticker for a longer list (keeps the cycle sane).
+     */
     private fun buildPanels(): List<Panel> {
-        val stocks = panelEnabled()
+        val tickers = tickers()
+        val stocks = Prefs.stocksEnabled(appContext) && tickers.isNotEmpty()
         val weather = weatherReady()
         if (!stocks && !weather) return listOf(Panel(Kind.CAL))
-        if (!weather) {
-            // Stocks only — keep the original behaviour where the calendar is
-            // interleaved between the (auto) chart intervals.
-            val chosen = Prefs.stockPeriod(appContext)
-            return if (chosen == 1 || chosen == 10 || chosen == 60) {
-                listOf(Panel(Kind.CAL), Panel(Kind.STOCK, chosen))
-            } else {
-                listOf(
-                    Panel(Kind.CAL), Panel(Kind.STOCK, 60),
-                    Panel(Kind.CAL), Panel(Kind.STOCK, 10),
-                    Panel(Kind.CAL), Panel(Kind.STOCK, 1)
-                )
-            }
-        }
-        // Weather on: one clean loop of every enabled window, ending with the
-        // single weather panel (current + hourly + week in one screen).
         val out = ArrayList<Panel>()
         out.add(Panel(Kind.CAL))
         if (stocks) {
             val chosen = Prefs.stockPeriod(appContext)
-            if (chosen == 1 || chosen == 10 || chosen == 60) {
-                out.add(Panel(Kind.STOCK, chosen))
-            } else {
-                out.add(Panel(Kind.STOCK, 60))
-                out.add(Panel(Kind.STOCK, 10))
-                out.add(Panel(Kind.STOCK, 1))
+            for (t in tickers) {
+                when {
+                    chosen == 1 || chosen == 10 || chosen == 60 ->
+                        out.add(Panel(Kind.STOCK, chosen, t))
+                    tickers.size == 1 -> {
+                        out.add(Panel(Kind.STOCK, 60, t))
+                        out.add(Panel(Kind.STOCK, 10, t))
+                        out.add(Panel(Kind.STOCK, 1, t))
+                    }
+                    else -> out.add(Panel(Kind.STOCK, 60, t))
+                }
             }
         }
-        out.add(Panel(Kind.WEATHER))
+        if (weather) out.add(Panel(Kind.WEATHER))
         return out
     }
 
@@ -329,7 +357,7 @@ class StandbyController(context: Context, root: View) {
     private fun applyPanel(panel: Panel) {
         when (panel.kind) {
             Kind.CAL -> showCalendarOnly()
-            Kind.STOCK -> showChart(panel.interval)
+            Kind.STOCK -> showChart(panel.symbol, panel.interval)
             Kind.WEATHER -> showWeather()
         }
     }
@@ -363,47 +391,52 @@ class StandbyController(context: Context, root: View) {
         weatherView.visibility = View.GONE
     }
 
-    private fun showChart(code: Int) {
+    private fun stockKey(symbol: String, code: Int): String = "$symbol-$code"
+
+    private fun showChart(symbol: String, code: Int) {
         monthView.visibility = View.GONE
         weatherView.visibility = View.GONE
         stockView.visibility = View.VISIBLE
+        currentStock = symbol to code
 
-        val symbol = Prefs.stockTicker(appContext)
         val ref = Prefs.stockReference(appContext)
         val label = intervalLabel(code)
         if (symbol.isEmpty()) {
             stockView.setStatus("—")
             return
         }
-        val cached = stockCached[code]
+        val key = stockKey(symbol, code)
+        val cached = stockCached[key]
         if (cached != null && cached.size >= 2) {
             // Show what we have immediately (may be minutes old) and refresh
             // in the background only when the cache is stale.
-            stockView.setData(symbol, ref, label, cached)
+            stockView.setData(symbol, ref, label, cached, code * 60)
         } else {
             stockView.setStatus("Загрузка…")
         }
-        val age = System.currentTimeMillis() - (stockAttemptAt[code] ?: 0L)
+        val age = System.currentTimeMillis() - (stockAttemptAt[key] ?: 0L)
         if (age >= stockFreshMs) {
             fetchStock(symbol, code, ref, label)
         }
     }
 
-    /** Fetch candles for an interval on a background thread; drop stale results. */
+    /** Fetch candles for a ticker+interval; apply the result only when it is
+     *  still the freshest attempt for that key AND the chart still shows it. */
     private fun fetchStock(symbol: String, code: Int, ref: Double, label: String) {
-        val gen = ++fetchGen
-        stockAttemptAt[code] = System.currentTimeMillis()
+        val key = stockKey(symbol, code)
+        val attempt = System.currentTimeMillis()
+        stockAttemptAt[key] = attempt
         Thread {
             val data = StockApi.fetchCandles(symbol, code)
             handler.post {
-                if (gen != fetchGen) return@post
+                if (stockAttemptAt[key] != attempt) return@post // superseded
                 if (data != null && data.size >= 2) {
-                    stockCached[code] = data
-                    if (stockView.visibility == View.VISIBLE) {
-                        stockView.setData(symbol, ref, label, data)
+                    stockCached[key] = data
+                    if (currentStock == symbol to code) {
+                        stockView.setData(symbol, ref, label, data, code * 60)
                     }
-                } else if (stockView.visibility == View.VISIBLE &&
-                    stockCached[code] == null
+                } else if (currentStock == symbol to code &&
+                    stockCached[key] == null
                 ) {
                     // Only show the error when we have nothing to show at all —
                     // a transient network hiccup must not wipe an older chart.
@@ -456,6 +489,9 @@ class StandbyController(context: Context, root: View) {
                 if (data != null) {
                     weatherCached = data
                     weatherFetchedAt = System.currentTimeMillis()
+                    // Persist a snapshot for the home-screen widget (it must
+                    // not do its own networking).
+                    WeatherSharedCache.save(appContext, data)
                     if (weatherView.visibility == View.VISIBLE) renderWeather()
                 } else if (weatherView.visibility == View.VISIBLE) {
                     weatherView.setStatus("Погода: нет данных / нет сети")
@@ -574,6 +610,9 @@ class StandbyController(context: Context, root: View) {
             lastMedia = line
             mediaText.text = line
         }
+        // Album art (grayscale tile), shown only when the player provides it.
+        mediaArt.setArt(now.art)
+        mediaArt.visibility = if (now.art != null) View.VISIBLE else View.GONE
         mediaGlyph.text = "\u25B6"
         if (mediaGroup.visibility != View.VISIBLE) {
             mediaGroup.visibility = View.VISIBLE

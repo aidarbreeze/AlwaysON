@@ -64,8 +64,8 @@
     <string name="stocks_section">Stocks panel</string>
     <string name="stocks_switch_title">Show a stock chart between calendar views</string>
     <string name="stocks_switch_summary">Alternates every 10 s: calendar → 60-min chart → calendar → 10-min → calendar → 1-min, repeating.</string>
-    <string name="stock_ticker_label">Ticker symbol (MOEX)</string>
-    <string name="stock_ticker_hint">e.g. TATN, SBER, LKOH, GAZP</string>
+    <string name="stock_tickers_label">Watchlist — 1–3 MOEX tickers, comma-separated. Each ticker gets its own chart window in the rotation.</string>
+    <string name="stock_ticker_hint">e.g. SBER,GAZP,LUKOIL</string>
     <string name="stock_ref_label">Reference price (base for the % change)</string>
     <string name="stock_ref_hint">e.g. 184.25</string>
     <string name="stock_type_label">Chart style</string>
@@ -106,4 +106,18 @@
     <!-- Note -->
     <string name="tech_note_title">How it works</string>
     <string name="tech_note">There is no public Android API to draw while the screen is fully off (that is the manufacturer AOD). This app uses the closest supported options: an overlay that, while the phone charges, keeps a dim clock on screen in either orientation and hands the phone back on tap / power / home / wake / pick-up, plus the system screen saver where the firmware honours it. The now-playing card only appears while music actually plays.</string>
+
+    <!-- Window rotation durations -->
+    <string name="window_durations_title">Window duration</string>
+    <string name="window_durations_summary">How long each window stays on the screen during the rotation. Applied immediately in the preview.</string>
+    <string name="dur_cal_label">Calendar</string>
+    <string name="dur_stock_label">Chart</string>
+    <string name="dur_weather_label">Weather</string>
+
+    <!-- StandBy time schedule -->
+    <string name="sched_always">Always</string>
+    <string name="sched_by_time">During the hours</string>
+    <string name="sched_from">from</string>
+    <string name="sched_to">to</string>
+
 </resources>

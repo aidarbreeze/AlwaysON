@@ -24,9 +24,15 @@ import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
 import com.aidarbreeze.alwayson.service.OverlayService
+import com.aidarbreeze.alwayson.stock.Candle
+import com.aidarbreeze.alwayson.stock.StockApi
 import com.aidarbreeze.alwayson.view.ClockView
+import com.aidarbreeze.alwayson.view.MonthCalendarView
+import com.aidarbreeze.alwayson.view.StockChartView
 import com.aidarbreeze.alwayson.view.WeatherPanelView
 import com.aidarbreeze.alwayson.weather.WeatherApi
+import com.aidarbreeze.alwayson.weather.WeatherInfo
+import com.aidarbreeze.alwayson.weather.WeatherSharedCache
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -64,6 +70,19 @@ class MainActivity : Activity() {
     private lateinit var weatherGeobtn: Button
     private lateinit var weatherLocBlock: View
     private lateinit var weatherStyleGroup: RadioGroup
+    private lateinit var scheduleRow: View
+    private lateinit var schedGroup: RadioGroup
+    private lateinit var schedHoursRow: View
+    private lateinit var schedFromSpinner: Spinner
+    private lateinit var schedToSpinner: Spinner
+    private lateinit var durCalSpinner: Spinner
+    private lateinit var durStockSpinner: Spinner
+    private lateinit var durWeatherSpinner: Spinner
+
+    // Full-StandBy mini preview (calendar / chart / weather windows).
+    private lateinit var miniMonth: MonthCalendarView
+    private lateinit var miniStock: StockChartView
+    private lateinit var miniWeather: WeatherPanelView
 
     // Live clock preview (top of the settings screen).
     private lateinit var previewClock: ClockView
@@ -84,6 +103,17 @@ class MainActivity : Activity() {
         previewClock = findViewById(R.id.previewClock)
         previewDate = findViewById(R.id.previewDate)
         brightnessRow = findViewById(R.id.brightnessRow)
+        miniMonth = findViewById(R.id.miniMonth)
+        miniStock = findViewById(R.id.miniStock)
+        miniWeather = findViewById(R.id.miniWeather)
+        scheduleRow = findViewById(R.id.scheduleRow)
+        schedGroup = findViewById(R.id.schedGroup)
+        schedHoursRow = findViewById(R.id.schedHoursRow)
+        schedFromSpinner = findViewById(R.id.schedFromSpinner)
+        schedToSpinner = findViewById(R.id.schedToSpinner)
+        durCalSpinner = findViewById(R.id.durCalSpinner)
+        durStockSpinner = findViewById(R.id.durStockSpinner)
+        durWeatherSpinner = findViewById(R.id.durWeatherSpinner)
 
         autoSwitch = findViewById(R.id.autoSwitch)
         permStatus = findViewById(R.id.permStatus)
@@ -190,7 +220,7 @@ class MainActivity : Activity() {
 
         // Load stocks settings.
         stocksSwitch.isChecked = Prefs.stocksEnabled(this)
-        tickerInput.setText(Prefs.stockTicker(this))
+        tickerInput.setText(Prefs.stockTickers(this).joinToString(","))
         val ref = Prefs.stockReference(this)
         refInput.setText(if (ref > 0.0) ref.toString() else "")
         if (Prefs.stockType(this) == 1) {
@@ -209,12 +239,14 @@ class MainActivity : Activity() {
         stocksSwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.setStocksEnabled(this, checked)
             updateStockInputsVisibility()
+            startMiniPreview()
         }
         tickerInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                Prefs.setStockTicker(this@MainActivity, s?.toString() ?: "")
+                Prefs.setStockTickers(this@MainActivity, s?.toString() ?: "")
+                startMiniPreview()
             }
         })
         refInput.addTextChangedListener(object : TextWatcher {
@@ -239,6 +271,7 @@ class MainActivity : Activity() {
                 else -> 0
             }
             Prefs.setStockPeriod(this, p)
+            startMiniPreview()
         }
 
         use24Switch.setOnCheckedChangeListener { _, checked ->
@@ -275,6 +308,7 @@ class MainActivity : Activity() {
             updateWeatherLocBlock()
             if (checked && !Prefs.hasWeatherLocation(this)) requestLocation()
             updateWeatherStatus()
+            startMiniPreview()
         }
 
         if (Prefs.weatherStyle(this) == WeatherPanelView.STYLE_CURVE) {
@@ -288,9 +322,58 @@ class MainActivity : Activity() {
                 if (checkedId == R.id.weatherStyleCurve) WeatherPanelView.STYLE_CURVE
                 else WeatherPanelView.STYLE_CLASSIC
             )
+            startMiniPreview()
         }
 
         weatherGeobtn.setOnClickListener { requestLocation() }
+
+        // --- Per-window rotation durations (calendar / chart / weather) ---
+        bindDurationSpinner(durCalSpinner, Prefs.panelDurationCal(this)) {
+            Prefs.setPanelDurationCal(this, it)
+            startMiniPreview()
+        }
+        bindDurationSpinner(durStockSpinner, Prefs.panelDurationStock(this)) {
+            Prefs.setPanelDurationStock(this, it)
+            startMiniPreview()
+        }
+        bindDurationSpinner(durWeatherSpinner, Prefs.panelDurationWeather(this)) {
+            Prefs.setPanelDurationWeather(this, it)
+            startMiniPreview()
+        }
+
+        // --- StandBy time schedule (hidden while the auto switch is off) ---
+        val byTime = Prefs.standbySchedule(this) == 1
+        if (byTime) schedGroup.check(R.id.schedByTime) else schedGroup.check(R.id.schedAlways)
+        val hourEntries = resources.getStringArray(R.array.hours_0_23)
+        for (sp in listOf(schedFromSpinner, schedToSpinner)) {
+            sp.adapter = ArrayAdapter(
+                this,
+                android.R.layout.simple_spinner_item,
+                hourEntries
+            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        }
+        schedFromSpinner.setSelection(Prefs.standbyFromHour(this))
+        schedToSpinner.setSelection(Prefs.standbyToHour(this))
+        schedFromSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    Prefs.setStandbyFromHour(this@MainActivity, pos)
+                }
+                override fun onNothingSelected(p: AdapterView<*>?) {}
+            }
+        schedToSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    Prefs.setStandbyToHour(this@MainActivity, pos)
+                }
+                override fun onNothingSelected(p: AdapterView<*>?) {}
+            }
+        schedGroup.setOnCheckedChangeListener { _, checkedId ->
+            val custom = checkedId == R.id.schedByTime
+            Prefs.setStandbySchedule(this, if (custom) 1 else 0)
+            schedHoursRow.visibility = if (custom) View.VISIBLE else View.GONE
+        }
+        schedHoursRow.visibility = if (byTime) View.VISIBLE else View.GONE
 
         // When the user finishes typing a city (keyboard dismissed) try to
         // geocode it and save those coordinates for the forecast.
@@ -317,6 +400,7 @@ class MainActivity : Activity() {
 
         autoSwitch.setOnCheckedChangeListener { _, checked ->
             if (checked) enableAuto() else disableAuto()
+            updateScheduleRowVisibility()
         }
 
         findViewById<Button>(R.id.btnOpenDream).setOnClickListener {
@@ -342,11 +426,13 @@ class MainActivity : Activity() {
         refreshSwitchState()
         updatePreview()
         previewHandler.postDelayed(previewTicker, 1000)
+        startMiniPreview()
     }
 
     override fun onPause() {
         super.onPause()
         previewHandler.removeCallbacks(previewTicker)
+        stopMiniPreview()
     }
 
     private fun updateBrightnessLabel() {
@@ -405,6 +491,192 @@ class MainActivity : Activity() {
         stockInputs.visibility = if (stocksSwitch.isChecked) View.VISIBLE else View.GONE
     }
 
+    // ---------- full-StandBy mini preview ----------
+    //
+    // The small panel under the live clock rotates the same windows as the
+    // real overlay (calendar / chart(s) / weather) with the same per-window
+    // durations, so the settings preview is the whole screen saver.
+
+    /** kind: 0 = calendar, 1 = chart, 2 = weather. */
+    private class MiniPanel(val kind: Int, val symbol: String, val interval: Int)
+
+    private var miniSeq: List<MiniPanel> = emptyList()
+    private var miniStep = 0
+    private val miniStockCached = HashMap<String, List<Candle>>()
+    private val miniStockAttempt = HashMap<String, Long>()
+    private val miniStockFreshMs = 60_000L
+    private var miniWeatherCached: WeatherInfo? = null
+    private var miniWeatherFetchedAt = 0L
+    private var miniWeatherFetching = false
+    private var miniWeatherGen = 0L
+    private val miniWeatherFreshMs = 55L * 60L * 1000L
+    private val miniTicker = object : Runnable {
+        override fun run() {
+            miniAdvance()
+        }
+    }
+
+    private fun miniAdvance() {
+        if (miniSeq.size <= 1) {
+            // Nothing to rotate: keep the (single) window on screen.
+            return
+        }
+        miniStep = (miniStep + 1) % miniSeq.size
+        renderMini()
+        previewHandler.postDelayed(miniTicker, miniDurationMs(miniSeq[miniStep]))
+    }
+
+    private fun miniDurationMs(p: MiniPanel): Long = when (p.kind) {
+        1 -> Prefs.panelDurationStock(this).toLong() * 1000L
+        2 -> Prefs.panelDurationWeather(this).toLong() * 1000L
+        else -> Prefs.panelDurationCal(this).toLong() * 1000L
+    }
+
+    /** Rebuild the window list and restart the rotation from the calendar.
+     *  Called on resume and after any setting that changes the rotation. */
+    private fun startMiniPreview() {
+        if (!this::miniMonth.isInitialized) return
+        val tickers = Prefs.stockTickers(this)
+        val stocks = Prefs.stocksEnabled(this) && tickers.isNotEmpty()
+        val weather = Prefs.weatherEnabled(this) && Prefs.hasWeatherLocation(this)
+        val out = ArrayList<MiniPanel>()
+        out.add(MiniPanel(0, "", 0))
+        if (stocks) {
+            val chosen = Prefs.stockPeriod(this)
+            for (t in tickers) {
+                when {
+                    chosen == 1 || chosen == 10 || chosen == 60 ->
+                        out.add(MiniPanel(1, t, chosen))
+                    tickers.size == 1 -> {
+                        out.add(MiniPanel(1, t, 60))
+                        out.add(MiniPanel(1, t, 10))
+                        out.add(MiniPanel(1, t, 1))
+                    }
+                    else -> out.add(MiniPanel(1, t, 60))
+                }
+            }
+        }
+        if (weather) out.add(MiniPanel(2, "", 0))
+        miniSeq = out
+        miniStep = 0
+        miniMonth.setFirstDayOfWeek(Prefs.weekStart(this))
+        renderMini()
+        previewHandler.removeCallbacks(miniTicker)
+        if (miniSeq.size > 1) {
+            previewHandler.postDelayed(miniTicker, miniDurationMs(miniSeq[0]))
+        }
+    }
+
+    private fun stopMiniPreview() {
+        previewHandler.removeCallbacks(miniTicker)
+    }
+
+    private fun renderMini() {
+        val p = miniSeq.getOrNull(miniStep) ?: return
+        miniMonth.visibility = if (p.kind == 0) View.VISIBLE else View.GONE
+        miniStock.visibility = if (p.kind == 1) View.VISIBLE else View.GONE
+        miniWeather.visibility = if (p.kind == 2) View.VISIBLE else View.GONE
+        when (p.kind) {
+            0 -> miniMonth.invalidate() // draws the current month itself
+            1 -> {
+                val ref = Prefs.stockReference(this)
+                val label = "${p.interval}М"
+                val key = "${p.symbol}-${p.interval}"
+                val cached = miniStockCached[key]
+                if (cached != null && cached.size >= 2) {
+                    miniStock.setData(p.symbol, ref, label, cached, p.interval * 60)
+                } else {
+                    miniStock.setStatus("Загрузка…")
+                }
+                val age = System.currentTimeMillis() - (miniStockAttempt[key] ?: 0L)
+                if (age >= miniStockFreshMs) fetchMiniStock(p.symbol, p.interval)
+            }
+            2 -> {
+                val data = miniWeatherCached
+                if (data != null) {
+                    miniWeather.show(data, Prefs.weatherStyle(this))
+                } else {
+                    miniWeather.setStatus("Погода: загрузка…")
+                }
+                if (System.currentTimeMillis() - miniWeatherFetchedAt >= miniWeatherFreshMs) {
+                    fetchMiniWeather()
+                }
+            }
+        }
+    }
+
+    private fun fetchMiniStock(symbol: String, code: Int) {
+        if (symbol.isEmpty()) return
+        val key = "$symbol-$code"
+        val attempt = System.currentTimeMillis()
+        miniStockAttempt[key] = attempt
+        Thread {
+            val data = StockApi.fetchCandles(symbol, code)
+            previewHandler.post {
+                if (miniStockAttempt[key] != attempt) return@post
+                val p = miniSeq.getOrNull(miniStep)
+                if (data != null && data.size >= 2) {
+                    miniStockCached[key] = data
+                    if (p != null && p.kind == 1 && p.symbol == symbol && p.interval == code) {
+                        miniStock.setData(
+                            symbol, Prefs.stockReference(this),
+                            "${code}М", data, code * 60
+                        )
+                    }
+                } else if (p != null && p.kind == 1 && p.symbol == symbol &&
+                    p.interval == code && miniStockCached[key] == null
+                ) {
+                    // Only show the error when we have nothing to show at all.
+                    miniStock.setStatus("нет данных / нет сети")
+                }
+            }
+        }.start()
+    }
+
+    private fun fetchMiniWeather() {
+        if (miniWeatherFetching) return
+        val loc = Prefs.weatherLocation(this) ?: return
+        miniWeatherFetching = true
+        val gen = ++miniWeatherGen
+        val city = Prefs.weatherCity(this)
+        Thread {
+            val data = WeatherApi.fetch(loc.first, loc.second, city)
+            previewHandler.post {
+                if (gen != miniWeatherGen) return@post
+                miniWeatherFetching = false
+                if (data != null) {
+                    miniWeatherCached = data
+                    miniWeatherFetchedAt = System.currentTimeMillis()
+                    // Feed the home-screen widget's last-known snapshot too.
+                    WeatherSharedCache.save(this, data)
+                    val p = miniSeq.getOrNull(miniStep)
+                    if (p != null && p.kind == 2) {
+                        miniWeather.show(data, Prefs.weatherStyle(this))
+                    }
+                }
+            }
+        }.start()
+    }
+
+    /** Spinner bound to the shared 5/10/20/30/60-second duration options. */
+    private fun bindDurationSpinner(spinner: Spinner, current: Int, onSet: (Int) -> Unit) {
+        val values = intArrayOf(5, 10, 20, 30, 60)
+        val entries = resources.getStringArray(R.array.panel_durations)
+        spinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            entries
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        spinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    if (pos in values.indices) onSet(values[pos])
+                }
+                override fun onNothingSelected(p: AdapterView<*>?) {}
+            }
+        spinner.setSelection(values.indexOf(current).coerceAtLeast(0))
+    }
+
     // ---------- weather location ----------
 
     /** Show/hide the location-source block depending on the weather switch. */
@@ -460,6 +732,7 @@ class MainActivity : Activity() {
         Prefs.setWeatherCity(this, "")
         weatherCityInput.setText("")
         updateWeatherStatus()
+        startMiniPreview()
     }
 
     /** Resolve a typed city to coordinates in the background. */
@@ -480,6 +753,7 @@ class MainActivity : Activity() {
                 Prefs.setWeatherCity(this, place.name)
                 weatherCityInput.setText(place.name)
                 updateWeatherStatus()
+                startMiniPreview()
             }
         }.start()
     }
@@ -502,7 +776,15 @@ class MainActivity : Activity() {
         autoSwitch.isChecked = on
         autoSwitch.setOnCheckedChangeListener { _, checked ->
             if (checked) enableAuto() else disableAuto()
+            updateScheduleRowVisibility()
         }
+        updateScheduleRowVisibility()
+    }
+
+    /** The time schedule only makes sense while the auto StandBy is on. */
+    private fun updateScheduleRowVisibility() {
+        if (!this::scheduleRow.isInitialized) return
+        scheduleRow.visibility = if (autoSwitch.isChecked) View.VISIBLE else View.GONE
     }
 
     private fun enableAuto() {

@@ -19,7 +19,12 @@ data class WeatherInfo(
     val tempNowC: Int,
     val codeNow: Int,
     val hours: List<WeatherHour>,
-    val days: List<WeatherDay>
+    val days: List<WeatherDay>,
+    /** "Feels like" temperature now, C (0 = unknown). */
+    val feelsNowC: Int = 0,
+    /** Today's sunrise / sunset as local epoch ms (0 = unknown). */
+    val sunriseMs: Long = 0L,
+    val sunsetMs: Long = 0L
 )
 
 /** A place chosen by name (manual city input). */
@@ -79,9 +84,9 @@ object WeatherApi {
         val la = String.format(Locale.US, "%.2f", lat)
         val lo = String.format(Locale.US, "%.2f", lon)
         return "$FORECAST?latitude=$la&longitude=$lo" +
-            "&current=temperature_2m,weather_code" +
+            "&current=temperature_2m,apparent_temperature,weather_code" +
             "&hourly=temperature_2m,weather_code" +
-            "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset" +
             "&timezone=auto&forecast_days=$DAYS&forecast_hours=48"
     }
 
@@ -110,6 +115,8 @@ object WeatherApi {
 
             val tempNow = Math.round(cur.getDouble("temperature_2m")).toInt()
             val codeNow = cur.getInt("weather_code")
+            val feelsNow = if (cur.has("apparent_temperature"))
+                Math.round(cur.getDouble("apparent_temperature")).toInt() else 0
 
             // ---- hourly (rounded to the hour) ----
             val hourly = root.getJSONObject("hourly")
@@ -138,6 +145,20 @@ object WeatherApi {
             val dMax = daily.getJSONArray("temperature_2m_max")
             val dMin = daily.getJSONArray("temperature_2m_min")
             val dFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            // Today's sunrise/sunset (first day = today, local "yyyy-MM-ddTHH:mm").
+            val isoFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US)
+            var sunriseMs = 0L
+            var sunsetMs = 0L
+            if (dTimes.length() > 0) {
+                val sun = daily.optJSONArray("sunrise")
+                val suns = daily.optJSONArray("sunset")
+                if (sun != null && !sun.isNull(0)) {
+                    sunriseMs = parseIso(isoFmt, sun.getString(0))
+                }
+                if (suns != null && !suns.isNull(0)) {
+                    sunsetMs = parseIso(isoFmt, suns.getString(0))
+                }
+            }
             val days = ArrayList<WeatherDay>()
             for (i in 0 until dTimes.length()) {
                 // Guard both temperatures: a single null cell must not throw
@@ -156,7 +177,7 @@ object WeatherApi {
             }
 
             if (days.isEmpty() && hours.isEmpty()) null
-            else WeatherInfo(city, tempNow, codeNow, hours, days)
+            else WeatherInfo(city, tempNow, codeNow, hours, days, feelsNow, sunriseMs, sunsetMs)
         } catch (_: Exception) {
             null
         }

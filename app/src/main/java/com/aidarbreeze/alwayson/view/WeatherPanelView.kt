@@ -157,7 +157,43 @@ class WeatherPanelView @JvmOverloads constructor(
         textSize = dpf(12f)
     }
 
+    // Small meta line: "feels like" and sunrise/sunset.
+    private val metaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x99FFFFFF.toInt()
+        textSize = dpf(10f)
+    }
+
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
+
+    /** "↑ 06:12 ↓ 20:41" (empty when the API gave no sun times). */
+    private fun sunLine(data: WeatherInfo): String {
+        if (data.sunriseMs <= 0L && data.sunsetMs <= 0L) return ""
+        val tf = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val sb = StringBuilder()
+        if (data.sunriseMs > 0L) sb.append("↑ ").append(tf.format(Date(data.sunriseMs)))
+        if (data.sunsetMs > 0L) {
+            if (sb.isNotEmpty()) sb.append(" ")
+            sb.append("↓ ").append(tf.format(Date(data.sunsetMs)))
+        }
+        return sb.toString()
+    }
+
+    /** "feels like" fragment, empty when unknown or equal to the real temp. */
+    private fun feelsText(data: WeatherInfo): String {
+        if (data.feelsNowC == 0 || data.feelsNowC == data.tempNowC) return ""
+        return "ощущ. ${data.feelsNowC}°"
+    }
+
+    /** Small meta line: "ощущ. N°" + "↑ HH:MM ↓ HH:MM" (either may be empty). */
+    private fun buildMetaLine(data: WeatherInfo): String = buildString {
+        val feels = feelsText(data)
+        if (feels.isNotEmpty()) append(feels)
+        val sun = sunLine(data)
+        if (sun.isNotEmpty()) {
+            if (isNotEmpty()) append("  ")
+            append(sun)
+        }
+    }
 
     /** Show a plain status line (loading / no data) instead of a forecast. */
     fun setStatus(text: String) {
@@ -202,10 +238,17 @@ class WeatherPanelView @JvmOverloads constructor(
         val pad = dpf(16f)
 
         // ---------- 1. current weather ----------
+        // Row 1: city (left) and small meta (right): feels-like + sun times.
+        // Row 2: glyph + temperature + condition word (unchanged layout).
         val city = data.city.trim()
         if (city.isNotEmpty()) {
-            cityPaint.textAlign = Paint.Align.CENTER
-            canvas.drawText(city, w / 2f, dpf(15f), cityPaint)
+            cityPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText(city, pad, dpf(15f), cityPaint)
+        }
+        val meta = buildMetaLine(data)
+        if (meta.isNotEmpty()) {
+            metaPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(meta, w - pad, dpf(15f), metaPaint)
         }
 
         bigPaint.textAlign = Paint.Align.LEFT
@@ -383,7 +426,14 @@ class WeatherPanelView @JvmOverloads constructor(
         val tempRight = w - pad - condW - (if (cond.isNotEmpty()) dpf(8f) else 0f)
         canvas.drawText("${data.tempNowC}°", tempRight, dpf(17f), headerTempPaint)
 
-        val headerBottom = dpf(26f)
+        // Row 2 (centered, small): "feels like" + sunrise/sunset.
+        val meta = buildMetaLine(data)
+        if (meta.isNotEmpty()) {
+            metaPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText(meta, w / 2f, dpf(32f), metaPaint)
+        }
+
+        val headerBottom = dpf(40f)
         canvas.drawRect(pad, headerBottom, w - pad, headerBottom + dpf(1f), sepPaint)
 
         // ---------- vertical layout (week list first, curve above it) ----------
@@ -393,7 +443,7 @@ class WeatherPanelView @JvmOverloads constructor(
         val weekH = rows * rowH
         val hasWeek = h >= dpf(228f)
         val weekTop = h - dpf(4f) - weekH
-        val curveTop = dpf(36f)
+        val curveTop = dpf(50f)
         val curveBottom = if (hasWeek) weekTop - dpf(26f) else h - dpf(10f)
         val timeBaseY = weekTop - dpf(16f)
         if (hasWeek) {

@@ -46,6 +46,19 @@ object Prefs {
     // week list with range bars), 1 = curve (24 h temperature curve + dense
     // two-column week list).
     private const val KEY_WEATHER_STYLE = "weather_style"
+    // Per-window rotation duration in seconds (calendar / stocks / weather).
+    private const val KEY_DUR_CAL = "panel_dur_cal"
+    private const val KEY_DUR_STOCK = "panel_dur_stock"
+    private const val KEY_DUR_WEATHER = "panel_dur_weather"
+    // MOEX watchlist: comma separated, up to 3 tickers (e.g. "ISS,TATN").
+    private const val KEY_STOCK_TICKERS = "stock_tickers"
+    // Auto-standby schedule: 0 = always (while charging), 1 = custom hours.
+    private const val KEY_STANDBY_SCHEDULE = "standby_schedule"
+    private const val KEY_STANDBY_FROM_HOUR = "standby_from_hour"
+    private const val KEY_STANDBY_TO_HOUR = "standby_to_hour"
+    // The user dismissed the auto overlay for this charge session; kept
+    // across process death so a kill+reboot does not nag again.
+    private const val KEY_STANDBY_SUPPRESSED = "standby_suppressed"
 
     private fun sp(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -159,4 +172,87 @@ object Prefs {
     fun weatherStyle(ctx: Context): Int = sp(ctx).getInt(KEY_WEATHER_STYLE, 0)
     fun setWeatherStyle(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(KEY_WEATHER_STYLE, v.coerceIn(0, 1)).apply()
+
+    /** How long (seconds) each window type stays on screen. Default 10. */
+    fun panelDurationCal(ctx: Context): Int =
+        sp(ctx).getInt(KEY_DUR_CAL, 10).coerceIn(5, 120)
+    fun setPanelDurationCal(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_DUR_CAL, v.coerceIn(5, 120)).apply()
+
+    fun panelDurationStock(ctx: Context): Int =
+        sp(ctx).getInt(KEY_DUR_STOCK, 10).coerceIn(5, 120)
+    fun setPanelDurationStock(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_DUR_STOCK, v.coerceIn(5, 120)).apply()
+
+    fun panelDurationWeather(ctx: Context): Int =
+        sp(ctx).getInt(KEY_DUR_WEATHER, 10).coerceIn(5, 120)
+    fun setPanelDurationWeather(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_DUR_WEATHER, v.coerceIn(5, 120)).apply()
+
+    /**
+     * MOEX watchlist, up to 3 tickers (uppercased, de-duplicated). Falls back
+     * to the legacy single-ticker field so existing installs keep working.
+     */
+    fun stockTickers(ctx: Context): List<String> {
+        val raw = sp(ctx).getString(KEY_STOCK_TICKERS, null)
+            ?.ifBlank { sp(ctx).getString(KEY_STOCK_TICKER, null) }
+            ?: ""
+        val seen = LinkedHashSet<String>()
+        for (part in raw.split(',', ' ', ';')) {
+            val t = part.trim().uppercase()
+            if (t.isNotEmpty()) seen.add(t)
+            if (seen.size >= 3) break
+        }
+        return seen.toList()
+    }
+
+    fun setStockTickers(ctx: Context, raw: String) {
+        val cleaned = stockTickersFromRaw(raw).joinToString(",")
+        sp(ctx).edit().putString(KEY_STOCK_TICKERS, cleaned).apply()
+    }
+
+    private fun stockTickersFromRaw(raw: String): List<String> {
+        val seen = LinkedHashSet<String>()
+        for (part in raw.split(',', ' ', ';')) {
+            val t = part.trim().uppercase()
+            if (t.isNotEmpty()) seen.add(t)
+            if (seen.size >= 3) break
+        }
+        return seen.toList()
+    }
+
+    /** Auto-standby schedule: 0 = always, 1 = custom hours. */
+    fun standbySchedule(ctx: Context): Int = sp(ctx).getInt(KEY_STANDBY_SCHEDULE, 0)
+    fun setStandbySchedule(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_STANDBY_SCHEDULE, v.coerceIn(0, 1)).apply()
+
+    fun standbyFromHour(ctx: Context): Int =
+        sp(ctx).getInt(KEY_STANDBY_FROM_HOUR, 22).coerceIn(0, 23)
+    fun setStandbyFromHour(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_STANDBY_FROM_HOUR, v.coerceIn(0, 23)).apply()
+
+    fun standbyToHour(ctx: Context): Int =
+        sp(ctx).getInt(KEY_STANDBY_TO_HOUR, 8).coerceIn(0, 23)
+    fun setStandbyToHour(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_STANDBY_TO_HOUR, v.coerceIn(0, 23)).apply()
+
+    /**
+     * Whether the auto-standby is allowed to show right now, per schedule.
+     * A from>to range wraps overnight (22:00 -> 08:00). from == to means
+     * "all day" (the range would otherwise be empty).
+     */
+    fun isStandbyTimeAllowed(ctx: Context, cal: java.util.Calendar): Boolean {
+        if (standbySchedule(ctx) != 1) return true
+        val h = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val from = standbyFromHour(ctx)
+        val to = standbyToHour(ctx)
+        if (from == to) return true
+        return if (from < to) h in from until to else h >= from || h < to
+    }
+
+    /** The user dismissed the auto overlay (persisted across process death). */
+    fun standbySuppressed(ctx: Context): Boolean =
+        sp(ctx).getBoolean(KEY_STANDBY_SUPPRESSED, false)
+    fun setStandbySuppressed(ctx: Context, v: Boolean) =
+        sp(ctx).edit().putBoolean(KEY_STANDBY_SUPPRESSED, v).apply()
 }

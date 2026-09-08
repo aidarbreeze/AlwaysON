@@ -90,6 +90,13 @@
                         android:textColor="@color/aod_secondary_text"
                         android:textSize="13sp" />
 
+                    <com.aidarbreeze.alwayson.media.MediaArtView
+                        android:id="@+id/mediaArt"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginEnd="8dp"
+                        android:visibility="gone" />
+
                     <TextView
                         android:id="@+id/mediaText"
                         android:layout_width="wrap_content"

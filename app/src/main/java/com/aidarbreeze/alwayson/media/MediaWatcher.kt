@@ -53,7 +53,12 @@ class MediaWatcher(private val context: Context) {
             val artist = md.getString(MediaMetadata.METADATA_KEY_ARTIST)
                 ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
                 ?: ""
-            NowPlaying(title, artist, playing = true)
+            val art = try {
+                NowPlayingCache.downscale(md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART))
+            } catch (_: Exception) {
+                null
+            }
+            NowPlaying(title, artist, playing = true, art = art)
         } catch (_: Exception) {
             null
         }

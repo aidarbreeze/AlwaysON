@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Russian labels for the per-window rotation durations. -->
+    <string-array name="panel_durations">
+        <item>5 с</item>
+        <item>10 с</item>
+        <item>20 с</item>
+        <item>30 с</item>
+        <item>60 с</item>
+    </string-array>
+</resources>

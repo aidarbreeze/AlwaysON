@@ -106,7 +106,14 @@ class NowPlayingListenerService : NotificationListenerService() {
                 ?: extras.getString(Notification.EXTRA_TEXT)
                 ?: ""
 
-            found = NowPlaying(title, artist, playing = true)
+            // Album art (small, grayscale-drawn later), best-effort.
+            val artBmp = try {
+                NowPlayingCache.downscale(meta?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART))
+            } catch (_: Exception) {
+                null
+            }
+
+            found = NowPlaying(title, artist, playing = true, art = artBmp)
             break
         }
 
