@@ -33,6 +33,12 @@
     <string name="style_outline">Outline (hollow digits)</string>
     <string name="style_dots">Dot-matrix “comic” digits</string>
     <string name="style_flip">Flip clock (откидные)</string>
+    <string name="style_seg">Seven-segment LED</string>
+    <string name="style_neon">Neon glow</string>
+    <string name="style_blocks">Rounded blocks (chips)</string>
+    <string name="style_serif">Serif (editorial)</string>
+    <string name="style_italic">Bold italic</string>
+    <string name="style_matrix">Square LED-matrix</string>
     <string name="clock_thickness_label">Outline thickness</string>
     <string name="week_start_label">First day of the week</string>
     <string name="week_start_system">System</string>

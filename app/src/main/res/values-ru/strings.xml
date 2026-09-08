@@ -33,6 +33,12 @@
     <string name="style_outline">Контур (полые цифры)</string>
     <string name="style_dots">Точки «комикс»</string>
     <string name="style_flip">Откидные часы</string>
+    <string name="style_seg">Семисегментный LED</string>
+    <string name="style_neon">Неон</string>
+    <string name="style_blocks">Блоки (пилюли)</string>
+    <string name="style_serif">Serif (газетный)</string>
+    <string name="style_italic">Жирный курсив</string>
+    <string name="style_matrix">Квадратная LED-матрица</string>
     <string name="clock_thickness_label">Толщина контура</string>
     <string name="week_start_label">Первый день недели</string>
     <string name="week_start_system">Системный</string>

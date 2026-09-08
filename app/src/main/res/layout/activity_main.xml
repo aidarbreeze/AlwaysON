@@ -227,6 +227,60 @@
                 android:text="@string/style_flip"
                 android:textSize="15sp"
                 android:textColor="#DE000000" />
+
+            <RadioButton
+                android:id="@+id/styleSeg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:text="@string/style_seg"
+                android:textSize="15sp"
+                android:textColor="#DE000000" />
+
+            <RadioButton
+                android:id="@+id/styleNeon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:text="@string/style_neon"
+                android:textSize="15sp"
+                android:textColor="#DE000000" />
+
+            <RadioButton
+                android:id="@+id/styleBlocks"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:text="@string/style_blocks"
+                android:textSize="15sp"
+                android:textColor="#DE000000" />
+
+            <RadioButton
+                android:id="@+id/styleSerif"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:text="@string/style_serif"
+                android:textSize="15sp"
+                android:textColor="#DE000000" />
+
+            <RadioButton
+                android:id="@+id/styleItalic"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:text="@string/style_italic"
+                android:textSize="15sp"
+                android:textColor="#DE000000" />
+
+            <RadioButton
+                android:id="@+id/styleMatrix"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:text="@string/style_matrix"
+                android:textSize="15sp"
+                android:textColor="#DE000000" />
         </RadioGroup>
 
         <LinearLayout

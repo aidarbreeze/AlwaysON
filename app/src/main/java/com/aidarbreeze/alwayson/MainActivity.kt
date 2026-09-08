@@ -111,6 +111,12 @@ class MainActivity : Activity() {
             1 -> styleGroup.check(R.id.styleOutline)
             2 -> styleGroup.check(R.id.styleDots)
             3 -> styleGroup.check(R.id.styleFlip)
+            4 -> styleGroup.check(R.id.styleSeg)
+            5 -> styleGroup.check(R.id.styleNeon)
+            6 -> styleGroup.check(R.id.styleBlocks)
+            7 -> styleGroup.check(R.id.styleSerif)
+            8 -> styleGroup.check(R.id.styleItalic)
+            9 -> styleGroup.check(R.id.styleMatrix)
             else -> styleGroup.check(R.id.styleNormal)
         }
         val thickness = Prefs.clockThickness(this)
@@ -123,6 +129,12 @@ class MainActivity : Activity() {
                 R.id.styleOutline -> 1
                 R.id.styleDots -> 2
                 R.id.styleFlip -> 3
+                R.id.styleSeg -> 4
+                R.id.styleNeon -> 5
+                R.id.styleBlocks -> 6
+                R.id.styleSerif -> 7
+                R.id.styleItalic -> 8
+                R.id.styleMatrix -> 9
                 else -> 0
             }
             Prefs.setClockStyle(this, s)

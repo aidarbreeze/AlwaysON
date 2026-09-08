@@ -16,7 +16,9 @@ object Prefs {
     // it is barely visible in the dark yet clearly readable in daylight.
     private const val KEY_AUTO_BRIGHTNESS = "auto_brightness"
     // Clock face style: 0 = normal text, 1 = outline/hollow digits,
-    // 2 = dot-matrix "comic" digits, 3 = old flip-clock digits.
+    // 2 = dot-matrix "comic" digits, 3 = old flip-clock digits,
+    // 4 = seven-segment LED, 5 = neon glow, 6 = rounded chips/blocks,
+    // 7 = serif, 8 = heavy italic, 9 = square LED-matrix.
     private const val KEY_CLOCK_STYLE = "clock_style"
     // Line/outline thickness in dp used by the outline style.
     private const val KEY_CLOCK_THICKNESS = "clock_thickness"
@@ -60,7 +62,8 @@ object Prefs {
     fun setAutoBrightness(ctx: Context, on: Boolean) =
         sp(ctx).edit().putBoolean(KEY_AUTO_BRIGHTNESS, on).apply()
 
-    /** Clock face style: 0 normal, 1 outline, 2 dot-matrix, 3 flip. */
+    /** Clock face style: 0 normal, 1 outline, 2 dots, 3 flip, 4 LED, 5 neon,
+     *  6 chips, 7 serif, 8 italic, 9 LED-matrix. */
     fun clockStyle(ctx: Context): Int = sp(ctx).getInt(KEY_CLOCK_STYLE, 0)
     fun setClockStyle(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(KEY_CLOCK_STYLE, v).apply()
