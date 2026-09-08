@@ -86,10 +86,24 @@ class StandbyController(context: Context, root: View) {
     private var weatherGen = 0L
     private val panelTickMs = 10_000L
     private val weatherFreshMs = 55L * 60L * 1000L // refetch the forecast hourly
+
+    // Smooth window transition: the current panel fades out to black, a short
+    // hold, then the next panel is swapped in and fades back in. Driven by the
+    // main handler (no dependencies); [transitionGen] invalidates pending
+    // frames/swaps when the cycle restarts or the screen is torn down, so a
+    // window can never be left half-faded.
+    private val fadeMs = 350L
+    private val fadeHoldMs = 120L
+    private var panelAnimating = false
+    private var transitionGen = 0L
     private val panelRunnable = object : Runnable {
         override fun run() {
-            panelStep = (panelStep + 1) % panelSeq.size
-            renderPanel()
+            // Never advance while a fade is in flight, or a window would be
+            // skipped; the next tick retries the step.
+            if (!panelAnimating) {
+                panelStep = (panelStep + 1) % panelSeq.size
+                renderPanel()
+            }
             handler.postDelayed(this, panelTickMs)
         }
     }
@@ -182,7 +196,14 @@ class StandbyController(context: Context, root: View) {
 
     fun stop() {
         stopLightSensor()
+        // Invalidate any in-flight transition and drop all pending frames so
+        // no window is left half-faded when the screen goes away.
+        transitionGen++
+        panelAnimating = false
         handler.removeCallbacksAndMessages(null)
+        monthView.alpha = 1f
+        stockView.alpha = 1f
+        weatherView.alpha = 1f
         showCalendarOnly()
     }
 
@@ -196,6 +217,13 @@ class StandbyController(context: Context, root: View) {
         Prefs.weatherEnabled(appContext) && Prefs.hasWeatherLocation(appContext)
 
     private fun startPanelCycle() {
+        // A new cycle invalidates any in-flight transition; restore full
+        // opacity in case a view was caught mid-fade.
+        transitionGen++
+        panelAnimating = false
+        monthView.alpha = 1f
+        stockView.alpha = 1f
+        weatherView.alpha = 1f
         handler.removeCallbacks(panelRunnable)
         panelSeq = buildPanels()
         if (weatherReady()) fetchWeatherIfStale() // warm the cache in the background
@@ -247,12 +275,86 @@ class StandbyController(context: Context, root: View) {
     }
 
     private fun renderPanel() {
+        if (panelAnimating) return
         val panel = panelSeq.getOrNull(panelStep) ?: return
+        // Same window (e.g. the next stock interval, or a weather data
+        // refresh): swap the content in place, no fade needed.
+        if (currentPanelKind() == panel.kind) {
+            applyPanel(panel)
+            return
+        }
+        val outgoing = visiblePanel()
+        if (outgoing == null) {
+            applyPanel(panel)
+            return
+        }
+        // Fade the current window out to black, hold briefly, then swap in the
+        // next window and fade it back in.
+        panelAnimating = true
+        val gen = transitionGen
+        animateAlpha(outgoing, 0f, gen) {
+            handler.postDelayed({
+                if (gen != transitionGen || !panelAnimating) return@postDelayed
+                outgoing.visibility = View.GONE
+                outgoing.alpha = 1f
+                applyPanel(panel)
+                val incoming = visiblePanel()
+                if (incoming == null) {
+                    panelAnimating = false
+                    return@postDelayed
+                }
+                incoming.alpha = 0f
+                animateAlpha(incoming, 1f, gen) {
+                    if (gen == transitionGen) panelAnimating = false
+                }
+            }, fadeHoldMs)
+        }
+    }
+
+    /** Which window is currently on screen, if any. */
+    private fun currentPanelKind(): Kind? = when {
+        stockView.visibility == View.VISIBLE -> Kind.STOCK
+        weatherView.visibility == View.VISIBLE -> Kind.WEATHER
+        monthView.visibility == View.VISIBLE -> Kind.CAL
+        else -> null
+    }
+
+    private fun visiblePanel(): View? = when {
+        stockView.visibility == View.VISIBLE -> stockView
+        weatherView.visibility == View.VISIBLE -> weatherView
+        monthView.visibility == View.VISIBLE -> monthView
+        else -> null
+    }
+
+    private fun applyPanel(panel: Panel) {
         when (panel.kind) {
             Kind.CAL -> showCalendarOnly()
             Kind.STOCK -> showChart(panel.interval)
             Kind.WEATHER -> showWeather()
         }
+    }
+
+    /**
+     * A small linear alpha animation driven by the main handler. Frames of a
+     * superseded transition ([gen] != [transitionGen]) are dropped silently,
+     * and stop() clears the pending frames outright.
+     */
+    private fun animateAlpha(view: View, target: Float, gen: Long, onEnd: () -> Unit) {
+        val from = view.alpha
+        if (from == target) {
+            if (gen == transitionGen) onEnd()
+            return
+        }
+        val start = System.currentTimeMillis()
+        val frame = object : Runnable {
+            override fun run() {
+                if (gen != transitionGen) return
+                val t = ((System.currentTimeMillis() - start).toDouble() / fadeMs).coerceIn(0.0, 1.0)
+                view.alpha = (from + (target - from) * t).toFloat()
+                if (t < 1.0) handler.postDelayed(this, 16) else onEnd()
+            }
+        }
+        handler.postDelayed(frame, 16)
     }
 
     private fun showCalendarOnly() {

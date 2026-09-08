@@ -122,6 +122,7 @@
             style="@style/ActionButton"
             android:layout_width="match_parent"
             android:layout_marginStart="16dp"
+            android:layout_marginTop="4dp"
             android:layout_marginEnd="16dp"
             android:text="@string/overlay_perm_button"
             android:visibility="gone" />
@@ -166,7 +167,7 @@
                 android:layout_height="wrap_content"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
-                android:paddingBottom="6dp"
+                android:paddingBottom="10dp"
                 android:text="@string/media_access_hint" />
         </LinearLayout>
 
@@ -191,7 +192,7 @@
                 android:gravity="center_vertical"
                 android:minHeight="52dp"
                 android:paddingStart="16dp"
-                android:paddingEnd="8dp">
+                android:paddingEnd="12dp">
 
                 <TextView
                     style="@style/PrefTitle"
@@ -355,7 +356,7 @@
                 android:layout_height="wrap_content"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
-                android:paddingBottom="12dp"
+                android:paddingBottom="10dp"
                 android:fontFamily="monospace"
                 android:textSize="11sp"
                 android:textColor="@color/settings_text_secondary"
@@ -674,7 +675,7 @@
                     android:orientation="horizontal"
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
-                    android:paddingBottom="8dp">
+                    android:paddingBottom="10dp">
 
                     <RadioButton
                         android:id="@+id/stockPeriodAuto"
