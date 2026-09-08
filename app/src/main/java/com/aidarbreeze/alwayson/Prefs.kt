@@ -29,6 +29,9 @@ object Prefs {
     // Chart period/timeframe: 0 = auto-cycle, otherwise a MOEX interval code
     // (1, 10 or 60) to keep showing.
     private const val KEY_STOCK_PERIOD = "stock_period"
+    // First day of the calendar week. 0 = follow the locale/system; otherwise
+    // a Calendar.DAY_OF_WEEK constant (1 = Sunday, 2 = Monday, 7 = Saturday).
+    private const val KEY_WEEK_START = "week_start"
     private const val KEY_AUTO_STANDBY = "auto_standby"
 
     private fun sp(ctx: Context) =
@@ -94,6 +97,11 @@ object Prefs {
     fun stockPeriod(ctx: Context): Int = sp(ctx).getInt(KEY_STOCK_PERIOD, 0)
     fun setStockPeriod(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(KEY_STOCK_PERIOD, v).apply()
+
+    /** First day of calendar week. 0 = locale/system, else Calendar.DAY_OF_WEEK. */
+    fun weekStart(ctx: Context): Int = sp(ctx).getInt(KEY_WEEK_START, 0)
+    fun setWeekStart(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_WEEK_START, v).apply()
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)

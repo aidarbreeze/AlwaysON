@@ -56,7 +56,8 @@ class StandbyController(context: Context, root: View) {
     private var lastDay = -1
     private var tickCount = 0
     private var lastMedia: String? = null
-    private var driftStep = 0
+    // Minutes elapsed, used to compute the burn-in drift offset.
+    private var driftTick = 0L
 
     // --- calendar <-> stock chart alternation ---
     // null = show the calendar; an Int = MOEX ISS candle interval (code 1/10/60).
@@ -94,10 +95,6 @@ class StandbyController(context: Context, root: View) {
     private val sensorHandler = Handler(Looper.getMainLooper())
     private val minAlpha = 0.22f // lowest: dim but clearly visible in the dark
 
-    // Deterministic small offsets used for OLED burn-in drift (px).
-    private val driftX = intArrayOf(0, 3, -2, 5, -5, 2, -3, 0)
-    private val driftY = intArrayOf(0, 2, 4, 1, -3, -4, 3, 0)
-
     private val tick = object : Runnable {
         override fun run() {
             updateClock()
@@ -110,11 +107,23 @@ class StandbyController(context: Context, root: View) {
         }
     }
 
+    /**
+     * OLED burn-in protection: each minute the whole content block is nudged to
+     * a new offset by a slowly "wandering" motion, so no lit pixel stays in the
+     * same place for long. Two incommensurate sine terms give a wandering path
+     * that keeps moving and only rarely lands back on the exact same spot —
+     * unlike a fixed loop that would return to the base position every cycle.
+     */
     private val drift = object : Runnable {
         override fun run() {
-            driftStep = (driftStep + 1) % driftX.size
-            content.translationX = driftX[driftStep].toFloat()
-            content.translationY = driftY[driftStep].toFloat()
+            driftTick++
+            val t = driftTick.toDouble()
+            // ~7px wander in X, ~5px in Y, plus a small secondary term so the
+            // path is a drifting figure-eight rather than a simple back-and-forth.
+            val x = (7.0 * Math.sin(t * 0.71) + 3.0 * Math.sin(t * 0.17)).toInt().toFloat()
+            val y = (5.0 * Math.sin(t * 0.47) + 3.0 * Math.cos(t * 0.23)).toInt().toFloat()
+            content.translationX = x
+            content.translationY = y
             handler.postDelayed(this, 60_000) // shift content every minute
         }
     }
@@ -125,6 +134,8 @@ class StandbyController(context: Context, root: View) {
             if (Prefs.showBattery(appContext)) View.VISIBLE else View.GONE
         // Clock style / thickness may have changed in settings -> redraw.
         clockView.refresh()
+        // Calendar week start may have changed.
+        monthView.setFirstDayOfWeek(Prefs.weekStart(appContext))
         // Dim the clock content only; the root background stays pure black.
         manualAlpha = (Prefs.brightness(appContext) / 100f).coerceIn(0f, 1f)
         autoBrightness = Prefs.autoBrightness(appContext)

@@ -44,6 +44,7 @@ class MainActivity : Activity() {
     private lateinit var refInput: EditText
     private lateinit var stockTypeGroup: RadioGroup
     private lateinit var stockPeriodGroup: RadioGroup
+    private lateinit var weekStartGroup: RadioGroup
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +70,7 @@ class MainActivity : Activity() {
         refInput = findViewById(R.id.refInput)
         stockTypeGroup = findViewById(R.id.stockTypeGroup)
         stockPeriodGroup = findViewById(R.id.stockPeriodGroup)
+        weekStartGroup = findViewById(R.id.weekStartGroup)
 
         // Load persisted appearance.
         autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
@@ -82,6 +84,25 @@ class MainActivity : Activity() {
         autoBrightSwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.setAutoBrightness(this, checked)
             updateBrightnessEnabledState()
+        }
+
+        // Load first-day-of-week choice. Value is Calendar.DAY_OF_WEEK (1=Sun,
+        // 2=Mon, 7=Sat) or 0 to follow the locale/system default.
+        val weekStart = Prefs.weekStart(this)
+        when (weekStart) {
+            java.util.Calendar.MONDAY -> weekStartGroup.check(R.id.weekStartMon)
+            java.util.Calendar.SUNDAY -> weekStartGroup.check(R.id.weekStartSun)
+            java.util.Calendar.SATURDAY -> weekStartGroup.check(R.id.weekStartSat)
+            else -> weekStartGroup.check(R.id.weekStartSystem)
+        }
+        weekStartGroup.setOnCheckedChangeListener { _, checkedId ->
+            val v = when (checkedId) {
+                R.id.weekStartMon -> java.util.Calendar.MONDAY
+                R.id.weekStartSun -> java.util.Calendar.SUNDAY
+                R.id.weekStartSat -> java.util.Calendar.SATURDAY
+                else -> 0
+            }
+            Prefs.setWeekStart(this, v)
         }
 
         // Load clock style / outline thickness.

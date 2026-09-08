@@ -34,6 +34,11 @@
     <string name="style_dots">Точки «комикс»</string>
     <string name="style_flip">Откидные часы</string>
     <string name="clock_thickness_label">Толщина контура</string>
+    <string name="week_start_label">Первый день недели</string>
+    <string name="week_start_system">Системный</string>
+    <string name="week_start_mon">Понедельник</string>
+    <string name="week_start_sun">Воскресенье</string>
+    <string name="week_start_sat">Суббота</string>
 
     <!-- Акции / смена календаря -->
     <string name="stocks_section">Панель акций</string>

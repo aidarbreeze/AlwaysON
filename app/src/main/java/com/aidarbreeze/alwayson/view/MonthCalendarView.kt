@@ -31,14 +31,29 @@ class MonthCalendarView @JvmOverloads constructor(
 
     private var cachedYear = -1
     private var cachedMonth = -1
+    private var cachedFirstDow = -1
     private var daysInMonth = 31
     private var firstCell = 0
     private var todayDay = 0
     private var weekLabels = arrayOf("", "", "", "", "", "", "")
 
+    // Configured first day of week; 0 means "follow the locale/system".
+    private var configuredFirstDow = 0
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         invalidate()
+    }
+
+    /** Set an explicit first day of week (Calendar.DAY_OF_WEEK), or 0 to fall
+     *  back to the locale default. */
+    fun setFirstDayOfWeek(dow: Int) {
+        val d = dow.coerceIn(0, 7)
+        if (d != configuredFirstDow) {
+            configuredFirstDow = d
+            cachedFirstDow = -1 // force a rebuild so columns realign
+            invalidate()
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -50,8 +65,9 @@ class MonthCalendarView @JvmOverloads constructor(
         val now = Calendar.getInstance()
         val year = now.get(Calendar.YEAR)
         val month = now.get(Calendar.MONTH)
-        if (year != cachedYear || month != cachedMonth) {
-            rebuild(now, year, month)
+        val fDow = if (configuredFirstDow != 0) configuredFirstDow else now.firstDayOfWeek
+        if (year != cachedYear || month != cachedMonth || fDow != cachedFirstDow) {
+            rebuild(now, year, month, fDow)
         }
 
         val padX = min(w * 0.05f, 20f)
@@ -78,7 +94,7 @@ class MonthCalendarView @JvmOverloads constructor(
         // Weekday header, centred in each column (grid columns run from the
         // week's first day, so the label shown is (firstDayOfWeek + i)).
         weekdayPaint.textSize = weekdayFont
-        val firstDow = now.firstDayOfWeek
+        val firstDow = if (configuredFirstDow != 0) configuredFirstDow else now.firstDayOfWeek
         val weekTop = padTop + titleFont * 1.8f
         for (i in 0 until 7) {
             val cx = padX + dayWidth * i + dayWidth / 2f
@@ -143,11 +159,10 @@ class MonthCalendarView @JvmOverloads constructor(
         }
     }
 
-    private fun rebuild(now: Calendar, year: Int, month: Int) {
+    private fun rebuild(now: Calendar, year: Int, month: Int, fDow: Int) {
         val c = Calendar.getInstance()
         c.clear()
         c.set(year, month, 1)
-        val fDow = now.firstDayOfWeek
         firstCell = (c.get(Calendar.DAY_OF_WEEK) - fDow + 7) % 7
         daysInMonth = c.getActualMaximum(Calendar.DAY_OF_MONTH)
         todayDay = now.get(Calendar.DAY_OF_MONTH)
@@ -166,6 +181,7 @@ class MonthCalendarView @JvmOverloads constructor(
         }
         cachedYear = year
         cachedMonth = month
+        cachedFirstDow = fDow
     }
 
     /** Localized month in nominative, first letter capital (e.g. "Сентябрь"). */

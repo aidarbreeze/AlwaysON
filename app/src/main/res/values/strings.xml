@@ -34,6 +34,11 @@
     <string name="style_dots">Dot-matrix “comic” digits</string>
     <string name="style_flip">Flip clock (откидные)</string>
     <string name="clock_thickness_label">Outline thickness</string>
+    <string name="week_start_label">First day of the week</string>
+    <string name="week_start_system">System</string>
+    <string name="week_start_mon">Monday</string>
+    <string name="week_start_sun">Sunday</string>
+    <string name="week_start_sat">Saturday</string>
 
     <!-- Stocks / calendar alternation -->
     <string name="stocks_section">Stocks panel</string>
