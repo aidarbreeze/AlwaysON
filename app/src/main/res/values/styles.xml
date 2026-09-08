@@ -44,6 +44,13 @@
         <item name="android:stateListAnimator">@null</item>
     </style>
 
+    <!-- Dark application theme for the settings screen (matches the OLED
+         standby look). Uses the built-in dark Material action bar. -->
+    <style name="AppTheme" parent="@android:style/Theme.Material">
+        <item name="android:windowBackground">@color/settings_bg</item>
+        <item name="android:colorAccent">#3D9BFF</item>
+    </style>
+
     <!-- Full black, borderless theme used by the StandBy preview activity. -->
     <style name="StandbyTheme" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowFullscreen">true</item>

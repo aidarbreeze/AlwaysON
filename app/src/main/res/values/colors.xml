@@ -6,11 +6,16 @@
     <color name="aod_secondary_text">#B0B0B0</color>
     <color name="aod_divider">#26FFFFFF</color>
 
-    <!-- Settings screen palette -->
-    <color name="settings_bg">#EFEFF4</color>
-    <color name="settings_card">#FFFFFF</color>
-    <color name="settings_header">#8E8E93</color>
-    <color name="settings_text">#DE000000</color>
-    <color name="settings_text_secondary">#99000000</color>
-    <color name="settings_sep">#E9E9EF</color>
+    <!-- Settings screen palette (dark) -->
+    <color name="settings_bg">#0F0F12</color>
+    <color name="settings_card">#1E1E23</color>
+    <color name="settings_header">#9A9AA2</color>
+    <color name="settings_text">#E8E8EC</color>
+    <color name="settings_text_secondary">#9A9AA2</color>
+    <color name="settings_sep">#FFFFFF17</color>
+
+    <!-- Live preview area (mimics the OLED standby screen) -->
+    <color name="preview_bg">#000000</color>
+    <color name="preview_text">#F2F2F2</color>
+    <color name="preview_text_secondary">#B0B0B0</color>
 </resources>

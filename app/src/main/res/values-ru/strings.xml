@@ -5,6 +5,7 @@
 
     <!-- StandBy -->
     <string name="section_standby">Экран StandBy</string>
+    <string name="preview_section">Живое превью</string>
     <string name="preview_desc">Крупные часы, дата, календарь на месяц и, когда играет музыка, компактный плеер — в стиле iPhone StandBy. Чёрный OLED-фон с защитой от выгорания.</string>
     <string name="btn_preview">Показать StandBy сейчас</string>
 
@@ -25,8 +26,8 @@
     <!-- Оформление -->
     <string name="section_appearance">Внешний вид</string>
     <string name="auto_brightness_title">Автояркость</string>
-    <string name="auto_brightness_summary">Автоматически подстраиваться под датчик света — еле заметно в темноте и хорошо видно днём. Ползунок ниже задаёт максимум.</string>
-    <string name="brightness_label">Максимальная яркость часов</string>
+    <string name="auto_brightness_summary">Автоматически подстраиваться под датчик света — еле заметно в темноте и хорошо видно днём. Отключите, чтобы задать фиксированную яркость.</string>
+    <string name="brightness_label">Яркость часов</string>
 
     <string name="clock_style_title">Стиль часов</string>
     <string-array name="clock_style_entries">

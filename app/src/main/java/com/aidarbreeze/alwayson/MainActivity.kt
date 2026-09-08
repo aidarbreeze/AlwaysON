@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
@@ -21,6 +23,10 @@ import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
 import com.aidarbreeze.alwayson.service.OverlayService
+import com.aidarbreeze.alwayson.view.ClockView
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -49,9 +55,25 @@ class MainActivity : Activity() {
     private lateinit var stockPeriodGroup: RadioGroup
     private lateinit var weekStartGroup: RadioGroup
 
+    // Live clock preview (top of the settings screen).
+    private lateinit var previewClock: ClockView
+    private lateinit var previewDate: TextView
+    private lateinit var brightnessRow: View
+    private val previewHandler = Handler(Looper.getMainLooper())
+    private val previewTicker = object : Runnable {
+        override fun run() {
+            updatePreview()
+            previewHandler.postDelayed(this, 1000)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        previewClock = findViewById(R.id.previewClock)
+        previewDate = findViewById(R.id.previewDate)
+        brightnessRow = findViewById(R.id.brightnessRow)
 
         autoSwitch = findViewById(R.id.autoSwitch)
         permStatus = findViewById(R.id.permStatus)
@@ -126,6 +148,7 @@ class MainActivity : Activity() {
                 ) {
                     Prefs.setClockStyle(this@MainActivity, position)
                     updateOutlineThicknessRow()
+                    updatePreview()
                 }
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
@@ -140,7 +163,10 @@ class MainActivity : Activity() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val v = (progress + 1).coerceIn(1, 30)
                 thicknessValue.text = "$v dp"
-                if (fromUser) Prefs.setClockThickness(this@MainActivity, v)
+                if (fromUser) {
+                    Prefs.setClockThickness(this@MainActivity, v)
+                    updatePreview()
+                }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -201,9 +227,11 @@ class MainActivity : Activity() {
 
         use24Switch.setOnCheckedChangeListener { _, checked ->
             Prefs.setForce24h(this, checked)
+            updatePreview()
         }
         secondsSwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.setShowSeconds(this, checked)
+            updatePreview()
         }
         batterySwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.setShowBattery(this, checked)
@@ -211,7 +239,10 @@ class MainActivity : Activity() {
         brightnessSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 updateBrightnessLabel()
-                if (fromUser) Prefs.setBrightness(this@MainActivity, progress)
+                if (fromUser) {
+                    Prefs.setBrightness(this@MainActivity, progress)
+                    updatePreview()
+                }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -254,6 +285,13 @@ class MainActivity : Activity() {
         super.onResume()
         refreshPermissionUi()
         refreshSwitchState()
+        updatePreview()
+        previewHandler.postDelayed(previewTicker, 1000)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        previewHandler.removeCallbacks(previewTicker)
     }
 
     private fun updateBrightnessLabel() {
@@ -261,10 +299,44 @@ class MainActivity : Activity() {
     }
 
     private fun updateBrightnessEnabledState() {
-        // The slider always controls Prefs.brightness: when auto is on it is the
-        // maximum the sensor may reach; when off it is the fixed level.
+        // Manual brightness only matters when auto-tuning is off: hide the
+        // slider row (and its divider) so the screen stays tidy.
         val auto = autoBrightSwitch.isChecked
-        brightnessSeek.alpha = if (auto) 0.6f else 1f
+        brightnessRow.visibility = if (auto) View.GONE else View.VISIBLE
+        updatePreview()
+    }
+
+    /** Keeps the live preview in sync with the current clock settings. */
+    private fun updatePreview() {
+        if (!this::previewClock.isInitialized) return
+        val now = Calendar.getInstance()
+        val millis = now.timeInMillis
+        val use24 = if (Prefs.force24h(this)) true
+        else android.text.format.DateFormat.is24HourFormat(this)
+        val secs = Prefs.showSeconds(this)
+        val pattern = when {
+            use24 && secs -> "HH:mm:ss"
+            use24 -> "HH:mm"
+            secs -> "h:mm:ss"
+            else -> "h:mm"
+        }
+        previewClock.setTime(SimpleDateFormat(pattern, Locale.getDefault()).format(millis))
+        previewClock.refresh()
+
+        val locale = Locale.getDefault()
+        val dp = if (locale.language.equals("ru", ignoreCase = true)) {
+            "EEEE, d MMMM"
+        } else {
+            "EEEE, MMMM d"
+        }
+        val line = SimpleDateFormat(dp, locale).format(millis)
+        previewDate.text = line.replaceFirstChar { it.titlecase(locale) }
+
+        // Reflect the chosen clock brightness on the preview content only
+        // (the pure-black background is unaffected and stays readable).
+        val alpha = (Prefs.brightness(this) / 100f).coerceIn(0.22f, 1f)
+        previewClock.alpha = alpha
+        previewDate.alpha = alpha
     }
 
     /** Show the outline-thickness slider only while the outline style is picked. */

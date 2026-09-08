@@ -5,6 +5,7 @@
 
     <!-- StandBy -->
     <string name="section_standby">StandBy screen</string>
+    <string name="preview_section">Live preview</string>
     <string name="preview_desc">Big clock, date, a month calendar and, when music plays, a compact player — in the style of iPhone StandBy. Black OLED background with burn-in protection.</string>
     <string name="btn_preview">Show StandBy now</string>
 
@@ -25,8 +26,8 @@
     <!-- Appearance -->
     <string name="section_appearance">Appearance</string>
     <string name="auto_brightness_title">Auto brightness</string>
-    <string name="auto_brightness_summary">Automatically adjust to the light sensor — barely visible in the dark, clearly readable in daylight. The slider below becomes the maximum.</string>
-    <string name="brightness_label">Maximum clock brightness</string>
+    <string name="auto_brightness_summary">Automatically adjust to the light sensor — barely visible in the dark, clearly readable in daylight. Turn this off to set a fixed brightness.</string>
+    <string name="brightness_label">Clock brightness</string>
 
     <string name="clock_style_title">Clock style</string>
     <string-array name="clock_style_entries">

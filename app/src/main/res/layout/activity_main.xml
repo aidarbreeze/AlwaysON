@@ -12,6 +12,38 @@
         android:paddingTop="8dp"
         android:paddingBottom="28dp">
 
+        <!-- ================= Live preview ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/preview_section" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="14dp"
+            android:background="@drawable/bg_preview">
+
+            <com.aidarbreeze.alwayson.view.ClockView
+                android:id="@+id/previewClock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/previewDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="@color/preview_text_secondary"
+                android:text="" />
+        </LinearLayout>
+
         <!-- ================= StandBy ================= -->
         <TextView
             style="@style/SettingHeader"
@@ -368,40 +400,49 @@
                     android:layout_marginStart="12dp" />
             </LinearLayout>
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginStart="16dp"
-                android:background="@color/settings_sep" />
-
+            <!-- Manual-brightness row: shown only while auto brightness is off. -->
             <LinearLayout
+                android:id="@+id/brightnessRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:minHeight="56dp"
-                android:paddingStart="16dp"
-                android:paddingEnd="12dp">
-                <TextView
-                    style="@style/PrefTitle"
-                    android:layout_width="0dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/brightness_label" />
-                <SeekBar
-                    android:id="@+id/brightnessSeek"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:max="100" />
-                <TextView
-                    android:id="@+id/brightnessValue"
-                    android:layout_width="44dp"
-                    android:layout_height="wrap_content"
-                    android:gravity="end"
-                    android:textSize="14sp"
-                    android:textColor="@color/settings_text_secondary"
-                    android:text="100%" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:minHeight="56dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="12dp">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/brightness_label" />
+                    <SeekBar
+                        android:id="@+id/brightnessSeek"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:max="100" />
+                    <TextView
+                        android:id="@+id/brightnessValue"
+                        android:layout_width="44dp"
+                        android:layout_height="wrap_content"
+                        android:gravity="end"
+                        android:textSize="14sp"
+                        android:textColor="@color/settings_text_secondary"
+                        android:text="100%" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
