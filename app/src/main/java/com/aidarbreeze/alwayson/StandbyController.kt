@@ -327,7 +327,7 @@ class StandbyController(context: Context, root: View) {
             )
             return
         }
-        weatherView.show(data)
+        weatherView.show(data, Prefs.weatherStyle(appContext))
     }
 
     /** Fetch the forecast on a background thread when it is missing or stale. */

@@ -86,7 +86,10 @@
     <!-- Weather panel -->
     <string name="weather_section">Weather</string>
     <string name="weather_switch_title">Show the weather forecast</string>
-    <string name="weather_switch_summary">After the calendar and the stock chart, rotate in an hourly and a daily forecast for your location.</string>
+    <string name="weather_switch_summary">After the calendar and the stock chart, show a weather forecast for your location.</string>
+    <string name="weather_style_label">Forecast style</string>
+    <string name="weather_style_classic">Classic</string>
+    <string name="weather_style_curve">Curve</string>
     <string name="weather_geo_button">Use the device location</string>
     <string name="weather_city_label">…or type a city instead:</string>
     <string name="weather_city_hint">City, e.g. Moscow</string>

@@ -42,6 +42,10 @@ object Prefs {
     private const val KEY_WEATHER_LON = "weather_lon"
     // Display name of the location (from manual geocode or empty for GPS).
     private const val KEY_WEATHER_CITY = "weather_city"
+    // Weather panel style: 0 = classic (hero temperature + hourly columns +
+    // week list with range bars), 1 = curve (24 h temperature curve + dense
+    // two-column week list).
+    private const val KEY_WEATHER_STYLE = "weather_style"
 
     private fun sp(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -150,4 +154,9 @@ object Prefs {
         sp(ctx).getString(KEY_WEATHER_CITY, null) ?: ""
     fun setWeatherCity(ctx: Context, name: String) =
         sp(ctx).edit().putString(KEY_WEATHER_CITY, name.trim()).apply()
+
+    /** Weather panel style: 0 = classic (default), 1 = curve. */
+    fun weatherStyle(ctx: Context): Int = sp(ctx).getInt(KEY_WEATHER_STYLE, 0)
+    fun setWeatherStyle(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_WEATHER_STYLE, v.coerceIn(0, 1)).apply()
 }

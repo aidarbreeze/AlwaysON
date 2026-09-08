@@ -4,10 +4,12 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.View
+import com.aidarbreeze.alwayson.weather.WeatherHour
 import com.aidarbreeze.alwayson.weather.WeatherInfo
 import com.aidarbreeze.alwayson.weather.WeatherLabel
 import java.text.SimpleDateFormat
@@ -16,14 +18,22 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Minimalist monochrome weather panel (white on black, OLED theme).
+ * Monochrome weather panel (white on black, OLED theme) with two selectable
+ * styles:
  *
- * A single screen with three sections:
+ * STYLE_CLASSIC — a single screen with three sections:
  *  1. Current weather — city, a large thin temperature, a condition glyph
  *     and a short word.
  *  2. Hourly strip — one column per upcoming hour: time, glyph, temperature.
  *  3. Daily list — one row per day: weekday + day number, a temperature
  *     range bar drawn on the shared week scale, and the min/max values.
+ *
+ * STYLE_CURVE — a glanceable "dashboard":
+ *  1. Header: city (left) and the current temperature + condition (right).
+ *  2. A smooth 24-hour temperature curve with the "now" dot, the day's min
+ *     and max marked on the curve, and time labels under it.
+ *  3. A dense two-column week list (weekday, day number, condition glyph and
+ *     the min/max range).
  */
 class WeatherPanelView @JvmOverloads constructor(
     context: Context,
@@ -31,8 +41,14 @@ class WeatherPanelView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
+    companion object {
+        const val STYLE_CLASSIC = 0
+        const val STYLE_CURVE = 1
+    }
+
     private var info: WeatherInfo? = null
     private var statusText = ""
+    private var style = STYLE_CLASSIC
 
     private val statusPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0x88FFFFFF.toInt()
@@ -110,6 +126,37 @@ class WeatherPanelView @JvmOverloads constructor(
         color = 0x2EFFFFFF.toInt()
     }
 
+    // ---- curve style ----
+    private val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = dpf(2f)
+        strokeJoin = Paint.Join.ROUND
+        strokeCap = Paint.Cap.ROUND
+    }
+
+    private val curveLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x99FFFFFF.toInt()
+        textSize = dpf(10f)
+    }
+
+    private val headerTempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = dpf(16f)
+        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+    }
+
+    private val nowTempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = dpf(13f)
+        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+    }
+
+    private val weekGlyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = dpf(12f)
+    }
+
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
 
     /** Show a plain status line (loading / no data) instead of a forecast. */
@@ -119,10 +166,11 @@ class WeatherPanelView @JvmOverloads constructor(
         invalidate()
     }
 
-    /** Show the forecast. */
-    fun show(data: WeatherInfo) {
+    /** Show the forecast in the requested style. */
+    fun show(data: WeatherInfo, style: Int = STYLE_CLASSIC) {
         info = data
         statusText = ""
+        this.style = style
         invalidate()
     }
 
@@ -139,6 +187,18 @@ class WeatherPanelView @JvmOverloads constructor(
             return
         }
 
+        if (style == STYLE_CURVE) {
+            drawCurveMode(canvas, w, h, data)
+        } else {
+            drawClassicMode(canvas, w, h, data)
+        }
+    }
+
+    // ================================================================
+    // CLASSIC STYLE
+    // ================================================================
+
+    private fun drawClassicMode(canvas: Canvas, w: Float, h: Float, data: WeatherInfo) {
         val pad = dpf(16f)
 
         // ---------- 1. current weather ----------
@@ -193,8 +253,6 @@ class WeatherPanelView @JvmOverloads constructor(
         drawDaily(canvas, w, daysTop, availH / rows, rows, data)
     }
 
-    // ---------- hourly strip ----------
-
     private fun drawHourly(canvas: Canvas, w: Float, top: Float, data: WeatherInfo) {
         val hours = data.hours
         if (hours.isEmpty()) return
@@ -228,8 +286,6 @@ class WeatherPanelView @JvmOverloads constructor(
             canvas.drawText("${hour.tempC}°", cx, top + dpf(49f), hourlyTempPaint)
         }
     }
-
-    // ---------- daily list ----------
 
     private fun drawDaily(
         canvas: Canvas,
@@ -300,6 +356,158 @@ class WeatherPanelView @JvmOverloads constructor(
                     val seg = RectF(s0, barY - dpf(0.5f), s1, barY + dpf(3f))
                     canvas.drawRoundRect(seg, dpf(1.25f), dpf(1.25f), barSegPaint)
                 }
+            }
+        }
+    }
+
+    // ================================================================
+    // CURVE STYLE
+    // ================================================================
+
+    private fun drawCurveMode(canvas: Canvas, w: Float, h: Float, data: WeatherInfo) {
+        val pad = dpf(16f)
+
+        // ---------- header: city left, "21° ясно" right ----------
+        val city = data.city.trim()
+        if (city.isNotEmpty()) {
+            cityPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText(city, pad, dpf(16f), cityPaint)
+        }
+        val cond = WeatherLabel.of(data.codeNow)
+        if (cond.isNotEmpty()) {
+            condPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(cond, w - pad, dpf(16f), condPaint)
+        }
+        headerTempPaint.textAlign = Paint.Align.RIGHT
+        val condW = if (cond.isNotEmpty()) condPaint.measureText(cond) else 0f
+        val tempRight = w - pad - condW - (if (cond.isNotEmpty()) dpf(8f) else 0f)
+        canvas.drawText("${data.tempNowC}°", tempRight, dpf(17f), headerTempPaint)
+
+        val headerBottom = dpf(26f)
+        canvas.drawRect(pad, headerBottom, w - pad, headerBottom + dpf(1f), sepPaint)
+
+        // ---------- vertical layout (week list first, curve above it) ----------
+        val nowMs = System.currentTimeMillis()
+        val rowH = dpf(22f)
+        val rows = 4
+        val weekH = rows * rowH
+        val hasWeek = h >= dpf(228f)
+        val weekTop = h - dpf(4f) - weekH
+        val curveTop = dpf(36f)
+        val curveBottom = if (hasWeek) weekTop - dpf(26f) else h - dpf(10f)
+        val timeBaseY = weekTop - dpf(16f)
+        if (hasWeek) {
+            canvas.drawRect(pad, weekTop - dpf(10f), w - pad, weekTop - dpf(9f), sepPaint)
+        }
+
+        // ---------- 24 h temperature curve ----------
+        val windowMs = 24L * 3600_000L
+        val pts = ArrayList<WeatherHour>()
+        pts.add(WeatherHour(nowMs, data.tempNowC, data.codeNow))
+        for (hh in data.hours) {
+            if (hh.timeMs > nowMs && hh.timeMs <= nowMs + windowMs) pts.add(hh)
+        }
+        if (pts.size >= 2) {
+            var tMin = Int.MAX_VALUE
+            var tMax = Int.MIN_VALUE
+            for (p in pts) {
+                if (p.tempC < tMin) tMin = p.tempC
+                if (p.tempC > tMax) tMax = p.tempC
+            }
+            if (tMax - tMin < 1) {
+                tMin -= 1
+                tMax += 1
+            }
+            val padV = (tMax - tMin) * 0.18f
+            val cLo = tMin - padV
+            val cHi = tMax + padV
+
+            fun xFor(t: Long): Float =
+                pad + (t - nowMs).toFloat() / windowMs.toFloat() * (w - 2 * pad)
+            fun yFor(v: Int): Float =
+                curveBottom - (v - cLo) / (cHi - cLo) * (curveBottom - curveTop)
+
+            // curve polyline
+            val path = Path()
+            for (i in pts.indices) {
+                val x = xFor(pts[i].timeMs)
+                val y = yFor(pts[i].tempC)
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            canvas.drawPath(path, curvePaint)
+
+            // min / max marked on the curve
+            var iMin = 0
+            var iMax = 0
+            for (i in pts.indices) {
+                if (pts[i].tempC < pts[iMin].tempC) iMin = i
+                if (pts[i].tempC > pts[iMax].tempC) iMax = i
+            }
+            curveLabelPaint.textAlign = Paint.Align.CENTER
+            val marginX = dpf(14f)
+            val xMax = xFor(pts[iMax].timeMs).coerceIn(pad + marginX, w - pad - marginX)
+            canvas.drawText(
+                "${pts[iMax].tempC}°", xMax, yFor(pts[iMax].tempC) - dpf(6f), curveLabelPaint
+            )
+            val xMin = xFor(pts[iMin].timeMs).coerceIn(pad + marginX, w - pad - marginX)
+            canvas.drawText(
+                "${pts[iMin].tempC}°", xMin, yFor(pts[iMin].tempC) + dpf(12f), curveLabelPaint
+            )
+
+            // "now" dot at the left edge + the current temperature
+            val yNow = yFor(data.tempNowC)
+            canvas.drawCircle(pad, yNow, dpf(3f), barSegPaint)
+            nowTempPaint.textAlign = Paint.Align.LEFT
+            val yLbl = (yNow + dpf(4.5f))
+                .coerceIn(curveTop + dpf(10f), curveBottom - dpf(2f))
+            canvas.drawText("${data.tempNowC}°", pad + dpf(8f), yLbl, nowTempPaint)
+
+            // time labels under the curve
+            if (hasWeek) {
+                val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+                curveLabelPaint.textAlign = Paint.Align.CENTER
+                for (frac in floatArrayOf(0.25f, 0.5f, 0.75f)) {
+                    val t = nowMs + (windowMs * frac).toLong()
+                    canvas.drawText(timeFmt.format(Date(t)), xFor(t), timeBaseY, curveLabelPaint)
+                }
+            }
+        }
+
+        // ---------- dense two-column week list ----------
+        val days = data.days
+        if (hasWeek && days.isNotEmpty()) {
+            var start = 0
+            while (start < days.size && days[start].timeMs < nowMs &&
+                !isSameDay(days[start].timeMs, nowMs)
+            ) start++
+            if (start >= days.size) start = maxOf(0, days.size - 1)
+            val count = maxOf(1, minOf(rows * 2, days.size - start))
+
+            val locale = Locale.getDefault()
+            val wf = SimpleDateFormat("E", locale)
+            val df = SimpleDateFormat("d", locale)
+            val colW = (w - 2 * pad) / 2f
+
+            for (i in 0 until count) {
+                val d = days[start + i]
+                val col = if (i < rows) 0 else 1
+                val row = i % rows
+                val cx = pad + col * colW
+                val cy = weekTop + rowH * row
+                val isToday = isSameDay(d.timeMs, nowMs)
+
+                val label = "${wf.format(Date(d.timeMs))} ${df.format(Date(d.timeMs))}"
+                val range = "${d.tMin}°/${d.tMax}°"
+                val labelPaint = if (isToday) dayLabelBold else dayLabelPaint
+                val rangePaint = if (isToday) dayRangeBold else dayRangePaint
+                labelPaint.textAlign = Paint.Align.LEFT
+                rangePaint.textAlign = Paint.Align.RIGHT
+                weekGlyphPaint.textAlign = Paint.Align.LEFT
+
+                val baseline = cy + rowH * 0.66f
+                canvas.drawText(label, cx, baseline, labelPaint)
+                canvas.drawText(WeatherLabel.glyph(d.code), cx + dpf(42f), baseline, weekGlyphPaint)
+                canvas.drawText(range, cx + colW - dpf(6f), baseline, rangePaint)
             }
         }
     }

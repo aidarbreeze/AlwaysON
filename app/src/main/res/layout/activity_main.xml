@@ -771,6 +771,44 @@
                     android:layout_marginStart="16dp"
                     android:background="@color/settings_sep" />
 
+                <!-- Forecast style: classic (hero temp + hourly + week bars)
+                     or curve (24 h temperature curve + two-column week). -->
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/weather_style_label" />
+
+                <RadioGroup
+                    android:id="@+id/weatherStyleGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="2dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp">
+
+                    <RadioButton
+                        android:id="@+id/weatherStyleClassic"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="4dp"
+                        android:text="@string/weather_style_classic"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/weatherStyleCurve"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="16dp"
+                        android:text="@string/weather_style_curve"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                </RadioGroup>
+
                 <Button
                     android:id="@+id/weatherGeobtn"
                     style="@style/ActionButton"

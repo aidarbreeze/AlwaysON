@@ -25,6 +25,7 @@ import android.widget.Switch
 import android.widget.TextView
 import com.aidarbreeze.alwayson.service.OverlayService
 import com.aidarbreeze.alwayson.view.ClockView
+import com.aidarbreeze.alwayson.view.WeatherPanelView
 import com.aidarbreeze.alwayson.weather.WeatherApi
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -62,6 +63,7 @@ class MainActivity : Activity() {
     private lateinit var weatherStatus: TextView
     private lateinit var weatherGeobtn: Button
     private lateinit var weatherLocBlock: View
+    private lateinit var weatherStyleGroup: RadioGroup
 
     // Live clock preview (top of the settings screen).
     private lateinit var previewClock: ClockView
@@ -109,6 +111,7 @@ class MainActivity : Activity() {
         weatherStatus = findViewById(R.id.weatherStatus)
         weatherGeobtn = findViewById(R.id.weatherGeobtn)
         weatherLocBlock = findViewById(R.id.weatherLocBlock)
+        weatherStyleGroup = findViewById(R.id.weatherStyleGroup)
 
         // Load persisted appearance.
         autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
@@ -272,6 +275,19 @@ class MainActivity : Activity() {
             updateWeatherLocBlock()
             if (checked && !Prefs.hasWeatherLocation(this)) requestLocation()
             updateWeatherStatus()
+        }
+
+        if (Prefs.weatherStyle(this) == WeatherPanelView.STYLE_CURVE) {
+            weatherStyleGroup.check(R.id.weatherStyleCurve)
+        } else {
+            weatherStyleGroup.check(R.id.weatherStyleClassic)
+        }
+        weatherStyleGroup.setOnCheckedChangeListener { _, checkedId ->
+            Prefs.setWeatherStyle(
+                this,
+                if (checkedId == R.id.weatherStyleCurve) WeatherPanelView.STYLE_CURVE
+                else WeatherPanelView.STYLE_CLASSIC
+            )
         }
 
         weatherGeobtn.setOnClickListener { requestLocation() }
