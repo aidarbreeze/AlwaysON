@@ -65,10 +65,10 @@ class StandbyController(context: Context, root: View) {
 
     // --- panel alternation: calendar <-> stock chart <-> weather ---
     // A fixed set of "windows" is rotated on a timer. Windows can be the month
-    // calendar, a MOEX chart of a chosen interval, or the weather forecast in
-    // its hourly or daily view. Weather is only included once a forecast point
-    // (geolocation or a manually entered city) is available.
-    private enum class Kind { CAL, STOCK, HOUR, DAY }
+    // calendar, a MOEX chart of a chosen interval, or the weather forecast.
+    // Weather is only included once a forecast point (geolocation or a manually
+    // entered city) is available.
+    private enum class Kind { CAL, STOCK, WEATHER }
     private class Panel(val kind: Kind, val interval: Int = 0)
 
     private val stockCached = HashMap<Int, List<Candle>>()
@@ -80,7 +80,6 @@ class StandbyController(context: Context, root: View) {
     private var weatherCached: WeatherInfo? = null
     private var weatherFetchedAt = 0L
     private var weatherFetching = false
-    private var weatherMode = WeatherPanelView.MODE_DAILY
     private var panelSeq: List<Panel> = emptyList()
     private var panelStep = 0
     private var fetchGen = 0L
@@ -230,7 +229,7 @@ class StandbyController(context: Context, root: View) {
             }
         }
         // Weather on: one clean loop of every enabled window, ending with the
-        // two weather views (hourly, then daily).
+        // single weather panel (current + hourly + week in one screen).
         val out = ArrayList<Panel>()
         out.add(Panel(Kind.CAL))
         if (stocks) {
@@ -243,8 +242,7 @@ class StandbyController(context: Context, root: View) {
                 out.add(Panel(Kind.STOCK, 1))
             }
         }
-        out.add(Panel(Kind.HOUR))
-        out.add(Panel(Kind.DAY))
+        out.add(Panel(Kind.WEATHER))
         return out
     }
 
@@ -253,8 +251,7 @@ class StandbyController(context: Context, root: View) {
         when (panel.kind) {
             Kind.CAL -> showCalendarOnly()
             Kind.STOCK -> showChart(panel.interval)
-            Kind.HOUR -> showWeather(WeatherPanelView.MODE_HOURLY)
-            Kind.DAY -> showWeather(WeatherPanelView.MODE_DAILY)
+            Kind.WEATHER -> showWeather()
         }
     }
 
@@ -314,8 +311,7 @@ class StandbyController(context: Context, root: View) {
         }.start()
     }
 
-    private fun showWeather(mode: Int) {
-        weatherMode = mode
+    private fun showWeather() {
         monthView.visibility = View.GONE
         stockView.visibility = View.GONE
         weatherView.visibility = View.VISIBLE
@@ -331,11 +327,7 @@ class StandbyController(context: Context, root: View) {
             )
             return
         }
-        if (weatherMode == WeatherPanelView.MODE_HOURLY) {
-            weatherView.showHourly(data)
-        } else {
-            weatherView.showDaily(data)
-        }
+        weatherView.show(data)
     }
 
     /** Fetch the forecast on a background thread when it is missing or stale. */
