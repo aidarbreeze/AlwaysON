@@ -41,6 +41,7 @@
     <string name="style_matrix">Квадратная LED-матрица</string>
     <string name="clock_thickness_label">Толщина контура</string>
     <string name="week_start_label">Первый день недели</string>
+    <string name="section_calendar">Календарь</string>
     <string name="week_start_system">Системный</string>
     <string name="week_start_mon">Понедельник</string>
     <string name="week_start_sun">Воскресенье</string>

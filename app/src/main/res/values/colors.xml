@@ -5,4 +5,12 @@
     <color name="aod_clock_text">#F2F2F2</color>
     <color name="aod_secondary_text">#B0B0B0</color>
     <color name="aod_divider">#26FFFFFF</color>
+
+    <!-- Settings screen palette -->
+    <color name="settings_bg">#EFEFF4</color>
+    <color name="settings_card">#FFFFFF</color>
+    <color name="settings_header">#8E8E93</color>
+    <color name="settings_text">#DE000000</color>
+    <color name="settings_text_secondary">#99000000</color>
+    <color name="settings_sep">#E9E9EF</color>
 </resources>

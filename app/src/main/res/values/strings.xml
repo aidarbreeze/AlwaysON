@@ -41,6 +41,7 @@
     <string name="style_matrix">Square LED-matrix</string>
     <string name="clock_thickness_label">Outline thickness</string>
     <string name="week_start_label">First day of the week</string>
+    <string name="section_calendar">Calendar</string>
     <string name="week_start_system">System</string>
     <string name="week_start_mon">Monday</string>
     <string name="week_start_sun">Sunday</string>

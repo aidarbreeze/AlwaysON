@@ -1,13 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="SectionTitle">
+    <!-- Small grey uppercase label above a settings group (Android-13 style). -->
+    <style name="SettingHeader">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">20dp</item>
-        <item name="android:layout_marginBottom">8dp</item>
-        <item name="android:textSize">18sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:textColor">#DE000000</item>
+        <item name="android:layout_marginStart">20dp</item>
+        <item name="android:layout_marginEnd">20dp</item>
+        <item name="android:layout_marginTop">22dp</item>
+        <item name="android:layout_marginBottom">6dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/settings_header</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.05</item>
+    </style>
+
+    <!-- Title line of a settings row. -->
+    <style name="PrefTitle">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/settings_text</item>
+        <item name="android:lineSpacingExtra">1dp</item>
+    </style>
+
+    <!-- Secondary line of a settings row. -->
+    <style name="PrefSummary">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/settings_text_secondary</item>
+        <item name="android:lineSpacingExtra">1dp</item>
+    </style>
+
+    <!-- A tappable list-style action (kept as a Button for the existing code,
+         but rendered flat and left-aligned like a settings row). -->
+    <style name="ActionButton">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:textColor">@color/settings_text</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:elevation">0dp</item>
+        <item name="android:stateListAnimator">@null</item>
     </style>
 
     <!-- Full black, borderless theme used by the StandBy preview activity. -->

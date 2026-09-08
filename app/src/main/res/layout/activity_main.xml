@@ -2,604 +2,766 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/settings_bg"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingTop="8dp"
+        android:paddingBottom="28dp">
 
-        <!-- ===== StandBy ===== -->
+        <!-- ================= StandBy ================= -->
         <TextView
-            style="@style/SectionTitle"
+            style="@style/SettingHeader"
             android:text="@string/section_standby" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/preview_desc"
-            android:textSize="14sp"
-            android:lineSpacingExtra="3dp"
-            android:textColor="#DE000000" />
-
-        <Button
-            android:id="@+id/btnPreview"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_preview" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:padding="8dp"
-            android:layout_marginTop="12dp">
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <Button
+                android:id="@+id/btnPreview"
+                style="@style/ActionButton"
+                android:text="@string/btn_preview" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="56dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:text="@string/auto_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/auto_summary" />
+                </LinearLayout>
+
+                <Switch
+                    android:id="@+id/autoSwitch"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/auto_title"
-                    android:textSize="16sp"
-                    android:textColor="#DE000000" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/auto_summary"
-                    android:textSize="13sp"
-                    android:textColor="#8A000000" />
+                    android:layout_marginStart="12dp" />
             </LinearLayout>
-            <Switch
-                android:id="@+id/autoSwitch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/permStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingLeft="8dp"
-            android:paddingRight="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="2dp"
             android:textSize="13sp"
-            android:textColor="#CC000000"
+            android:textColor="@color/settings_text_secondary"
             android:text="" />
 
         <Button
             android:id="@+id/btnGrantPerm"
+            style="@style/ActionButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
             android:text="@string/overlay_perm_button"
             android:visibility="gone" />
 
-        <Button
-            android:id="@+id/btnOpenDream"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="@string/btn_open_dream" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/dream_hint"
-            android:textSize="13sp"
-            android:textColor="#8A000000" />
-
-        <!-- ===== Now-playing access ===== -->
-        <TextView
-            style="@style/SectionTitle"
-            android:text="@string/media_access_title" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/media_access_hint"
-            android:textSize="13sp"
-            android:textColor="#8A000000"
-            android:lineSpacingExtra="3dp" />
-
-        <Button
-            android:id="@+id/btnMediaAccess"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/media_access_button" />
-
-        <!-- ===== Appearance ===== -->
-        <TextView
-            style="@style/SectionTitle"
-            android:text="@string/section_appearance" />
-
+        <!-- ================= Screen saver / media access ================= -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:padding="4dp">
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/auto_brightness_title"
-                    android:textSize="16sp"
-                    android:textColor="#DE000000" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/auto_brightness_summary"
-                    android:textSize="13sp"
-                    android:textColor="#8A000000" />
-            </LinearLayout>
-            <Switch
-                android:id="@+id/autoBrightSwitch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/brightness_label"
-            android:textSize="15sp"
-            android:textColor="#DE000000" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-            <SeekBar
-                android:id="@+id/brightnessSeek"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:max="100" />
-            <TextView
-                android:id="@+id/brightnessValue"
-                android:layout_width="42dp"
-                android:layout_height="wrap_content"
-                android:gravity="end"
-                android:textSize="14sp"
-                android:text="100%" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="@string/clock_style_title"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#DE000000" />
-
-        <RadioGroup
-            android:id="@+id/clockStyleGroup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingTop="4dp">
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
 
-            <RadioButton
-                android:id="@+id/styleNormal"
+            <Button
+                android:id="@+id/btnOpenDream"
+                style="@style/ActionButton"
+                android:text="@string/btn_open_dream" />
+
+            <TextView
+                style="@style/PrefSummary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_normal"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="6dp"
+                android:text="@string/dream_hint" />
 
-            <RadioButton
-                android:id="@+id/styleOutline"
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <Button
+                android:id="@+id/btnMediaAccess"
+                style="@style/ActionButton"
+                android:text="@string/media_access_button" />
+
+            <TextView
+                style="@style/PrefSummary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_outline"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="6dp"
+                android:text="@string/media_access_hint" />
+        </LinearLayout>
 
-            <RadioButton
-                android:id="@+id/styleDots"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_dots"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
+        <!-- ================= Appearance ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/section_appearance" />
 
-            <RadioButton
-                android:id="@+id/styleFlip"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_flip"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <RadioButton
-                android:id="@+id/styleSeg"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_seg"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <RadioButton
-                android:id="@+id/styleNeon"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_neon"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <RadioButton
-                android:id="@+id/styleBlocks"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_blocks"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <RadioButton
-                android:id="@+id/styleSerif"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_serif"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <RadioButton
-                android:id="@+id/styleItalic"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_italic"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <RadioButton
-                android:id="@+id/styleMatrix"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/style_matrix"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-        </RadioGroup>
-
+        <!-- Clock face -->
         <LinearLayout
-            android:id="@+id/outlineThicknessRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingTop="4dp"
-            android:visibility="gone">
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
 
             <TextView
-                android:layout_width="0dp"
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/clock_thickness_label"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:text="@string/clock_style_title" />
 
-            <SeekBar
-                android:id="@+id/thicknessSeek"
-                android:layout_width="0dp"
+            <RadioGroup
+                android:id="@+id/clockStyleGroup"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:max="29" />
+                android:orientation="vertical">
+
+                <RadioButton
+                    android:id="@+id/styleNormal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_normal"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleOutline"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_outline"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleDots"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_dots"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleFlip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_flip"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleSeg"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_seg"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleNeon"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_neon"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleBlocks"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_blocks"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleSerif"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_serif"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleItalic"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/style_italic"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/styleMatrix"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingBottom="12dp"
+                    android:text="@string/style_matrix"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+            </RadioGroup>
+
+            <LinearLayout
+                android:id="@+id/outlineThicknessRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="56dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="@string/clock_thickness_label" />
+
+                <SeekBar
+                    android:id="@+id/thicknessSeek"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:max="29" />
+
+                <TextView
+                    android:id="@+id/thicknessValue"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:textSize="14sp"
+                    android:textColor="@color/settings_text_secondary"
+                    android:text="" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 24h / seconds / battery switches -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/switch_24h" />
+                <Switch
+                    android:id="@+id/use24Switch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/switch_seconds" />
+                <Switch
+                    android:id="@+id/secondsSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/switch_battery" />
+                <Switch
+                    android:id="@+id/batterySwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <Button
+                android:id="@+id/btnBatteryProbe"
+                style="@style/ActionButton"
+                android:text="@string/btn_battery_probe" />
 
             <TextView
-                android:id="@+id/thicknessValue"
-                android:layout_width="36dp"
+                style="@style/PrefSummary"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="end"
-                android:textSize="14sp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="4dp"
+                android:text="@string/battery_probe_hint" />
+
+            <TextView
+                android:id="@+id/batteryProbe"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="12dp"
+                android:fontFamily="monospace"
+                android:textSize="11sp"
+                android:textColor="@color/settings_text_secondary"
+                android:visibility="gone"
                 android:text="" />
         </LinearLayout>
 
+        <!-- Brightness -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:text="@string/auto_brightness_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="@string/auto_brightness_summary" />
+                </LinearLayout>
+                <Switch
+                    android:id="@+id/autoBrightSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="56dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/brightness_label" />
+                <SeekBar
+                    android:id="@+id/brightnessSeek"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:max="100" />
+                <TextView
+                    android:id="@+id/brightnessValue"
+                    android:layout_width="44dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:textSize="14sp"
+                    android:textColor="@color/settings_text_secondary"
+                    android:text="100%" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ================= Calendar ================= -->
         <TextView
+            style="@style/SettingHeader"
+            android:text="@string/section_calendar" />
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="@string/week_start_label"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#DE000000" />
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
 
-        <RadioGroup
-            android:id="@+id/weekStartGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingTop="2dp">
-
-            <RadioButton
-                android:id="@+id/weekStartSystem"
+            <TextView
+                style="@style/PrefTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/week_start_system"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="2dp"
+                android:text="@string/week_start_label" />
 
-            <RadioButton
-                android:id="@+id/weekStartMon"
-                android:layout_width="wrap_content"
+            <RadioGroup
+                android:id="@+id/weekStartGroup"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/week_start_mon"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
+                android:orientation="vertical">
 
-            <RadioButton
-                android:id="@+id/weekStartSun"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/week_start_sun"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
+                <RadioButton
+                    android:id="@+id/weekStartSystem"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/week_start_system"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/weekStartMon"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/week_start_mon"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/weekStartSun"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/week_start_sun"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/weekStartSat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingBottom="12dp"
+                    android:text="@string/week_start_sat"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+            </RadioGroup>
+        </LinearLayout>
 
-            <RadioButton
-                android:id="@+id/weekStartSat"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="@string/week_start_sat"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-        </RadioGroup>
-
-        <Switch
-            android:id="@+id/use24Switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:padding="8dp"
-            android:text="@string/switch_24h"
-            android:textSize="16sp"
-            android:textColor="#DE000000" />
-
-        <Switch
-            android:id="@+id/secondsSwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:text="@string/switch_seconds"
-            android:textSize="16sp"
-            android:textColor="#DE000000" />
-
-        <Switch
-            android:id="@+id/batterySwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:text="@string/switch_battery"
-            android:textSize="16sp"
-            android:textColor="#DE000000" />
-
+        <!-- ================= Stocks ================= -->
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="@string/battery_probe_hint"
-            android:textSize="13sp"
-            android:textColor="#8A000000" />
-
-        <Button
-            android:id="@+id/btnBatteryProbe"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="@string/btn_battery_probe"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/batteryProbe"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="monospace"
-            android:textSize="11sp"
-            android:textColor="#AA000000"
-            android:visibility="gone"
-            android:text="" />
-
-        <!-- ===== Stocks panel ===== -->
-        <TextView
-            style="@style/SectionTitle"
+            style="@style/SettingHeader"
             android:text="@string/stocks_section" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:padding="4dp">
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:text="@string/stocks_switch_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="@string/stocks_switch_summary" />
+                </LinearLayout>
+                <Switch
+                    android:id="@+id/stocksSwitch"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/stocks_switch_title"
-                    android:textSize="16sp"
-                    android:textColor="#DE000000" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/stocks_switch_summary"
-                    android:textSize="13sp"
-                    android:textColor="#8A000000" />
+                    android:layout_marginStart="12dp" />
             </LinearLayout>
-            <Switch
-                android:id="@+id/stocksSwitch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                android:id="@+id/stockInputs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <TextView
+                    style="@style/PrefSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/stock_ticker_label" />
+
+                <EditText
+                    android:id="@+id/tickerInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:inputType="textCapCharacters"
+                    android:singleLine="true"
+                    android:textSize="16sp"
+                    android:hint="@string/stock_ticker_hint" />
+
+                <TextView
+                    style="@style/PrefSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingTop="6dp"
+                    android:text="@string/stock_ref_label" />
+
+                <EditText
+                    android:id="@+id/refInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:inputType="numberDecimal"
+                    android:singleLine="true"
+                    android:textSize="16sp"
+                    android:hint="@string/stock_ref_hint" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/stock_type_label" />
+
+                <RadioGroup
+                    android:id="@+id/stockTypeGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp">
+
+                    <RadioButton
+                        android:id="@+id/stockTypeLine"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="4dp"
+                        android:text="@string/stock_type_line"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/stockTypeCandles"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="16dp"
+                        android:text="@string/stock_type_candles"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                </RadioGroup>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/stock_period_label" />
+
+                <RadioGroup
+                    android:id="@+id/stockPeriodGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="8dp">
+
+                    <RadioButton
+                        android:id="@+id/stockPeriodAuto"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="4dp"
+                        android:text="@string/stock_period_auto"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/stockPeriod1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="12dp"
+                        android:text="@string/stock_period_1"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/stockPeriod10"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="12dp"
+                        android:text="@string/stock_period_10"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/stockPeriod60"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="12dp"
+                        android:text="@string/stock_period_60"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                </RadioGroup>
+            </LinearLayout>
         </LinearLayout>
 
+        <!-- ================= How it works ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/tech_note_title" />
+
         <LinearLayout
-            android:id="@+id/stockInputs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingLeft="4dp"
-            android:paddingRight="4dp">
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/stock_ticker_label"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <EditText
-                android:id="@+id/tickerInput"
+                style="@style/PrefSummary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/stock_ticker_hint"
-                android:inputType="textCapCharacters"
-                android:singleLine="true"
-                android:textSize="15sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/stock_ref_label"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <EditText
-                android:id="@+id/refInput"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="@string/stock_ref_hint"
-                android:inputType="numberDecimal"
-                android:singleLine="true"
-                android:textSize="15sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="@string/stock_type_label"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <RadioGroup
-                android:id="@+id/stockTypeGroup"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingTop="2dp">
-
-                <RadioButton
-                    android:id="@+id/stockTypeLine"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="4dp"
-                    android:text="@string/stock_type_line"
-                    android:textSize="15sp"
-                    android:textColor="#DE000000" />
-
-                <RadioButton
-                    android:id="@+id/stockTypeCandles"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="4dp"
-                    android:text="@string/stock_type_candles"
-                    android:textSize="15sp"
-                    android:textColor="#DE000000" />
-            </RadioGroup>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="@string/stock_period_label"
-                android:textSize="15sp"
-                android:textColor="#DE000000" />
-
-            <RadioGroup
-                android:id="@+id/stockPeriodGroup"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingTop="2dp">
-
-                <RadioButton
-                    android:id="@+id/stockPeriodAuto"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="4dp"
-                    android:text="@string/stock_period_auto"
-                    android:textSize="15sp"
-                    android:textColor="#DE000000" />
-
-                <RadioButton
-                    android:id="@+id/stockPeriod1"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="4dp"
-                    android:text="@string/stock_period_1"
-                    android:textSize="15sp"
-                    android:textColor="#DE000000" />
-
-                <RadioButton
-                    android:id="@+id/stockPeriod10"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="4dp"
-                    android:text="@string/stock_period_10"
-                    android:textSize="15sp"
-                    android:textColor="#DE000000" />
-
-                <RadioButton
-                    android:id="@+id/stockPeriod60"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="4dp"
-                    android:text="@string/stock_period_60"
-                    android:textSize="15sp"
-                    android:textColor="#DE000000" />
-            </RadioGroup>
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/tech_note" />
         </LinearLayout>
-
-        <!-- ===== Note ===== -->
-        <TextView
-            style="@style/SectionTitle"
-            android:text="@string/tech_note_title" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/tech_note"
-            android:textSize="13sp"
-            android:textColor="#8A000000"
-            android:lineSpacingExtra="3dp" />
 
     </LinearLayout>
 </ScrollView>
