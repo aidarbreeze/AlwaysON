@@ -87,10 +87,12 @@
                     <TextView
                         style="@style/PrefTitle"
                         android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/auto_title" />
                     <TextView
                         style="@style/PrefSummary"
                         android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:text="@string/auto_summary" />
                 </LinearLayout>
@@ -220,6 +222,7 @@
                 <TextView
                     style="@style/PrefTitle"
                     android:layout_width="0dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="@string/clock_thickness_label" />
 
@@ -386,10 +389,12 @@
                     <TextView
                         style="@style/PrefTitle"
                         android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/auto_brightness_title" />
                     <TextView
                         style="@style/PrefSummary"
                         android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:layout_marginTop="1dp"
                         android:text="@string/auto_brightness_summary" />
                 </LinearLayout>
@@ -540,10 +545,12 @@
                     <TextView
                         style="@style/PrefTitle"
                         android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/stocks_switch_title" />
                     <TextView
                         style="@style/PrefSummary"
                         android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:layout_marginTop="1dp"
                         android:text="@string/stocks_switch_summary" />
                 </LinearLayout>
@@ -734,10 +741,12 @@
                     <TextView
                         style="@style/PrefTitle"
                         android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/weather_switch_title" />
                     <TextView
                         style="@style/PrefSummary"
                         android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:layout_marginTop="1dp"
                         android:text="@string/weather_switch_summary" />
                 </LinearLayout>
