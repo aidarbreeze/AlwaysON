@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AlwaysON — превью экрана (портрет + ландшафт)</title>
+<style>
+  :root{
+    --bg:#0f0f12; --card:#1e1e23; --line:#ffffff22;
+    --head:#9a9aa2; --text:#e8e8ec; --muted:#9a9aa2;
+    --aod:#000; --clock:#f2f2f2; --sec:#b0b0b0;
+    --accent:#3d9bff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);padding:18px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;}
+  h1{font-size:19px;font-weight:700;color:#fff;margin:2px 0 2px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px;line-height:1.45}
+  .controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:20px;}
+  .ctrl{display:flex;flex-direction:column;gap:6px}
+  .ctrl>label{color:var(--head);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .btns{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{background:#2a2a31;color:var(--text);border:1px solid #ffffff22;border-radius:20px;
+    padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
+  .chip:hover{background:#34343c}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  select{background:#2a2a31;color:var(--text);border:1px solid #ffffff22;border-radius:8px;padding:7px 10px;font-size:13px}
+  .tog{display:inline-flex;gap:7px;align-items:center;background:#2a2a31;
+    border:1px solid #ffffff22;border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer}
+  .tog input{accent-color:var(--accent)}
+  .phones{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .phoneCard{display:flex;flex-direction:column;gap:9px;align-items:center}
+  .phoneCard .cap{color:var(--muted);font-size:12.5px}
+  .phone{border-radius:34px;padding:11px;background:#000;box-shadow:0 0 0 1px #ffffff22,0 20px 50px rgba(0,0,0,.6)}
+  .screen{position:relative;border-radius:24px;background:var(--aod);overflow:hidden}
+  .portrait .screen{width:375px;height:812px}
+  .landscape .screen{width:812px;height:375px}
+  .vc{position:absolute;inset:0;display:flex;flex-direction:column;padding:36px 26px 26px}
+  .lc{display:flex;flex-direction:column;justify-content:center;align-items:center;flex:11 1 0;min-height:0}
+  .bp{position:relative;flex:9 1 0;min-height:0}
+  .date{color:var(--sec);font-size:20px;line-height:1.2}
+  .clockwrap{position:relative;width:100%;height:150px;margin-top:6px}
+  .batt{color:var(--sec);font-size:15px;margin-top:4px}
+  .media{margin-top:20px;display:none;align-items:center;border:1px solid #ffffff26;border-radius:24px;
+    padding:8px 6px;background:rgba(255,255,255,.03)}
+  .media.on{display:flex}
+  .media .mbtn{color:var(--sec);font-size:20px;padding:0 8px;user-select:none}
+  .media .mglyph{color:var(--sec);font-size:13px;margin-right:8px}
+  .media .mtxt{color:var(--clock);font-size:16px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .panel{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;padding:0 2px}
+  .panel.on{display:flex}
+  .panel>div{width:100%}
+  .hl{position:absolute;inset:0;display:flex;padding:24px 30px 24px 38px}
+  .hl .left{flex:1 1 0;display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:0;margin-right:14px}
+  .hl .vd{width:1px;align-self:stretch;margin:22px 0;background:rgba(255,255,255,.15)}
+  .hl .right{position:relative;flex:1.15 1 0;min-width:0;margin-left:14px}
+  .hl .right .panel{justify-content:center}
+  .whead{text-align:center;color:var(--clock);font-weight:600;font-size:12.5px;line-height:1.2;margin:0 0 5px}
+  .hintline{color:#666;font-size:10.5px;text-align:center;margin-top:3px;font-style:italic}
+  .stocklabel{color:var(--sec);font-size:12px;margin-top:6px;text-align:center;opacity:.75}
+
+  /* ---- shared hourly scaffold: chart grows, footer stays fixed ---- */
+  #pHourly,#lHourly{height:100%;display:flex;flex-direction:column;overflow:hidden}
+  .hw{display:flex;flex-direction:column;height:100%;min-height:0}
+  .hmain{position:relative;flex:1 1 0;min-height:0}
+  .foot{display:flex;flex:0 0 auto;margin-top:6px}
+  .fc{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      line-height:1.15;overflow:hidden}
+  .fc .wl{display:flex;align-items:center;gap:2px;white-space:nowrap;color:var(--sec);font-size:9.5px;min-height:12px}
+  .fc .wl svg{display:block;flex:0 0 auto}
+  .fc .tm{white-space:nowrap;color:var(--clock);font-size:10.5px;font-weight:600;margin-top:2px}
+
+  /* ---- FORMAT 1: curve ---- */
+  .fcurve .chart{position:relative;flex:1 1 0;min-height:0;margin:2px 0}
+  .fcurve .chart svg{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+  .fcurve .tmp{position:absolute;transform:translate(-50%,-50%);color:var(--clock);
+     font-weight:600;font-size:10.5px;text-align:center;white-space:nowrap;pointer-events:none}
+  .fcurve .ax{position:absolute;left:0;right:0;height:1px;background:rgba(255,255,255,.12)}
+  .fcurve .pbar{position:absolute;transform:translateX(-50%);width:5px;border-radius:2px 2px 0 0;
+     background:rgba(255,255,255,.55);top:0}
+  .fcurve .plab{position:absolute;transform:translateX(-50%);color:var(--sec);font-size:8px;
+     white-space:nowrap;pointer-events:none}
+  .fcurve .nowline{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.22)}
+
+  @media (max-width:900px){ .landscape .phoneCard{transform:scale(.58);transform-origin:top center;margin-bottom:-185px} }
+</style>
+</head>
+<body>
+
+<h1>AlwaysON · экран standby — формат «График» (часовая погода)</h1>
+<div class="sub">Проверка раскладки часового графика: кривая температуры + столбики осадков вниз от оси + время/ветер под каждой точкой, без переносов. Превью по разметке проекта, не скриншот.</div>
+
+<div class="controls">
+  <div class="ctrl">
+    <label>Формат (всего в проекте)</label>
+    <div class="btns" id="fmtBtns">
+      <button class="chip on" data-fmt="curve">График</button>
+      <button class="chip" data-fmt="cols">Колонки</button>
+      <button class="chip" data-fmt="cards">Карточки</button>
+    </div>
+  </div>
+  <div class="ctrl">
+    <label>Ветер</label>
+    <div class="btns" id="windBtns">
+      <button class="chip on" data-w="ms">м/с</button>
+      <button class="chip" data-w="kmh">км/ч</button>
+    </div>
+  </div>
+  <div class="ctrl">
+    <label>Стиль часов</label>
+    <select id="clockStyle">
+      <option value="0">Обычные</option><option value="1">Контур</option><option value="3">Флип</option>
+      <option value="4">Сегменты</option><option value="6">Блоки</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <label>Показ</label>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label class="tog"><input type="checkbox" id="showBatt" checked> батарея</label>
+      <label class="tog"><input type="checkbox" id="showSec"> секунды</label>
+    </div>
+  </div>
+</div>
+
+<div class="phones">
+  <div class="phoneCard portrait">
+    <div class="cap">Портрет · 375×812</div>
+    <div class="phone"><div class="screen">
+      <div class="vc">
+        <div class="lc">
+          <div class="date" id="pDate"></div>
+          <div class="clockwrap"><canvas id="pClock"></canvas></div>
+          <div class="batt" id="pBatt"></div>
+        </div>
+        <div class="bp">
+          <div class="panel on" data-k="whourly"><div id="pHourly"></div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="phoneCard landscape">
+    <div class="cap">Ландшафт · 812×375</div>
+    <div class="phone"><div class="screen">
+      <div class="hl">
+        <div class="left">
+          <div class="date" id="lDate"></div>
+          <div class="clockwrap"><canvas id="lClock"></canvas></div>
+          <div class="batt" id="lBatt"></div>
+        </div>
+        <div class="vd"></div>
+        <div class="right">
+          <div class="panel on" data-k="whourly"><div id="lHourly"></div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+var state={fmt:"curve",wind:"ms",style:0,batt:true,sec:false};
+
+function ruDate(d){return d.toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"})}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+function pad(n){return (n<10?"0":"")+n}
+function timeStr(d,sec){return (sec?pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())
+                             :pad(d.getHours())+":"+pad(d.getMinutes()))}
+
+/* ---- clock (plain + flip, enough for the mock) ---- */
+function measure(ctx,text,size){ctx.font="700 "+size+"px -apple-system,Roboto,sans-serif";return ctx.measureText(text).width}
+function fitSize(ctx,text,w,capPx){var s=100,wd=measure(ctx,text,s);return wd<=0?Math.min(80,capPx):Math.min((w/wd)*100*0.97,capPx)}
+function drawClock(cv,styleNum,text){
+  var rect=cv.parentElement.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  if(cv.width!==rect.width*dpr){cv.width=rect.width*dpr;cv.height=rect.height*dpr}
+  var ctx=cv.getContext("2d"),w=rect.width,h=rect.height;
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  var capPx=Math.min(118,h*0.9);ctx.textAlign="center";ctx.textBaseline="middle";
+  if(+styleNum===3){var s=fitSize(ctx,text,w,capPx);ctx.font="700 "+s+"px -apple-system,Roboto,sans-serif";
+    ctx.fillStyle="#f2f2f2";ctx.fillText(text,w/2,h/2);
+    ctx.fillStyle="rgba(255,255,255,.16)";ctx.fillRect(0,h/2-1,w,2);}
+  else{var s=fitSize(ctx,text,w,capPx);ctx.font="200 "+s+"px -apple-system,Roboto,sans-serif";
+    ctx.fillStyle="#f2f2f2";ctx.fillText(text,w/2,h/2);}
+}
+
+/* ---- sample data ---- */
+var CONDITIONS=["Ясно","Облачно","Небольшой дождь"];
+var WD_FROM=[0,30,60,90,120,150,180,210,240,270,300,330];
+function buildWeather(){
+  var now=new Date(),hours=[],pre=[2,8,15,35,60,42,20,6,0,0];
+  for(var i=0;i<10;i++){var d=new Date(now);d.setMinutes(0,0,0);d.setHours(d.getHours()+i);
+    hours.push({t:new Date(d),temp:Math.round(17+5*Math.sin((i-2)/2.4)-i*0.1),
+      precip:pre[i],wfrom:WD_FROM[i%12],wspd:Math.round(9+4*Math.sin(i/1.6))});}
+  return {hours:hours};
+}
+
+/* ---- wind arrow (points where air moves), tiny icons unused here ---- */
+function arrowSVG(degTo,size){
+  size=size||10;var d=((Math.round(degTo)%360)+360)%360;
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 16 16" style="display:block;transform:rotate('+d+'deg)">'+
+    '<path d="M8 1.5 L13 14.5 L8 11.6 L3 14.5 Z" fill="#b0b0b0"/></svg>';
+}
+function spdTxt(kmh,unit){return unit==="ms"?(kmh/3.6).toFixed(1):Math.round(kmh)}
+
+function footerHTML(hours,unit){
+  var h='<div class="foot">';
+  hours.forEach(function(hh){var to=(hh.wfrom+180)%360;
+    h+='<div class="fc"><div class="wl">'+arrowSVG(to,9)+'<span>'+spdTxt(hh.wspd,unit)+'</span></div>'+
+       '<div class="tm">'+pad(hh.t.getHours())+':00</div></div>';});
+  return h+'</div>';
+}
+
+/* ================= FORMAT 1: curve =================
+   Chart geometry expressed in % of the .chart box (0..100, y downward).
+     - temperature curve occupies roughly the TOP half (low temp ~65% .. high ~10%)
+     - a precipitation AXIS sits low at 78%; precip bars HANG DOWN from it to ~98%
+     - % label sits under each bar near the box bottom
+     - footer (wind + time) is a separate fixed row below the chart
+   SVG and the absolutely-positioned HTML labels use the SAME 0..100 space,
+   because the svg fills 100%x100% of .chart with preserveAspectRatio=none.  */
+function renderCurve(el,unit){
+  var w=buildWeather(),hrs=w.hours.slice(0,6),n=hrs.length;
+  var head='<div class="whead">Казань · сейчас '+hrs[0].temp+'° · '+CONDITIONS[0]+'</div>';
+  var mn=hrs[0].temp,mx=hrs[0].temp;
+  hrs.forEach(function(h){if(h.temp<mn)mn=h.temp;if(h.temp>mx)mx=h.temp});
+  mn-=1;mx+=1;
+  function cx(i){return (i+0.5)/n*100}
+  function cy(v){return 66-((v-mn)/(mx-mn))*58}   // high temp -> ~8 (top), low -> 66
+  var axisY=78, xs=[],ys=[];
+  hrs.forEach(function(h,i){xs.push(cx(i));ys.push(cy(h.temp))});
+  function smooth(){var s="M"+xs[0]+","+ys[0];
+    for(var i=0;i<n-1;i++){var x0=xs[i],y0=ys[i],x1=xs[i+1],y1=ys[i+1],
+      c1x=x0+(x1-x0)*0.4,c1y=y0,c2x=x0+(x1-x0)*0.6,c2y=y1;
+      s+=" C "+c1x+" "+c1y+" "+c2x+" "+c2y+" "+x1+" "+y1;}
+    return s;}
+  var curve=smooth();
+  var area=curve+" L "+xs[n-1]+" "+axisY+" L "+xs[0]+" "+axisY+" Z";
+  var svg='<svg viewBox="0 0 100 100" preserveAspectRatio="none">'+
+    '<path d="'+area+'" fill="rgba(255,255,255,.06)"/>'+
+    '<path d="'+curve+'" fill="none" stroke="#f2f2f2" stroke-width="1" '+
+      'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>'+
+    hrs.map(function(h,i){return '<circle cx="'+cx(i)+'" cy="'+ys[i]+'" r="'+(i===0?1.9:1.3)+'" fill="#f2f2f2"/>'}).join("")+
+    '</svg>';
+  var tmpDivs=hrs.map(function(h,i){return '<div class="tmp" style="left:'+cx(i).toFixed(1)+'%;top:'+ys[i].toFixed(1)+'%">'+h.temp+'°</div>'}).join("");
+  var nowline='<div class="nowline" style="left:'+cx(0).toFixed(1)+'%;transform:translateX(-50%)"></div>';
+  var precip='<div class="ax" style="top:'+axisY+'%"></div>';
+  hrs.forEach(function(h,i){
+    if(h.precip>1){var top=axisY+1.5, bot=98;
+      var ph=Math.max(3,(h.precip/100)*(bot-axisY));
+      var pt=bot-ph; // so bar top stays < bot
+      precip+='<div class="pbar" style="left:'+cx(i).toFixed(1)+'%;top:'+(axisY+1)+'%;height:'+ph+'%"></div>';
+      precip+='<div class="plab" style="left:'+cx(i).toFixed(1)+'%;top:'+(bot+0.5)+'%">'+h.precip+'%</div>';
+    }
+  });
+  el.innerHTML='<div class="hw fcurve">'+head+'<div class="chart">'+svg+nowline+tmpDivs+precip+'</div>'+footerHTML(hrs,unit)+'</div>';
+}
+
+/* ================= FORMAT 2: columns (kept functional) ================= */
+function renderCols(el,unit){
+  var w=buildWeather(),hrs=w.hours.slice(0,6);
+  var head='<div class="whead">Казань · сейчас '+hrs[0].temp+'° · '+CONDITIONS[0]+'</div>';
+  var mn=hrs[0].temp,mx=hrs[0].temp;
+  hrs.forEach(function(h){mn=Math.min(mn,h.temp);mx=Math.max(mx,h.temp)});mn-=1;
+  var bars='<div style="position:relative;flex:1;min-height:0">'+
+    '<div style="position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(255,255,255,.14)"></div>'+
+    '<div style="position:absolute;inset:0;display:flex;align-items:center">';
+  hrs.forEach(function(h){var f=Math.max(0,(h.temp-mn)/(mx-mn));
+    bars+='<div style="flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center">'+
+      '<div style="font-size:10px;font-weight:600;color:#f2f2f2;margin-bottom:2px">'+h.temp+'°</div>'+
+      '<div style="width:40%;background:#f2f2f2;border-radius:2px;height:'+Math.max(2,f*80)+'%;align-self:flex-end"></div>'+
+      '<div style="width:40%;background:rgba(255,255,255,.5);border-radius:2px;height:'+Math.max(h.precip>1?2:0,h.precip/100*80)+'%;align-self:flex-start;margin-top:1px"></div>'+
+      '<div style="font-size:8px;color:#b0b0b0;margin-top:2px">'+h.precip+'%</div></div>';});
+  bars+='</div></div>';
+  el.innerHTML='<div class="hw">'+head+bars+footerHTML(hrs,unit)+'</div>';
+}
+
+/* ================= FORMAT 3: cards (kept functional) ================= */
+function renderCards(el,unit){
+  var w=buildWeather(),hrs=w.hours.slice(0,4);
+  var head='<div class="whead">Казань · сейчас '+hrs[0].temp+'° · '+CONDITIONS[0]+'</div>';
+  var cw='<div style="flex:1;display:flex;gap:6px;min-height:0">';
+  hrs.forEach(function(h){var to=(h.wfrom+180)%360;
+    cw+='<div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 2px">'+
+      '<div style="color:#b0b0b0;font-size:10px">'+pad(h.t.getHours())+':00</div>'+
+      '<div style="color:#f2f2f2;font-weight:700;font-size:22px;margin:6px 0">'+h.temp+'°</div>'+
+      '<div style="width:70%;height:8px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden">'+
+        '<div style="height:100%;width:'+Math.min(100,h.precip)+'%;background:#f2f2f2"></div></div>'+
+      '<div style="color:#b0b0b0;font-size:8px;margin:3px 0 6px">'+h.precip+'%</div>'+
+      '<div style="display:flex;align-items:center;gap:2px;white-space:nowrap;color:#b0b0b0;font-size:9px">'+
+        arrowSVG(to,9)+'<span>'+spdTxt(h.wspd,unit)+'</span></div></div>';});
+  cw+='</div>';
+  el.innerHTML='<div class="hw">'+head+cw+'</div>';
+}
+
+function renderHourly(el,unit,fmt){if(fmt==="curve")renderCurve(el,unit);else if(fmt==="cols")renderCols(el,unit);else renderCards(el,unit)}
+
+function tick(){var d=new Date(),ts=timeStr(d,state.sec);
+  drawClock(document.getElementById("pClock"),state.style,ts);
+  drawClock(document.getElementById("lClock"),state.style,ts);
+  document.getElementById("pDate").textContent=cap(ruDate(d));
+  document.getElementById("lDate").textContent=cap(ruDate(d));
+  var bs=document.getElementById("showBatt").checked;
+  document.getElementById("pBatt").style.display=bs?"block":"none";
+  document.getElementById("lBatt").style.display=bs?"block":"none";}
+
+document.querySelectorAll("#fmtBtns .chip").forEach(function(b){b.addEventListener("click",function(){
+  state.fmt=b.dataset.fmt;document.querySelectorAll("#fmtBtns .chip").forEach(function(x){x.classList.toggle("on",x.dataset.fmt===state.fmt)});
+  renderHourly(document.getElementById("pHourly"),state.wind,state.fmt);
+  renderHourly(document.getElementById("lHourly"),state.wind,state.fmt);});});
+document.querySelectorAll("#windBtns .chip").forEach(function(b){b.addEventListener("click",function(){
+  state.wind=b.dataset.w;document.querySelectorAll("#windBtns .chip").forEach(function(x){x.classList.toggle("on",x.dataset.w===state.wind)});
+  renderHourly(document.getElementById("pHourly"),state.wind,state.fmt);
+  renderHourly(document.getElementById("lHourly"),state.wind,state.fmt);});});
+document.getElementById("clockStyle").addEventListener("change",function(e){state.style=e.target.value});
+document.getElementById("showBatt").addEventListener("change",tick);
+document.getElementById("showSec").addEventListener("change",function(e){state.sec=e.target.checked});
+renderHourly(document.getElementById("pHourly"),state.wind,state.fmt);
+renderHourly(document.getElementById("lHourly"),state.wind,state.fmt);
+tick();setInterval(tick,1000);
+</script>
+</body>
+</html>
