@@ -192,7 +192,6 @@ class WeatherPanelView @JvmOverloads constructor(
         val rowH = avail / showCount
 
         val wf = SimpleDateFormat("E", Locale.getDefault())
-        val df = SimpleDateFormat("dd.MM", Locale.getDefault())
 
         for (i in 0 until showCount) {
             val d = days[start + i]
@@ -200,24 +199,26 @@ class WeatherPanelView @JvmOverloads constructor(
             val baseline = cy + rowH * 0.66f
 
             val isToday = isSameDay(d.timeMs, nowMs)
-            // day label left
-            val dayTxt = wf.format(Date(d.timeMs))
-            subPaint.textAlign = Paint.Align.LEFT
-            canvas.drawText(dayTxt, dpf(2f), baseline, if (isToday) bigPaint else subPaint)
+            // Emphasis paint for today's row: bigger/bolder white. Its textAlign
+            // is set right before each use because bigPaint is shared with the
+            // hourly mode (which leaves it centred) — otherwise today's label and
+            // temperature would be mis-centred against the row edges.
+            val dayPaint = if (isToday) bigPaint else subPaint
+
+            // day label, flush left
+            dayPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText(wf.format(Date(d.timeMs)), dpf(2f), baseline, dayPaint)
 
             // small condition text in the middle-left
             val cond = WeatherLabel.of(d.code)
             if (cond.isNotEmpty()) {
                 subPaint.textAlign = Paint.Align.LEFT
-                val condX = dpf(46f)
-                // clip long conditions by drawing at fixed position, small font
-                canvas.drawText(cond, condX, baseline, subPaint)
+                canvas.drawText(cond, dpf(46f), baseline, subPaint)
             }
 
-            // temperature range on the right
-            val rangeTxt = "${d.tMin}°…${d.tMax}°"
-            subPaint.textAlign = Paint.Align.RIGHT
-            canvas.drawText(rangeTxt, w - dpf(2f), baseline, if (isToday) bigPaint else subPaint)
+            // temperature range, flush right (use the same emphasis paint)
+            dayPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("${d.tMin}°…${d.tMax}°", w - dpf(2f), baseline, dayPaint)
         }
     }
 
