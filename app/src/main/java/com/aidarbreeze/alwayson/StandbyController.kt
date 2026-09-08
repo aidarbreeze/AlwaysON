@@ -72,6 +72,11 @@ class StandbyController(context: Context, root: View) {
     private class Panel(val kind: Kind, val interval: Int = 0)
 
     private val stockCached = HashMap<Int, List<Candle>>()
+    // When each interval was last attempted, so the 10 s panel cycle does not
+    // hit the network again for data we just received (or for a bad ticker
+    // that keeps returning nothing).
+    private val stockAttemptAt = HashMap<Int, Long>()
+    private val stockFreshMs = 60_000L
     private var weatherCached: WeatherInfo? = null
     private var weatherFetchedAt = 0L
     private var weatherFetching = false
@@ -273,16 +278,22 @@ class StandbyController(context: Context, root: View) {
         }
         val cached = stockCached[code]
         if (cached != null && cached.size >= 2) {
+            // Show what we have immediately (may be minutes old) and refresh
+            // in the background only when the cache is stale.
             stockView.setData(symbol, ref, label, cached)
         } else {
             stockView.setStatus("Загрузка…")
         }
-        fetchStock(symbol, code, ref, label)
+        val age = System.currentTimeMillis() - (stockAttemptAt[code] ?: 0L)
+        if (age >= stockFreshMs) {
+            fetchStock(symbol, code, ref, label)
+        }
     }
 
     /** Fetch candles for an interval on a background thread; drop stale results. */
     private fun fetchStock(symbol: String, code: Int, ref: Double, label: String) {
         val gen = ++fetchGen
+        stockAttemptAt[code] = System.currentTimeMillis()
         Thread {
             val data = StockApi.fetchCandles(symbol, code)
             handler.post {
@@ -292,7 +303,11 @@ class StandbyController(context: Context, root: View) {
                     if (stockView.visibility == View.VISIBLE) {
                         stockView.setData(symbol, ref, label, data)
                     }
-                } else if (stockView.visibility == View.VISIBLE) {
+                } else if (stockView.visibility == View.VISIBLE &&
+                    stockCached[code] == null
+                ) {
+                    // Only show the error when we have nothing to show at all —
+                    // a transient network hiccup must not wipe an older chart.
                     stockView.setStatus("нет данных / нет сети")
                 }
             }

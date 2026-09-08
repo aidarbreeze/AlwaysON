@@ -150,3 +150,4 @@ object Prefs {
         sp(ctx).getString(KEY_WEATHER_CITY, null) ?: ""
     fun setWeatherCity(ctx: Context, name: String) =
         sp(ctx).edit().putString(KEY_WEATHER_CITY, name.trim()).apply()
+}

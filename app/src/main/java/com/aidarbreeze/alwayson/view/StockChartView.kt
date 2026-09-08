@@ -175,12 +175,16 @@ class StockChartView @JvmOverloads constructor(
         val vspan = (max - min).let { if (it <= 0.0) 1.0 else it }
         fun yFor(v: Double): Float = plotB - ((v - min) / vspan).toFloat() * plotH
 
-        // x by time
+        // x by time — but only when EVERY candle has a valid timestamp. If a
+        // single time failed to parse (timeMs == 0) we fall back to index
+        // spacing for the whole series; mixing the two scales per point would
+        // shoot the line to the wrong edge of the plot.
         val t0 = candles.first().timeMs
         val t1 = candles.last().timeMs
         val tspan = (t1 - t0).toDouble()
+        val timeScale = tspan > 0 && candles.all { it.timeMs > 0 }
         fun xFor(i: Int): Float {
-            if (tspan > 0 && candles[i].timeMs > 0) {
+            if (timeScale) {
                 return plotL + ((candles[i].timeMs - t0) / tspan).toFloat() * plotW
             }
             return if (candles.size > 1) plotL + (i.toFloat() / (candles.size - 1)) * plotW else plotL
@@ -220,8 +224,9 @@ class StockChartView @JvmOverloads constructor(
 
         // ---- bottom band ----
         val axisBaseline = h - dpf(3f)
-        // time HH:MM ticks: only interior ticks so edges stay free for date/interval
-        if (tspan > 0) {
+        // time HH:MM ticks: only interior ticks so edges stay free for date/interval.
+        // Only meaningful when the series is actually plotted by time.
+        if (timeScale) {
             // Three interior HH:MM labels at 25/50/75% so the far edges stay free
             // for the date (left) and the interval (right).
             val timeFmt = java.text.SimpleDateFormat("HH:mm", Locale.US)
@@ -259,7 +264,10 @@ class StockChartView @JvmOverloads constructor(
         yFor: (Double) -> Float
     ) {
         val n = candles.size
-        val slot = if (n > 1) plotW / (n - 1) else plotW
+        // Float division on purpose: with Int arithmetic the slot collapses to
+        // 0 once the candle count exceeds the plot width in px, and the bodies
+        // shrink to the 1 dp minimum.
+        val slot = if (n > 1) plotW.toFloat() / (n - 1) else plotW.toFloat()
         val bodyHalf = (slot * 0.32f).coerceIn(dpf(1f), dpf(14f))
         for (i in 0 until n) {
             val c = candles[i]

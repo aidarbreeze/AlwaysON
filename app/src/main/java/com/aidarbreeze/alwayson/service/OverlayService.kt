@@ -21,6 +21,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -87,7 +88,9 @@ class OverlayService : Service(), SensorEventListener {
     private var shownOrientationType = -1
 
     // Tracked so we only auto-show the clock when the phone is resting (locked
-    // or screen off), never over an app the user is actively using.
+    // or screen off), never over an app the user is actively using. Seeded
+    // from the real state below — a stale "true" would hide the clock when
+    // the service is started while the screen is already off (stand).
     private var screenOn = true
 
     // Accelerometer "pick up" detection.
@@ -96,6 +99,10 @@ class OverlayService : Service(), SensorEventListener {
     private val gravity = FloatArray(3)
     private var startedAt = 0L
     private var movementStreak = 0
+
+    // Last orientation type the rotation listener already evaluated, so the
+    // (frequent) sensor callbacks only trigger a re-check on real rotations.
+    private var lastSeenOrientationType = -1
 
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -148,6 +155,12 @@ class OverlayService : Service(), SensorEventListener {
         super.onCreate()
         suppressed = false
 
+        // Seed the screen state from the device, not from a guess: the service
+        // is often started by a POWER_CONNECTED broadcast while the phone is
+        // resting on a stand with the screen off.
+        val pm = getSystemService(POWER_SERVICE) as? PowerManager
+        screenOn = pm?.isInteractive ?: true
+
         registerGuarded(powerReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
@@ -161,9 +174,14 @@ class OverlayService : Service(), SensorEventListener {
         })
 
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-        orientationListener = object : OrientationEventListener(this) {
+        // Enabled only while the overlay is actually shown (see
+        // showOverlay/removeOverlay) — the sensor otherwise polls for the
+        // whole life of the foreground service for nothing.
+        orientationListener = object : OrientationEventListener(this, SensorManager.SENSOR_DELAY_UI) {
             override fun onOrientationChanged(orientation: Int) {
                 val type = currentOrientationType()
+                if (type == lastSeenOrientationType) return
+                lastSeenOrientationType = type
                 if (overlayView != null && type != shownOrientationType) {
                     // Layout depends on orientation -> rebuild it.
                     removeOverlay()
@@ -171,9 +189,15 @@ class OverlayService : Service(), SensorEventListener {
                 evaluateAndSync()
             }
         }
-        orientationListener?.enable()
 
-        startAsForeground()
+        // Promote to a foreground service only when the feature is enabled:
+        // the "reevaluate" requests from the preview use a plain startService
+        // and must not flash a persistent notification for a disabled feature.
+        // The startForegroundService callers (ChargingReceiver, the settings
+        // switch) always start us with the feature on, so that contract holds.
+        if (Prefs.autoStandby(this)) {
+            startAsForeground()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -185,15 +209,15 @@ class OverlayService : Service(), SensorEventListener {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            ACTION_REFRESH -> {
-                evaluateAndSync()
-                return START_STICKY
-            }
             else -> {
-                // Fresh start (app enabled / charging connected / boot).
-                suppressed = false
+                // Fresh start (app enabled / charging connected / boot) resets
+                // the "user took the phone" suppression; ACTION_REFRESH
+                // (preview opened/closed) must not.
+                if (intent?.action != ACTION_REFRESH) suppressed = false
                 evaluateAndSync()
-                return START_STICKY
+                // A disabled feature must not keep (or revive) us: the system
+                // would otherwise restart a sticky service we just stopped.
+                return if (Prefs.autoStandby(this)) START_STICKY else START_NOT_STICKY
             }
         }
     }
@@ -237,6 +261,15 @@ class OverlayService : Service(), SensorEventListener {
         if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 1 else 0
 
     private fun evaluateAndSync() {
+        if (!Prefs.autoStandby(this)) {
+            // The feature is disabled. This service can still be started as a
+            // side effect (e.g. the full-screen preview asks us to re-evaluate
+            // on open/close) — never leave a foreground service running with
+            // its persistent notification in that case.
+            removeOverlay()
+            stopSelf()
+            return
+        }
         if (!isCharging(this)) {
             // Not charging -> no StandBy screen. Stay armed (as a quiet
             // foreground service) so that plugging the cable in later is
@@ -317,10 +350,15 @@ class OverlayService : Service(), SensorEventListener {
         for (i in 0 until 3) gravity[i] = 0f
         movementStreak = 0
         registerSensors()
+        // Rotation now matters: rebuild the overlay on orientation changes.
+        lastSeenOrientationType = -1 // force the first evaluation
+        orientationListener?.enable()
     }
 
     private fun removeOverlay() {
         unregisterSensors()
+        // Nothing shown -> no need to poll the rotation sensor.
+        orientationListener?.disable()
         val view = overlayView ?: run {
             controller?.stop()
             controller = null

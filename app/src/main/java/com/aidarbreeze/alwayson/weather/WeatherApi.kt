@@ -140,10 +140,14 @@ object WeatherApi {
             val dFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val days = ArrayList<WeatherDay>()
             for (i in 0 until dTimes.length()) {
-                if (dMax.isNull(i)) continue
+                // Guard both temperatures: a single null cell must not throw
+                // and kill the whole forecast parse (outer catch -> null).
+                if (dMax.isNull(i) || dMin.isNull(i)) continue
+                val t = parseDate(dFmt, dTimes.getString(i))
+                if (t < 0L) continue
                 days.add(
                     WeatherDay(
-                        timeMs = parseDate(dFmt, dTimes.getString(i)),
+                        timeMs = t,
                         code = if (!dCode.isNull(i)) dCode.getInt(i) else codeNow,
                         tMin = Math.round(dMin.getDouble(i)).toInt(),
                         tMax = Math.round(dMax.getDouble(i)).toInt()

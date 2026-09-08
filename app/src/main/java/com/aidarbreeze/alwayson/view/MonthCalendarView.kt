@@ -66,8 +66,12 @@ class MonthCalendarView @JvmOverloads constructor(
         val year = now.get(Calendar.YEAR)
         val month = now.get(Calendar.MONTH)
         val fDow = if (configuredFirstDow != 0) configuredFirstDow else now.firstDayOfWeek
+        // The screen can stay on across midnight (desk-clock mode), so the
+        // highlighted "today" must be refreshed on every draw — the month
+        // structure itself only changes when the month/year/week-start does.
+        todayDay = now.get(Calendar.DAY_OF_MONTH)
         if (year != cachedYear || month != cachedMonth || fDow != cachedFirstDow) {
-            rebuild(now, year, month, fDow)
+            rebuild(year, month, fDow)
         }
 
         val padX = min(w * 0.05f, 20f)
@@ -159,15 +163,16 @@ class MonthCalendarView @JvmOverloads constructor(
         }
     }
 
-    private fun rebuild(now: Calendar, year: Int, month: Int, fDow: Int) {
+    private fun rebuild(year: Int, month: Int, fDow: Int) {
         val c = Calendar.getInstance()
         c.clear()
         c.set(year, month, 1)
         firstCell = (c.get(Calendar.DAY_OF_WEEK) - fDow + 7) % 7
         daysInMonth = c.getActualMaximum(Calendar.DAY_OF_MONTH)
-        todayDay = now.get(Calendar.DAY_OF_MONTH)
+        // todayDay is maintained in onDraw (it changes at midnight without a
+        // month change).
 
-        val names = now.getDisplayNames(
+        val names = c.getDisplayNames(
             Calendar.DAY_OF_WEEK, Calendar.SHORT, Locale.getDefault()
         ) ?: emptyMap()
         for (d in 1..7) {
