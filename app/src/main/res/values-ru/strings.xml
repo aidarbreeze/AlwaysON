@@ -29,6 +29,18 @@
     <string name="brightness_label">Максимальная яркость часов</string>
 
     <string name="clock_style_title">Стиль часов</string>
+    <string-array name="clock_style_entries">
+        <item>Обычный</item>
+        <item>Контур (полые цифры)</item>
+        <item>Точки «комикс»</item>
+        <item>Откидные часы</item>
+        <item>Семисегментный LED</item>
+        <item>Неон</item>
+        <item>Блоки (пилюли)</item>
+        <item>Serif</item>
+        <item>Жирный курсив</item>
+        <item>Квадратная LED-матрица</item>
+    </string-array>
     <string name="style_normal">Обычный</string>
     <string name="style_outline">Контур (полые цифры)</string>
     <string name="style_dots">Точки «комикс»</string>

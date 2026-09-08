@@ -29,6 +29,18 @@
     <string name="brightness_label">Maximum clock brightness</string>
 
     <string name="clock_style_title">Clock style</string>
+    <string-array name="clock_style_entries">
+        <item>Normal</item>
+        <item>Outline (hollow digits)</item>
+        <item>Dot-matrix “comic”</item>
+        <item>Flip clock</item>
+        <item>Seven-segment LED</item>
+        <item>Neon glow</item>
+        <item>Rounded blocks</item>
+        <item>Serif</item>
+        <item>Bold italic</item>
+        <item>Square LED-matrix</item>
+    </string-array>
     <string name="style_normal">Normal</string>
     <string name="style_outline">Outline (hollow digits)</string>
     <string name="style_dots">Dot-matrix “comic” digits</string>

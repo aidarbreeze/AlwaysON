@@ -150,103 +150,29 @@
             android:layout_marginEnd="16dp"
             android:background="@drawable/bg_card">
 
-            <TextView
-                style="@style/PrefTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:paddingTop="12dp"
-                android:text="@string/clock_style_title" />
-
-            <RadioGroup
-                android:id="@+id/clockStyleGroup"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp">
 
-                <RadioButton
-                    android:id="@+id/styleNormal"
-                    android:layout_width="match_parent"
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_normal"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleOutline"
-                    android:layout_width="match_parent"
+                    android:layout_weight="1"
+                    android:text="@string/clock_style_title" />
+
+                <Spinner
+                    android:id="@+id/clockStyleSpinner"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_outline"
-                    android:textSize="16sp"
+                    android:layout_marginStart="12dp"
                     android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleDots"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_dots"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleFlip"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_flip"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleSeg"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_seg"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleNeon"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_neon"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleBlocks"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_blocks"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleSerif"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_serif"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleItalic"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:text="@string/style_italic"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-                <RadioButton
-                    android:id="@+id/styleMatrix"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:paddingBottom="12dp"
-                    android:text="@string/style_matrix"
-                    android:textSize="16sp"
-                    android:textColor="@color/settings_text" />
-            </RadioGroup>
+            </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/outlineThicknessRow"

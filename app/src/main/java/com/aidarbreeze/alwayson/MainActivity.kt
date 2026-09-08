@@ -11,10 +11,13 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.RadioGroup
 import android.widget.SeekBar
+import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
 import com.aidarbreeze.alwayson.service.OverlayService
@@ -30,7 +33,7 @@ class MainActivity : Activity() {
     private lateinit var autoBrightSwitch: Switch
     private lateinit var brightnessSeek: SeekBar
     private lateinit var brightnessValue: TextView
-    private lateinit var styleGroup: RadioGroup
+    private lateinit var clockStyleSpinner: Spinner
     private lateinit var thicknessSeek: SeekBar
     private lateinit var thicknessValue: TextView
     private lateinit var outlineThicknessRow: View
@@ -56,7 +59,7 @@ class MainActivity : Activity() {
         autoBrightSwitch = findViewById(R.id.autoBrightSwitch)
         brightnessSeek = findViewById(R.id.brightnessSeek)
         brightnessValue = findViewById(R.id.brightnessValue)
-        styleGroup = findViewById(R.id.clockStyleGroup)
+        clockStyleSpinner = findViewById(R.id.clockStyleSpinner)
         thicknessSeek = findViewById(R.id.thicknessSeek)
         thicknessValue = findViewById(R.id.thicknessValue)
         outlineThicknessRow = findViewById(R.id.outlineThicknessRow)
@@ -105,41 +108,33 @@ class MainActivity : Activity() {
             Prefs.setWeekStart(this, v)
         }
 
-        // Load clock style / outline thickness.
-        val style = Prefs.clockStyle(this)
-        when (style) {
-            1 -> styleGroup.check(R.id.styleOutline)
-            2 -> styleGroup.check(R.id.styleDots)
-            3 -> styleGroup.check(R.id.styleFlip)
-            4 -> styleGroup.check(R.id.styleSeg)
-            5 -> styleGroup.check(R.id.styleNeon)
-            6 -> styleGroup.check(R.id.styleBlocks)
-            7 -> styleGroup.check(R.id.styleSerif)
-            8 -> styleGroup.check(R.id.styleItalic)
-            9 -> styleGroup.check(R.id.styleMatrix)
-            else -> styleGroup.check(R.id.styleNormal)
-        }
+        // Load clock style as a dropdown. The array index equals the style code.
+        val styleEntries = resources.getStringArray(R.array.clock_style_entries)
+        clockStyleSpinner.adapter =
+            ArrayAdapter(
+                this,
+                android.R.layout.simple_spinner_item,
+                styleEntries
+            ).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+        val style = Prefs.clockStyle(this).coerceIn(0, styleEntries.size - 1)
+        clockStyleSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
+                ) {
+                    Prefs.setClockStyle(this@MainActivity, position)
+                    updateOutlineThicknessRow()
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        clockStyleSpinner.setSelection(style)
+
         val thickness = Prefs.clockThickness(this)
         thicknessSeek.progress = thickness - 1
         thicknessValue.text = "$thickness dp"
         updateOutlineThicknessRow()
-
-        styleGroup.setOnCheckedChangeListener { _, checkedId ->
-            val s = when (checkedId) {
-                R.id.styleOutline -> 1
-                R.id.styleDots -> 2
-                R.id.styleFlip -> 3
-                R.id.styleSeg -> 4
-                R.id.styleNeon -> 5
-                R.id.styleBlocks -> 6
-                R.id.styleSerif -> 7
-                R.id.styleItalic -> 8
-                R.id.styleMatrix -> 9
-                else -> 0
-            }
-            Prefs.setClockStyle(this, s)
-            updateOutlineThicknessRow()
-        }
 
         thicknessSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
