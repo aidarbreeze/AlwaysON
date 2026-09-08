@@ -222,6 +222,27 @@ class StockChartView @JvmOverloads constructor(
         return mins in (10 * 60 + 30)..(18 * 60 + 45)
     }
 
+    /**
+     * Short label of the NEXT TQBR regular-session open (weekdays 10:30 MSK,
+     * no holiday calendar — weekends only): "10:30" when it opens today,
+     * otherwise "пн 10:30" / "вт 10:30" / ...
+     */
+    private fun nextOpenLabel(): String {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"))
+        val openMins = 10 * 60 + 30
+        val nowMins = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        val names = arrayOf("", "пн", "вт", "ср", "чт", "пт", "сб", "вс")
+        for (ahead in 0..7) {
+            val c = cal.clone() as Calendar
+            c.add(Calendar.DAY_OF_YEAR, ahead)
+            val d = c.get(Calendar.DAY_OF_WEEK)
+            if (d == Calendar.SATURDAY || d == Calendar.SUNDAY) continue
+            if (ahead == 0 && nowMins >= openMins) continue
+            return if (ahead == 0) "10:30" else "${names[d]} 10:30"
+        }
+        return "10:30"
+    }
+
     private fun shortDate(): String {
         val c = Calendar.getInstance()
         return String.format(Locale.US, "%02d.%02d", c.get(Calendar.DAY_OF_MONTH), c.get(Calendar.MONTH) + 1)
@@ -342,12 +363,13 @@ class StockChartView @JvmOverloads constructor(
             }
         }
 
-        // date (bottom-left) and interval + market state (bottom-right)
+        // date (bottom-left) and interval + market state (bottom-right);
+        // when closed, say when it opens again.
         labelPaint.textAlign = Paint.Align.LEFT
         canvas.drawText(shortDate(), padL, axisBaseline, labelPaint)
         labelPaint.textAlign = Paint.Align.RIGHT
         val intervalText = if (marketOpenNow()) intervalLabel
-        else "$intervalLabel · закрыт"
+        else "$intervalLabel · закрыт · ${nextOpenLabel()}"
         canvas.drawText(intervalText, w - padR, axisBaseline, labelPaint)
     }
 

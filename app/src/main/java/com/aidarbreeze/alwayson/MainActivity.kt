@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private lateinit var use24Switch: Switch
     private lateinit var secondsSwitch: Switch
     private lateinit var batterySwitch: Switch
+    private lateinit var dimSwitch: Switch
     private lateinit var batteryProbe: TextView
     private lateinit var stocksSwitch: Switch
     private lateinit var stockInputs: View
@@ -128,6 +129,7 @@ class MainActivity : Activity() {
         use24Switch = findViewById(R.id.use24Switch)
         secondsSwitch = findViewById(R.id.secondsSwitch)
         batterySwitch = findViewById(R.id.batterySwitch)
+        dimSwitch = findViewById(R.id.dimSwitch)
         batteryProbe = findViewById(R.id.batteryProbe)
         stocksSwitch = findViewById(R.id.stocksSwitch)
         stockInputs = findViewById(R.id.stockInputs)
@@ -284,6 +286,11 @@ class MainActivity : Activity() {
         }
         batterySwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.setShowBattery(this, checked)
+        }
+        dimSwitch.isChecked = Prefs.dimMode(this)
+        dimSwitch.setOnCheckedChangeListener { _, checked ->
+            Prefs.setDimMode(this, checked)
+            updatePreview()
         }
         brightnessSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -473,9 +480,11 @@ class MainActivity : Activity() {
         val line = SimpleDateFormat(dp, locale).format(millis)
         previewDate.text = line.replaceFirstChar { it.titlecase(locale) }
 
-        // Reflect the chosen clock brightness on the preview content only
-        // (the pure-black background is unaffected and stays readable).
-        val alpha = (Prefs.brightness(this) / 100f).coerceIn(0.22f, 1f)
+        // Reflect the chosen clock brightness (and the OLED dim cap) on the
+        // preview content only (the pure-black background is unaffected and
+        // stays readable).
+        val dim = if (Prefs.dimMode(this)) 0.85f else 1f
+        val alpha = (Prefs.brightness(this) / 100f).coerceIn(0.22f, 1f) * dim
         previewClock.alpha = alpha
         previewDate.alpha = alpha
     }

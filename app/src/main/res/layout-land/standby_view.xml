@@ -2,15 +2,25 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/standbyRoot"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/aod_background">
+    android:layout_height="match_parent">
 
-    <!-- Drifted a few px every minute for OLED burn-in protection. -->
+    <!-- Black backdrop: fades in to opaque on entry (controller-driven)
+         BEFORE the data below is revealed. -->
+    <View
+        android:id="@+id/aodBg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/aod_background"
+        android:alpha="0" />
+
+    <!-- Drifted a few px every minute for OLED burn-in protection.
+         Hidden until the entry animation reveals it. -->
     <FrameLayout
         android:id="@+id/standbyContent"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:clipToPadding="false">
+        android:clipToPadding="false"
+        android:alpha="0">
 
         <!-- Two columns: clock on the left, calendar card on the right. -->
         <LinearLayout

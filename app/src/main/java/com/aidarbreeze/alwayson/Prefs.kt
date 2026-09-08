@@ -59,6 +59,8 @@ object Prefs {
     // The user dismissed the auto overlay for this charge session; kept
     // across process death so a kill+reboot does not nag again.
     private const val KEY_STANDBY_SUPPRESSED = "standby_suppressed"
+    // OLED protection: dim the white content level (see dimMode).
+    private const val KEY_DIM_MODE = "dim_mode"
 
     private fun sp(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -255,4 +257,14 @@ object Prefs {
         sp(ctx).getBoolean(KEY_STANDBY_SUPPRESSED, false)
     fun setStandbySuppressed(ctx: Context, v: Boolean) =
         sp(ctx).edit().putBoolean(KEY_STANDBY_SUPPRESSED, v).apply()
+
+    /**
+     * OLED protection: the desk clock can sit on a stand for hours, so cap
+     * the white level at ~85% (0.85 content alpha over the pure-black
+     * background) instead of burning full-bright pixels.
+     */
+    fun dimMode(ctx: Context): Boolean =
+        sp(ctx).getBoolean(KEY_DIM_MODE, true)
+    fun setDimMode(ctx: Context, v: Boolean) =
+        sp(ctx).edit().putBoolean(KEY_DIM_MODE, v).apply()
 }

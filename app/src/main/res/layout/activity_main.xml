@@ -552,6 +552,33 @@
                 android:layout_marginStart="16dp"
                 android:background="@color/settings_sep" />
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/dim_title" />
+                <Switch
+                    android:id="@+id/dimSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
             <Button
                 android:id="@+id/btnBatteryProbe"
                 style="@style/ActionButton"

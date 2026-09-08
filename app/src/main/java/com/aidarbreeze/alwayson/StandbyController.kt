@@ -57,6 +57,9 @@ class StandbyController(context: Context, root: View) {
     private val stockView: StockChartView = root.findViewById(R.id.stockView)
     private val weatherView: WeatherPanelView = root.findViewById(R.id.weatherView)
     private val content: View = root.findViewById(R.id.standbyContent)
+    // Dedicated black backdrop: on entry it fades in to opaque BEFORE the
+    // data is revealed (see enter()).
+    private val aodBg: View = root.findViewById(R.id.aodBg)
 
     private val mediaWatcher = MediaWatcher(appContext)
 
@@ -159,6 +162,22 @@ class StandbyController(context: Context, root: View) {
     private var manualAlpha = 1f
     private val sensorHandler = Handler(Looper.getMainLooper())
     private val minAlpha = 0.22f // lowest: dim but clearly visible in the dark
+    // Entry progress (0..1): the data is only revealed after the black
+    // backdrop has fully faded in.
+    private var entranceAlpha = 1f
+
+    /** OLED-protection white cap: 85% when the dim mode is on. */
+    private fun dimFactor(): Float = if (Prefs.dimMode(appContext)) 0.85f else 1f
+
+    /**
+     * The single place that writes the content alpha:
+     * brightness level × OLED dim cap × entry progress.
+     */
+    private fun refreshContentAlpha() {
+        val base = if (autoBrightness && currentAlpha >= 0f) currentAlpha
+        else manualAlpha.coerceIn(minAlpha, 1f)
+        content.alpha = base * dimFactor() * entranceAlpha
+    }
 
     private val tick = object : Runnable {
         override fun run() {
@@ -206,7 +225,7 @@ class StandbyController(context: Context, root: View) {
         autoBrightness = Prefs.autoBrightness(appContext)
         if (!autoBrightness) {
             // Fixed manual level (kept at least slightly visible).
-            content.alpha = manualAlpha.coerceIn(minAlpha, 1f)
+            refreshContentAlpha()
             stopLightSensor()
         } else {
             startLightSensor()
@@ -225,6 +244,38 @@ class StandbyController(context: Context, root: View) {
         handler.post(tick)
         handler.post(drift)
         startPanelCycle()
+        enter()
+    }
+
+    /**
+     * Entry sequence: first the black backdrop fades in from transparent to
+     * fully opaque (smoothly covering whatever was on screen), and only
+     * AFTER that the data (clock, panel, media card) is revealed. Driven on
+     * the main handler with the shared generation counter, so a teardown
+     * mid-entry can never leave the screen half-covered or data shown over
+     * a half-faded background.
+     */
+    private fun enter() {
+        aodBg.alpha = 0f
+        entranceAlpha = 0f
+        refreshContentAlpha()
+        transitionGen++
+        val gen = transitionGen
+        animateAlpha(aodBg, 1f, gen) {
+            if (gen != transitionGen) return@animateAlpha
+            val start = System.currentTimeMillis()
+            val frame = object : Runnable {
+                override fun run() {
+                    if (gen != transitionGen) return
+                    val t = ((System.currentTimeMillis() - start).toDouble() / 300.0)
+                        .coerceIn(0.0, 1.0)
+                    entranceAlpha = t.toFloat()
+                    refreshContentAlpha()
+                    if (t < 1.0) handler.postDelayed(this, 16)
+                }
+            }
+            handler.postDelayed(frame, 16)
+        }
     }
 
     fun stop() {
@@ -235,9 +286,13 @@ class StandbyController(context: Context, root: View) {
         panelAnimating = false
         pinned = false
         handler.removeCallbacksAndMessages(null)
+        // Clean entry state: the next start() animates from scratch.
+        aodBg.alpha = 1f
+        entranceAlpha = 1f
         monthView.alpha = 1f
         stockView.alpha = 1f
         weatherView.alpha = 1f
+        refreshContentAlpha()
         showCalendarOnly()
     }
 
@@ -515,7 +570,7 @@ class StandbyController(context: Context, root: View) {
         val sensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT) ?: return
         lightSensor = sensor
         currentAlpha = if (currentAlpha < 0f) minAlpha else currentAlpha
-        content.alpha = currentAlpha
+        refreshContentAlpha()
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 if (event.sensor.type != Sensor.TYPE_LIGHT) return
@@ -526,7 +581,7 @@ class StandbyController(context: Context, root: View) {
                 sensorHandler.post {
                     currentAlpha = if (currentAlpha < 0f) target
                     else currentAlpha + (target - currentAlpha) * 0.25f
-                    content.alpha = currentAlpha
+                    refreshContentAlpha()
                 }
             }
 

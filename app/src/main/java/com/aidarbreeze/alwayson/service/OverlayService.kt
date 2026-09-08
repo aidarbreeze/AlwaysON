@@ -99,6 +99,12 @@ class OverlayService : Service(), SensorEventListener {
     private val gravity = FloatArray(3)
     private var startedAt = 0L
     private var movementStreak = 0
+    // The user may press Power while still holding the phone and then walk
+    // it to the stand — movement right after showing must NOT count as a
+    // pickup. The phone must be still for [settleMs] before detection arms.
+    private var stillSince = 0L
+    private var settled = false
+    private val settleMs = 8_000L
 
     // Last orientation type the rotation listener already evaluated, so the
     // (frequent) sensor callbacks only trigger a re-check on real rotations.
@@ -374,6 +380,8 @@ class OverlayService : Service(), SensorEventListener {
         startedAt = System.currentTimeMillis()
         for (i in 0 until 3) gravity[i] = 0f
         movementStreak = 0
+        stillSince = 0L
+        settled = false
         registerSensors()
         // Rotation now matters: rebuild the overlay on orientation changes.
         lastSeenOrientationType = -1 // force the first evaluation
@@ -428,9 +436,10 @@ class OverlayService : Service(), SensorEventListener {
 
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        val now = System.currentTimeMillis()
         // Ignore the first moments (placing the phone) so it doesn't exit on
         // the initial movement when you set it on the charger.
-        if (System.currentTimeMillis() - startedAt < 6000) return
+        if (now - startedAt < 6000) return
 
         val alpha = 0.8f
         for (i in 0 until 3) {
@@ -440,13 +449,25 @@ class OverlayService : Service(), SensorEventListener {
         val dy = event.values[1] - gravity[1]
         val dz = event.values[2] - gravity[2]
         val magnitude = sqrt(dx * dx + dy * dy + dz * dz)
+
         if (magnitude > 2.2f) {
-            movementStreak++
-        } else {
-            movementStreak = if (movementStreak > 0) movementStreak - 1 else 0
+            if (settled) {
+                // The phone WAS resting and now moves: count it as a pickup
+                // once the movement is sustained.
+                movementStreak++
+                if (movementStreak > 6) handler.post { exitStandby() }
+            } else {
+                // Still placing it (Power press, walk to the stand): the
+                // stillness window restarts, no exit.
+                stillSince = 0L
+            }
+            return
         }
-        if (movementStreak > 6) {
-            handler.post { exitStandby() }
+
+        movementStreak = 0
+        if (!settled) {
+            if (stillSince == 0L) stillSince = now
+            if (now - stillSince >= settleMs) settled = true
         }
     }
 
