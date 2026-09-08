@@ -16,14 +16,21 @@ import java.util.Locale
 
 /**
  * Monochrome (black & white) stock chart used by the calendar<->stocks mode.
+ *
  * Layers are kept in separate bands so nothing overlaps:
- *  - a top band: ticker (left) and the change in % vs the reference (right),
- *  - a left gutter: the price scale (3 labels, right-aligned),
- *  - the plot area: the close polyline or candlesticks, plus the dashed
- *    reference line at the user's price,
- *  - a thin bottom band: time (HH:MM) ticks in the middle, the short date
- *    (dd.MM) on the far left and the shown interval on the far right.
- * The value range always auto-fits the visible data (with the reference line).
+ *  - a top band: ticker (left) and the last price + change % vs the reference
+ *    (right, last price in large bold),
+ *  - a left gutter: the price scale — "nice" round values (1/2/5 steps) with
+ *    grid lines,
+ *  - the plot area: the close polyline or candlesticks, a small marker on the
+ *    right edge at the last price, and the dashed reference line (drawn only
+ *    when the reference falls inside the visible range),
+ *  - a thin bottom band: short date (left), time (HH:MM) ticks in the middle,
+ *    the shown interval on the far right.
+ *
+ * The value range always auto-fits the visible DATA. The reference price is
+ * deliberately excluded from the fit so a far-off reference cannot stretch the
+ * axis and flatten the actual price movement.
  */
 class StockChartView @JvmOverloads constructor(
     context: Context,
@@ -74,6 +81,11 @@ class StockChartView @JvmOverloads constructor(
         textSize = dpf(12f)
         typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
     }
+    private val priceBigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = dpf(16f)
+        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+    }
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xAAFFFFFF.toInt()
         textSize = dpf(10f)
@@ -108,16 +120,55 @@ class StockChartView @JvmOverloads constructor(
 
     private fun chartType(): Int = Prefs.stockType(context)
 
-    private fun fmtPrice(v: Double): String {
-        val high = candles.maxOfOrNull { it.high } ?: 0.0
-        val low = candles.minOfOrNull { it.low } ?: 0.0
-        val span = high - low
-        val dec = when {
-            span >= 200 -> 0
-            span >= 20 -> 1
+    private fun fmt(v: Double, dec: Int): String =
+        String.format(Locale.US, "%.${dec}f", v)
+
+    /** Decimals for the (precise) last-price readout, based on the data span. */
+    private fun priceDecimals(span: Double): Int = when {
+        span >= 200 -> 0
+        span >= 20 -> 1
+        else -> 2
+    }
+
+    /** Decimals for the scale tick labels, based on the tick step. */
+    private fun tickDecimals(ticks: List<Double>): Int {
+        if (ticks.size < 2) return 2
+        val step = (ticks[1] - ticks[0]).let { if (it > 0) it else 1.0 }
+        return when {
+            step >= 1.0 -> 0
+            step >= 0.1 -> 1
             else -> 2
         }
-        return String.format(Locale.US, "%." + dec + "f", v)
+    }
+
+    /** Round [x] to a "nice" 1/2/5 * 10^k number, for a readable tick step. */
+    private fun niceNum(x: Double): Double {
+        if (x <= 0.0) return 1.0
+        val exp = Math.floor(Math.log10(x)).toInt()
+        val f = x / Math.pow(10.0, exp.toDouble())
+        val nf = when {
+            f < 1.5 -> 1.0
+            f < 3.0 -> 2.0
+            f < 7.0 -> 5.0
+            else -> 10.0
+        }
+        return nf * Math.pow(10.0, exp.toDouble())
+    }
+
+    /** Evenly spaced "nice" tick values covering [lo, hi], about [target] of them. */
+    private fun priceTicks(lo: Double, hi: Double, target: Int): List<Double> {
+        val span = hi - lo
+        if (span <= 0.0) return listOf(lo)
+        val step = niceNum(span / target)
+        if (step <= 0.0) return listOf(lo)
+        val out = ArrayList<Double>()
+        var v = Math.ceil(lo / step) * step
+        var guard = 0
+        while (v <= hi + step * 1e-6 && guard++ < 50) {
+            out.add(v)
+            v += step
+        }
+        return out
     }
 
     private fun pctText(): String {
@@ -146,10 +197,9 @@ class StockChartView @JvmOverloads constructor(
         }
 
         // ---- geometry (fixed bands so labels never overlap) ----
-        val titleH = dpf(24f)         // top: symbol / change
-        val gutterW = dpf(52f)        // left: price scale
+        val gutterW = dpf(50f)        // left: price scale
         val bottomH = dpf(15f)        // bottom: date / time / interval
-        val padT = titleH + dpf(2f)
+        val padT = dpf(38f)           // top: ticker / last price / change
         val padB = bottomH
         val padL = dpf(2f)
         val padR = dpf(2f)
@@ -161,19 +211,17 @@ class StockChartView @JvmOverloads constructor(
         val plotW = plotR - plotL
         val plotH = plotB - plotT
 
-        // ---- vertical range auto-fit (data + reference) ----
-        var min = candles.minOfOrNull { it.low } ?: 0.0
-        var max = candles.maxOfOrNull { it.high } ?: 0.0
-        if (refPrice > 0.0) {
-            if (refPrice < min) min = refPrice
-            if (refPrice > max) max = refPrice
-        }
-        val span = (max - min).let { if (it <= 0.0) 1.0 else it }
-        val padV = span * 0.12
-        min -= padV
-        max += padV
-        val vspan = (max - min).let { if (it <= 0.0) 1.0 else it }
-        fun yFor(v: Double): Float = plotB - ((v - min) / vspan).toFloat() * plotH
+        // ---- vertical range: fit the visible DATA only ----
+        // The reference price is intentionally excluded here; forcing it into
+        // the range would stretch the axis and flatten the price movement.
+        val dMin = candles.minOfOrNull { it.low } ?: 0.0
+        val dMax = candles.maxOfOrNull { it.high } ?: 0.0
+        val dSpan = (dMax - dMin).let { if (it <= 0.0) 1.0 else it }
+        val padV = dSpan * 0.10
+        val lo = dMin - padV
+        val hi = dMax + padV
+        val vspan = (hi - lo).let { if (it <= 0.0) 1.0 else it }
+        fun yFor(v: Double): Float = plotB - ((v - lo) / vspan).toFloat() * plotH
 
         // x by time — but only when EVERY candle has a valid timestamp. If a
         // single time failed to parse (timeMs == 0) we fall back to index
@@ -190,29 +238,33 @@ class StockChartView @JvmOverloads constructor(
             return if (candles.size > 1) plotL + (i.toFloat() / (candles.size - 1)) * plotW else plotL
         }
 
-        // ---- title band (never overlaps the price gutter below) ----
+        // ---- top band: ticker (left), last price + change (right) ----
+        val last = candles.last().close
         textPaint.textAlign = Paint.Align.LEFT
-        canvas.drawText(symbol, padL, dpf(16f), textPaint)
+        canvas.drawText(symbol, padL, dpf(20f), textPaint)
+        priceBigPaint.textAlign = Paint.Align.RIGHT
+        canvas.drawText(fmt(last, priceDecimals(dSpan)), w - padR, dpf(21f), priceBigPaint)
         val pct = pctText()
         if (pct.isNotEmpty()) {
             labelPaint.textAlign = Paint.Align.RIGHT
-            canvas.drawText(pct, w - padR, dpf(16f), labelPaint)
+            canvas.drawText(pct, w - padR, dpf(35f), labelPaint)
         }
 
-        // ---- plot grid, reference, price labels ----
+        // ---- price grid: nice round tick values ----
+        val ticks = priceTicks(lo, hi, 4)
+        val tDecs = tickDecimals(ticks)
         labelPaint.textAlign = Paint.Align.RIGHT
-        val ticksY = intArrayOf(0, 1, 2)
-        for (i in ticksY) {
-            val f = i / 2f
-            val y = plotT + f * plotH
+        for (v in ticks) {
+            val y = yFor(v)
+            if (y < plotT - 1f || y > plotB + 1f) continue
             canvas.drawLine(plotL, y, plotR, y, gridPaint)
-            val value = max - (max - min) * f
-            // price label right-aligned just inside the gutter, vertically near the line
-            canvas.drawText(fmtPrice(value), plotL - dpf(4f), y + dpf(3f), labelPaint)
+            canvas.drawText(fmt(v, tDecs), plotL - dpf(4f), y + dpf(3f), labelPaint)
         }
 
-        if (refPrice > 0.0) {
-            canvas.drawLine(plotL, yFor(refPrice), plotR, yFor(refPrice), refPaint)
+        // ---- reference line (only when it lies inside the visible range) ----
+        if (refPrice > 0.0 && refPrice >= lo && refPrice <= hi) {
+            val ry = yFor(refPrice)
+            canvas.drawLine(plotL, ry, plotR, ry, refPaint)
         }
 
         // ---- series ----
@@ -221,6 +273,10 @@ class StockChartView @JvmOverloads constructor(
         } else {
             drawLine(canvas, ::xFor, ::yFor)
         }
+
+        // ---- last price marker on the right edge ----
+        val yl = yFor(last)
+        canvas.drawRect(plotR - dpf(1f), yl - dpf(2.5f), plotR + dpf(2f), yl + dpf(2.5f), bodyUpPaint)
 
         // ---- bottom band ----
         val axisBaseline = h - dpf(3f)
