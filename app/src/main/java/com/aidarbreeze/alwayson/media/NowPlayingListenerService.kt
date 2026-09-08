@@ -55,11 +55,8 @@ class NowPlayingListenerService : NotificationListenerService() {
      *  stale, no readable state) is ignored so the card never shows while no
      *  music is playing.
      *
-     *  Every [MediaController] we create is released right after the read:
-     *  the framework allows only a handful of live controllers per app
-     *  (Android 13+ throws once the limit is exceeded), and refresh() runs on
-     *  every notification post/remove, so an un-released controller would
-     *  exhaust the limit and break the card permanently. */
+     *  Note: MediaController has no release() API — the controller is created
+     *  per scan as a local that we never store, so it stays collectable. */
     private fun refresh() {
         val notifs = try {
             activeNotifications ?: emptyArray()
@@ -84,49 +81,33 @@ class NowPlayingListenerService : NotificationListenerService() {
             }
             if (controller == null) continue
 
-            var playing = false
-            var title: String? = null
-            var artist = ""
-            try {
-                // Positively confirm it is playing right now.
-                val state = try {
-                    controller.playbackState?.state ?: -1
-                } catch (_: Exception) {
-                    -1
-                }
-                if (state == PlaybackState.STATE_PLAYING) {
-                    // Title must be present and non-blank.
-                    val meta = try {
-                        controller.metadata
-                    } catch (_: Exception) {
-                        null
-                    }
-                    val t = meta?.getString(MediaMetadata.METADATA_KEY_TITLE)
-                        ?: meta?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
-                        ?: extras.getString(Notification.EXTRA_TITLE)
-                    if (t != null && t.isNotBlank()) {
-                        title = t
-                        artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST)
-                            ?: meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
-                            ?: extras.getString(Notification.EXTRA_TEXT)
-                            ?: ""
-                        playing = true
-                    }
-                }
+            // Positively confirm it is playing right now.
+            val state = try {
+                controller.playbackState?.state ?: -1
             } catch (_: Exception) {
-                // unreadable session; ignore
-            } finally {
-                try {
-                    controller.release()
-                } catch (_: Exception) {
-                    // already gone
-                }
+                -1
             }
+            if (state != PlaybackState.STATE_PLAYING) continue
 
-            if (playing && title != null) {
-                found = NowPlaying(title, artist, playing = true)
-                break
+            // Title must be present and non-blank.
+            val meta = try {
+                controller.metadata
+            } catch (_: Exception) {
+                null
             }
+            val title = meta?.getString(MediaMetadata.METADATA_KEY_TITLE)
+                ?: meta?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+                ?: extras.getString(Notification.EXTRA_TITLE)
+                ?: continue
+            if (title.isBlank()) continue
+
+            val artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+                ?: meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+                ?: extras.getString(Notification.EXTRA_TEXT)
+                ?: ""
+
+            found = NowPlaying(title, artist, playing = true)
+            break
         }
 
         NowPlayingCache.current = found

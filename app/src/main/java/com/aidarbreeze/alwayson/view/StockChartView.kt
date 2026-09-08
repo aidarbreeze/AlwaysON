@@ -264,10 +264,7 @@ class StockChartView @JvmOverloads constructor(
         yFor: (Double) -> Float
     ) {
         val n = candles.size
-        // Float division on purpose: with Int arithmetic the slot collapses to
-        // 0 once the candle count exceeds the plot width in px, and the bodies
-        // shrink to the 1 dp minimum.
-        val slot = if (n > 1) plotW.toFloat() / (n - 1) else plotW.toFloat()
+        val slot = if (n > 1) plotW / (n - 1) else plotW
         val bodyHalf = (slot * 0.32f).coerceIn(dpf(1f), dpf(14f))
         for (i in 0 until n) {
             val c = candles[i]
