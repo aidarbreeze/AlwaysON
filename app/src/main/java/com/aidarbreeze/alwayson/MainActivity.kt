@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -24,6 +25,7 @@ import android.widget.Switch
 import android.widget.TextView
 import com.aidarbreeze.alwayson.service.OverlayService
 import com.aidarbreeze.alwayson.view.ClockView
+import com.aidarbreeze.alwayson.weather.WeatherApi
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -32,6 +34,7 @@ class MainActivity : Activity() {
 
     private val reqOverlay = 1001
     private val reqNotif = 1002
+    private val reqLoc = 1003
 
     private lateinit var autoSwitch: Switch
     private lateinit var permStatus: TextView
@@ -54,6 +57,11 @@ class MainActivity : Activity() {
     private lateinit var stockTypeGroup: RadioGroup
     private lateinit var stockPeriodGroup: RadioGroup
     private lateinit var weekStartGroup: RadioGroup
+    private lateinit var weatherSwitch: Switch
+    private lateinit var weatherCityInput: EditText
+    private lateinit var weatherStatus: TextView
+    private lateinit var weatherGeobtn: Button
+    private lateinit var weatherLocBlock: View
 
     // Live clock preview (top of the settings screen).
     private lateinit var previewClock: ClockView
@@ -96,6 +104,11 @@ class MainActivity : Activity() {
         stockTypeGroup = findViewById(R.id.stockTypeGroup)
         stockPeriodGroup = findViewById(R.id.stockPeriodGroup)
         weekStartGroup = findViewById(R.id.weekStartGroup)
+        weatherSwitch = findViewById(R.id.weatherSwitch)
+        weatherCityInput = findViewById(R.id.weatherCityInput)
+        weatherStatus = findViewById(R.id.weatherStatus)
+        weatherGeobtn = findViewById(R.id.weatherGeobtn)
+        weatherLocBlock = findViewById(R.id.weatherLocBlock)
 
         // Load persisted appearance.
         autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
@@ -248,6 +261,32 @@ class MainActivity : Activity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
+        // --- Weather ---
+        weatherSwitch.isChecked = Prefs.weatherEnabled(this)
+        weatherCityInput.setText(Prefs.weatherCity(this))
+        updateWeatherLocBlock()
+        updateWeatherStatus()
+
+        weatherSwitch.setOnCheckedChangeListener { _, checked ->
+            Prefs.setWeatherEnabled(this, checked)
+            updateWeatherLocBlock()
+            if (checked && !Prefs.hasWeatherLocation(this)) requestLocation()
+            updateWeatherStatus()
+        }
+
+        weatherGeobtn.setOnClickListener { requestLocation() }
+
+        // When the user finishes typing a city (keyboard dismissed) try to
+        // geocode it and save those coordinates for the forecast.
+        weatherCityInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                geocodeCityInput()
+                true
+            } else {
+                false
+            }
+        }
+
         findViewById<Button>(R.id.btnPreview).setOnClickListener {
             startActivity(Intent(this, StandbyActivity::class.java))
         }
@@ -350,6 +389,85 @@ class MainActivity : Activity() {
         stockInputs.visibility = if (stocksSwitch.isChecked) View.VISIBLE else View.GONE
     }
 
+    // ---------- weather location ----------
+
+    /** Show/hide the location-source block depending on the weather switch. */
+    private fun updateWeatherLocBlock() {
+        weatherLocBlock.visibility =
+            if (weatherSwitch.isChecked) View.VISIBLE else View.GONE
+    }
+
+    /** Refresh the line describing where the forecast is taken from. */
+    private fun updateWeatherStatus() {
+        if (!this::weatherStatus.isInitialized) return
+        if (!weatherSwitch.isChecked) {
+            weatherStatus.text = ""
+            return
+        }
+        val city = Prefs.weatherCity(this)
+        if (city.isNotBlank() && Prefs.hasWeatherLocation(this)) {
+            weatherStatus.text =
+                getString(R.string.weather_loc_granted, city)
+            return
+        }
+        val loc = Prefs.weatherLocation(this)
+        if (loc != null) {
+            val coords = String.format(Locale.US, "%.2f, %.2f", loc.first, loc.second)
+            weatherStatus.text = getString(R.string.weather_loc_granted, coords)
+        } else {
+            weatherStatus.text = getString(R.string.weather_loc_unavailable)
+        }
+    }
+
+    /** Ask for the location permission, then use the last known coordinates. */
+    private fun requestLocation() {
+        if (!Location.hasPermission(this)) {
+            requestPermissions(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                reqLoc
+            )
+            return
+        }
+        useLastKnown()
+    }
+
+    private fun useLastKnown() {
+        val loc = Location.lastKnown(this)
+        if (loc == null) {
+            weatherStatus.text = getString(R.string.weather_loc_unavailable)
+            return
+        }
+        Prefs.setWeatherLocation(this, loc.first, loc.second)
+        Prefs.setWeatherCity(this, "")
+        weatherCityInput.setText("")
+        updateWeatherStatus()
+    }
+
+    /** Resolve a typed city to coordinates in the background. */
+    private fun geocodeCityInput() {
+        val q = weatherCityInput.text?.toString()?.trim().orEmpty()
+        if (q.isEmpty()) {
+            updateWeatherStatus()
+            return
+        }
+        Thread {
+            val place = WeatherApi.geocode(q)
+            runOnUiThread {
+                if (place == null) {
+                    weatherStatus.text = getString(R.string.weather_city_not_found)
+                    return@runOnUiThread
+                }
+                Prefs.setWeatherLocation(this, place.lat, place.lon)
+                Prefs.setWeatherCity(this, place.name)
+                weatherCityInput.setText(place.name)
+                updateWeatherStatus()
+            }
+        }.start()
+    }
+
     private fun canDraw(): Boolean = Settings.canDrawOverlays(this)
 
     private fun refreshPermissionUi() {
@@ -442,6 +560,21 @@ class MainActivity : Activity() {
         if (requestCode == reqOverlay) {
             refreshPermissionUi()
             refreshSwitchState()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != reqLoc) return
+        val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+        if (granted) {
+            useLastKnown()
+        } else {
+            weatherStatus.text = getString(R.string.weather_loc_unavailable)
         }
     }
 }

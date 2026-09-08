@@ -20,6 +20,9 @@ import com.aidarbreeze.alwayson.stock.StockApi
 import com.aidarbreeze.alwayson.view.ClockView
 import com.aidarbreeze.alwayson.view.MonthCalendarView
 import com.aidarbreeze.alwayson.view.StockChartView
+import com.aidarbreeze.alwayson.view.WeatherPanelView
+import com.aidarbreeze.alwayson.weather.WeatherApi
+import com.aidarbreeze.alwayson.weather.WeatherInfo
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -49,6 +52,7 @@ class StandbyController(context: Context, root: View) {
     private val mediaNext: TextView = root.findViewById(R.id.mediaNext)
     private val monthView: MonthCalendarView = root.findViewById(R.id.monthView)
     private val stockView: StockChartView = root.findViewById(R.id.stockView)
+    private val weatherView: WeatherPanelView = root.findViewById(R.id.weatherView)
     private val content: View = root.findViewById(R.id.standbyContent)
 
     private val mediaWatcher = MediaWatcher(appContext)
@@ -59,15 +63,25 @@ class StandbyController(context: Context, root: View) {
     // Minutes elapsed, used to compute the burn-in drift offset.
     private var driftTick = 0L
 
-    // --- calendar <-> stock chart alternation ---
-    // null = show the calendar; an Int = MOEX ISS candle interval (code 1/10/60).
-    // When the chosen period is 0 the cycle walks all three (60/10/1); when the
-    // user picks one timeframe it alternates calendar <-> that one chart.
+    // --- panel alternation: calendar <-> stock chart <-> weather ---
+    // A fixed set of "windows" is rotated on a timer. Windows can be the month
+    // calendar, a MOEX chart of a chosen interval, or the weather forecast in
+    // its hourly or daily view. Weather is only included once a forecast point
+    // (geolocation or a manually entered city) is available.
+    private enum class Kind { CAL, STOCK, HOUR, DAY }
+    private class Panel(val kind: Kind, val interval: Int = 0)
+
     private val stockCached = HashMap<Int, List<Candle>>()
-    private var panelSeq: List<Int?> = emptyList()
+    private var weatherCached: WeatherInfo? = null
+    private var weatherFetchedAt = 0L
+    private var weatherFetching = false
+    private var weatherMode = WeatherPanelView.MODE_DAILY
+    private var panelSeq: List<Panel> = emptyList()
     private var panelStep = 0
     private var fetchGen = 0L
+    private var weatherGen = 0L
     private val panelTickMs = 10_000L
+    private val weatherFreshMs = 55L * 60L * 1000L // refetch the forecast hourly
     private val panelRunnable = object : Runnable {
         override fun run() {
             panelStep = (panelStep + 1) % panelSeq.size
@@ -174,41 +188,80 @@ class StandbyController(context: Context, root: View) {
         Prefs.stocksEnabled(appContext) &&
             Prefs.stockTicker(appContext).isNotEmpty()
 
+    private fun weatherReady(): Boolean =
+        Prefs.weatherEnabled(appContext) && Prefs.hasWeatherLocation(appContext)
+
     private fun startPanelCycle() {
         handler.removeCallbacks(panelRunnable)
-        if (!panelEnabled()) {
-            panelSeq = emptyList()
+        panelSeq = buildPanels()
+        if (weatherReady()) fetchWeatherIfStale() // warm the cache in the background
+        if (panelSeq.size <= 1) {
+            panelStep = 0
             showCalendarOnly()
             return
-        }
-        // Build the alternation sequence for the chosen period.
-        val chosen = Prefs.stockPeriod(appContext)
-        panelSeq = if (chosen == 1 || chosen == 10 || chosen == 60) {
-            listOf<Int?>(null, chosen)
-        } else {
-            listOf<Int?>(null, 60, null, 10, null, 1)
         }
         panelStep = 0
         renderPanel()
         handler.postDelayed(panelRunnable, panelTickMs)
     }
 
+    /** The rotating set of windows for the currently enabled modes. */
+    private fun buildPanels(): List<Panel> {
+        val stocks = panelEnabled()
+        val weather = weatherReady()
+        if (!stocks && !weather) return listOf(Panel(Kind.CAL))
+        if (!weather) {
+            // Stocks only — keep the original behaviour where the calendar is
+            // interleaved between the (auto) chart intervals.
+            val chosen = Prefs.stockPeriod(appContext)
+            return if (chosen == 1 || chosen == 10 || chosen == 60) {
+                listOf(Panel(Kind.CAL), Panel(Kind.STOCK, chosen))
+            } else {
+                listOf(
+                    Panel(Kind.CAL), Panel(Kind.STOCK, 60),
+                    Panel(Kind.CAL), Panel(Kind.STOCK, 10),
+                    Panel(Kind.CAL), Panel(Kind.STOCK, 1)
+                )
+            }
+        }
+        // Weather on: one clean loop of every enabled window, ending with the
+        // two weather views (hourly, then daily).
+        val out = ArrayList<Panel>()
+        out.add(Panel(Kind.CAL))
+        if (stocks) {
+            val chosen = Prefs.stockPeriod(appContext)
+            if (chosen == 1 || chosen == 10 || chosen == 60) {
+                out.add(Panel(Kind.STOCK, chosen))
+            } else {
+                out.add(Panel(Kind.STOCK, 60))
+                out.add(Panel(Kind.STOCK, 10))
+                out.add(Panel(Kind.STOCK, 1))
+            }
+        }
+        out.add(Panel(Kind.HOUR))
+        out.add(Panel(Kind.DAY))
+        return out
+    }
+
     private fun renderPanel() {
-        val code = panelSeq.getOrNull(panelStep)
-        if (code == null) {
-            showCalendarOnly()
-        } else {
-            showChart(code)
+        val panel = panelSeq.getOrNull(panelStep) ?: return
+        when (panel.kind) {
+            Kind.CAL -> showCalendarOnly()
+            Kind.STOCK -> showChart(panel.interval)
+            Kind.HOUR -> showWeather(WeatherPanelView.MODE_HOURLY)
+            Kind.DAY -> showWeather(WeatherPanelView.MODE_DAILY)
         }
     }
 
     private fun showCalendarOnly() {
         monthView.visibility = View.VISIBLE
         stockView.visibility = View.GONE
+        weatherView.visibility = View.GONE
     }
 
     private fun showChart(code: Int) {
         monthView.visibility = View.GONE
+        weatherView.visibility = View.GONE
         stockView.visibility = View.VISIBLE
 
         val symbol = Prefs.stockTicker(appContext)
@@ -241,6 +294,62 @@ class StandbyController(context: Context, root: View) {
                     }
                 } else if (stockView.visibility == View.VISIBLE) {
                     stockView.setStatus("нет данных / нет сети")
+                }
+            }
+        }.start()
+    }
+
+    private fun showWeather(mode: Int) {
+        weatherMode = mode
+        monthView.visibility = View.GONE
+        stockView.visibility = View.GONE
+        weatherView.visibility = View.VISIBLE
+        renderWeather()
+        fetchWeatherIfStale()
+    }
+
+    private fun renderWeather() {
+        val data = weatherCached
+        if (data == null) {
+            weatherView.setStatus(
+                if (weatherFetching) "Погода: загрузка…" else "Погода: нет данных"
+            )
+            return
+        }
+        if (weatherMode == WeatherPanelView.MODE_HOURLY) {
+            weatherView.showHourly(data)
+        } else {
+            weatherView.showDaily(data)
+        }
+    }
+
+    /** Fetch the forecast on a background thread when it is missing or stale. */
+    private fun fetchWeatherIfStale() {
+        if (weatherFetching) return
+        val cached = weatherCached
+        if (cached != null &&
+            System.currentTimeMillis() - weatherFetchedAt < weatherFreshMs
+        ) {
+            return
+        }
+        val loc = Prefs.weatherLocation(appContext) ?: return
+        weatherFetching = true
+        if (weatherCached == null && weatherView.visibility == View.VISIBLE) {
+            weatherView.setStatus("Погода: загрузка…")
+        }
+        val gen = ++weatherGen
+        val city = Prefs.weatherCity(appContext)
+        Thread {
+            val data = WeatherApi.fetch(loc.first, loc.second, city)
+            handler.post {
+                if (gen != weatherGen) return@post
+                weatherFetching = false
+                if (data != null) {
+                    weatherCached = data
+                    weatherFetchedAt = System.currentTimeMillis()
+                    if (weatherView.visibility == View.VISIBLE) renderWeather()
+                } else if (weatherView.visibility == View.VISIBLE) {
+                    weatherView.setStatus("Погода: нет данных / нет сети")
                 }
             }
         }.start()

@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- To fetch stock quotes/charts for the calendar<->stock alternation mode. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Weather by the device location (last known coordinates). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application
         android:allowBackup="true"

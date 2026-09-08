@@ -35,6 +35,13 @@ object Prefs {
     // a Calendar.DAY_OF_WEEK constant (1 = Sunday, 2 = Monday, 7 = Saturday).
     private const val KEY_WEEK_START = "week_start"
     private const val KEY_AUTO_STANDBY = "auto_standby"
+    // Weather (Open-Meteo) alternation panel.
+    private const val KEY_WEATHER_ENABLED = "weather_enabled"
+    // Coordinates are stored as Float.NaN when not set yet.
+    private const val KEY_WEATHER_LAT = "weather_lat"
+    private const val KEY_WEATHER_LON = "weather_lon"
+    // Display name of the location (from manual geocode or empty for GPS).
+    private const val KEY_WEATHER_CITY = "weather_city"
 
     private fun sp(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -110,4 +117,36 @@ object Prefs {
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)
     fun setAutoStandby(ctx: Context, on: Boolean) =
         sp(ctx).edit().putBoolean(KEY_AUTO_STANDBY, on).apply()
-}
+
+    /** Weather panel on/off. */
+    fun weatherEnabled(ctx: Context): Boolean =
+        sp(ctx).getBoolean(KEY_WEATHER_ENABLED, false)
+    fun setWeatherEnabled(ctx: Context, on: Boolean) =
+        sp(ctx).edit().putBoolean(KEY_WEATHER_ENABLED, on).apply()
+
+    private fun latLon(ctx: Context): Pair<Double, Double>? {
+        val lat = sp(ctx).getFloat(KEY_WEATHER_LAT, Float.NaN).toDouble()
+        val lon = sp(ctx).getFloat(KEY_WEATHER_LON, Float.NaN).toDouble()
+        if (lat.isNaN() || lon.isNaN()) return null
+        if (lat == 0.0 && lon == 0.0) return null // (0,0) is a bogus "no fix"
+        return lat to lon
+    }
+
+    /** Saved forecast point, if any (geolocation or manual city). */
+    fun weatherLocation(ctx: Context): Pair<Double, Double>? = latLon(ctx)
+
+    /** True when we have a usable forecast point. */
+    fun hasWeatherLocation(ctx: Context): Boolean = latLon(ctx) != null
+
+    fun setWeatherLocation(ctx: Context, lat: Double, lon: Double) {
+        sp(ctx).edit()
+            .putFloat(KEY_WEATHER_LAT, lat.toFloat())
+            .putFloat(KEY_WEATHER_LON, lon.toFloat())
+            .apply()
+    }
+
+    /** Display name of the forecast location (empty when it came from GPS). */
+    fun weatherCity(ctx: Context): String =
+        sp(ctx).getString(KEY_WEATHER_CITY, null) ?: ""
+    fun setWeatherCity(ctx: Context, name: String) =
+        sp(ctx).edit().putString(KEY_WEATHER_CITY, name.trim()).apply()

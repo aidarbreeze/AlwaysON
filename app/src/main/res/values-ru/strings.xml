@@ -83,6 +83,17 @@
     <string name="btn_battery_probe">Что мой телефон сообщает о токе зарядки?</string>
     <string name="battery_probe_hint">Показывает сырые показания (статус + узлы батареи), чтобы подобрать правильный источник для вашего устройства. Нажмите во время зарядки.</string>
 
+    <!-- Погода -->
+    <string name="weather_section">Погода</string>
+    <string name="weather_switch_title">Показывать прогноз погоды</string>
+    <string name="weather_switch_summary">После календаря и курса акций добавить почасовой и подневной прогноз для вашего местоположения.</string>
+    <string name="weather_geo_button">Определить по геолокации</string>
+    <string name="weather_city_label">…или введите город вручную:</string>
+    <string name="weather_city_hint">Город, напр. Москва</string>
+    <string name="weather_loc_granted">Местоположение: %s</string>
+    <string name="weather_loc_unavailable">Местоположение ещё не определено. Включите геолокацию или введите город выше.</string>
+    <string name="weather_city_not_found">Город не найден — попробуйте другое название.</string>
+
     <!-- Уведомление сервиса -->
     <string name="notif_title">AlwaysON StandBy</string>
     <string name="notif_text">Активно — держит часы на экране во время зарядки</string>

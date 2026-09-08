@@ -705,6 +705,101 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- ================= Weather ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/weather_section" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:text="@string/weather_switch_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="@string/weather_switch_summary" />
+                </LinearLayout>
+                <Switch
+                    android:id="@+id/weatherSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <!-- Location source: geolocation and/or a manually typed city. -->
+            <LinearLayout
+                android:id="@+id/weatherLocBlock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <Button
+                    android:id="@+id/weatherGeobtn"
+                    style="@style/ActionButton"
+                    android:text="@string/weather_geo_button" />
+
+                <TextView
+                    style="@style/PrefSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="@string/weather_city_label" />
+
+                <EditText
+                    android:id="@+id/weatherCityInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:inputType="text"
+                    android:imeOptions="actionDone"
+                    android:singleLine="true"
+                    android:textSize="16sp"
+                    android:hint="@string/weather_city_hint" />
+
+                <TextView
+                    android:id="@+id/weatherStatus"
+                    style="@style/PrefSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="10dp"
+                    android:text="" />
+            </LinearLayout>
+        </LinearLayout>
+
         <!-- ================= How it works ================= -->
         <TextView
             style="@style/SettingHeader"

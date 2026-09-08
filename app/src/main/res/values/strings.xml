@@ -83,6 +83,17 @@
     <string name="btn_battery_probe">What does my phone report for charge current?</string>
     <string name="battery_probe_hint">Shows the raw readings (status + battery nodes) so we can find the right source for your device. Tap while charging.</string>
 
+    <!-- Weather panel -->
+    <string name="weather_section">Weather</string>
+    <string name="weather_switch_title">Show the weather forecast</string>
+    <string name="weather_switch_summary">After the calendar and the stock chart, rotate in an hourly and a daily forecast for your location.</string>
+    <string name="weather_geo_button">Use the device location</string>
+    <string name="weather_city_label">…or type a city instead:</string>
+    <string name="weather_city_hint">City, e.g. Moscow</string>
+    <string name="weather_loc_granted">Location found: %s</string>
+    <string name="weather_loc_unavailable">No location yet. Turn on device location or type a city above.</string>
+    <string name="weather_city_not_found">City not found — try another name.</string>
+
     <!-- Service notification -->
     <string name="notif_title">AlwaysON StandBy</string>
     <string name="notif_text">Active — keeps the clock on while charging</string>
