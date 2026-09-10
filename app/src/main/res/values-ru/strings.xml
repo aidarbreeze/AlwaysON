@@ -45,6 +45,7 @@
         <item>Жирные цифры</item>
         <item>Моноширинный</item>
         <item>Мягкий округлый</item>
+        <item>Премиум AMOLED</item>
     </string-array>
     <string name="style_normal">Обычный</string>
     <string name="style_outline">Контур (полые цифры)</string>
@@ -73,6 +74,7 @@
         <item>Монохром OLED</item>
         <item>Компактный</item>
         <item>Крупные числа</item>
+        <item>Премиум-карточка</item>
     </string-array>
 
     <!-- Акции / смена календаря -->
@@ -117,6 +119,7 @@
         <item>Монохром OLED</item>
         <item>Погода + солнце</item>
         <item>Компактный сплит</item>
+        <item>Премиум-карточка</item>
     </string-array>
     <string name="weather_geo_button">Определить по геолокации</string>
     <string name="weather_city_label">…или введите город вручную:</string>

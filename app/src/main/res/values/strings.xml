@@ -45,6 +45,7 @@
         <item>Bold Digital</item>
         <item>Monospaced</item>
         <item>Soft Rounded</item>
+        <item>Premium AMOLED</item>
     </string-array>
     <string name="style_normal">Normal</string>
     <string name="style_outline">Outline (hollow digits)</string>
@@ -73,6 +74,7 @@
         <item>Monochrome OLED</item>
         <item>Compact</item>
         <item>Large Numbers</item>
+        <item>Premium Card</item>
     </string-array>
 
     <!-- Stocks / calendar alternation -->
@@ -117,6 +119,7 @@
         <item>Monochrome OLED</item>
         <item>Weather + Sun Cycle</item>
         <item>Compact Split</item>
+        <item>Premium Card</item>
     </string-array>
     <string name="weather_geo_button">Use the device location</string>
     <string name="weather_city_label">…or type a city instead:</string>

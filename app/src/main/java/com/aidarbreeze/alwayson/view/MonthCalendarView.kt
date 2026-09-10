@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.View
 import com.aidarbreeze.alwayson.Prefs
@@ -27,6 +28,9 @@ import kotlin.math.min
  *  5 OLED_MONO    — minimal, strict white/gray, today as a thin ring.
  *  6 COMPACT      — base grid with tighter padding and rows.
  *  7 LARGE        — base grid with enlarged day numbers.
+ *  8 PREMIUM      — "Premium Card": the month in a translucent dark card with
+ *                   a rounded border, month title (year dimmed), small-caps
+ *                   weekday labels, today in an accent ring, weekends dimmed.
  */
 class MonthCalendarView @JvmOverloads constructor(
     context: Context,
@@ -45,6 +49,39 @@ class MonthCalendarView @JvmOverloads constructor(
     }
     private val weekendPaint = Paint().apply { color = 0x66FFFFFF.toInt(); isAntiAlias = true }
     private val todayNumBright = Paint().apply { color = Color.WHITE; isAntiAlias = true }
+
+    // ---- premium card (style 8) ----
+    private val premCardFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF11151B.toInt(); style = Paint.Style.FILL
+    }
+    private val premCardStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF26303B.toInt(); style = Paint.Style.STROKE
+    }
+    private val premTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFF5F7FA.toInt()
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
+    private val premTitleYearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF8B93A1.toInt()
+        typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+    }
+    private val premWeekdayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF59616D.toInt()
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        letterSpacing = 0.06f
+    }
+    private val premDayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF5F7FA.toInt() }
+    private val premWeekendPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF8B93A1.toInt() }
+    private val premTodayNumPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF7DD3FC.toInt()
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
+    private val premTodayFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF263E4C.toInt(); style = Paint.Style.FILL
+    }
+    private val premTodayStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF7DD3FC.toInt(); style = Paint.Style.STROKE
+    }
 
     /** Current style code (0..7, see class doc). */
     private fun style(): Int = Prefs.calendarStyle(context)
@@ -112,6 +149,13 @@ class MonthCalendarView @JvmOverloads constructor(
         todayYear = year
         if (year != cachedYear || month != cachedMonth || fDow != cachedFirstDow) {
             rebuild(year, month, fDow)
+        }
+
+        // The premium card has its own layout (a bordered card, two-tone
+        // title, small-caps weekdays) and reuses the same month structure.
+        if (style() == 8) {
+            drawPremium(canvas, w, h, now)
+            return
         }
 
         val compact = compact()
@@ -242,6 +286,107 @@ class MonthCalendarView @JvmOverloads constructor(
                         cy + gridFont * 0.36f,
                         p
                     )
+                }
+                day++
+                col++
+            }
+            row++
+        }
+    }
+
+    /** Style 8: the month as a translucent card — rounded 22dp border,
+     *  "September 2026" with the year dimmed, small-caps weekday labels,
+     *  today in an accent ring, weekends muted. No heavy grid lines. */
+    private fun drawPremium(canvas: Canvas, w: Float, h: Float, now: Calendar) {
+        val density = resources.displayMetrics.density
+        val inset = 10f * density
+        val cardL = inset
+        val cardT = inset
+        val cardR = w - inset
+        val cardB = h - inset
+        // Too small to host the card at all — draw nothing rather than clip.
+        if (cardR - cardL < 60f * density || cardB - cardT < 60f * density) return
+
+        val radius = 22f * density
+        premCardStroke.strokeWidth = 1f * density
+        canvas.drawRoundRect(cardL, cardT, cardR, cardB, radius, radius, premCardFill)
+        canvas.drawRoundRect(cardL, cardT, cardR, cardB, radius, radius, premCardStroke)
+
+        val padX = cardL + 14f * density
+        val contentW = cardR - 14f * density - padX
+        if (contentW <= 0f) return
+        val dayWidth = contentW / 7f
+
+        val year = now.get(Calendar.YEAR)
+        val month = now.get(Calendar.MONTH)
+        val locale = Locale.getDefault()
+
+        // --- title: month in primary, the year in secondary, centred ---
+        val titleFont = (min(w, h) * 0.11f).coerceIn(20f, 44f)
+        val monthName = monthHeading(month)
+        val yearStr = " $year"
+        premTitlePaint.textSize = titleFont
+        premTitleYearPaint.textSize = titleFont
+        val mw = premTitlePaint.measureText(monthName)
+        val yw = premTitleYearPaint.measureText(yearStr)
+        val tx = (w - mw - yw) / 2f
+        val titleBase = cardT + 22f * density + titleFont * 0.75f
+        canvas.drawText(monthName, tx, titleBase, premTitlePaint)
+        canvas.drawText(yearStr, tx + mw, titleBase, premTitleYearPaint)
+
+        // --- weekday labels: small caps, tertiary ---
+        val weekdayFont = (min(w, h) * 0.045f).coerceIn(10f, 18f)
+        premWeekdayPaint.textSize = weekdayFont
+        val fDow = if (configuredFirstDow != 0) configuredFirstDow else now.firstDayOfWeek
+        val weekTop = titleBase + 14f * density + weekdayFont
+        for (i in 0 until 7) {
+            val cx = padX + dayWidth * i + dayWidth / 2f
+            val weekday = (fDow - 1 + i) % 7 + 1
+            val label = weekLabels[weekday - 1].uppercase(locale)
+            if (label.isNotEmpty()) {
+                canvas.drawText(label, cx - premWeekdayPaint.measureText(label) / 2f, weekTop, premWeekdayPaint)
+            }
+        }
+
+        // --- day grid ---
+        val gridTop = weekTop + 12f * density
+        val gridBottom = cardB - 14f * density
+        val availRows = gridBottom - gridTop
+        if (availRows <= 0f) return
+        val weeks = ceil((firstCell + daysInMonth) / 7.0).toInt().coerceIn(4, 6)
+        val rowH = availRows / weeks
+        val gridFont = min(rowH * 0.58f, dayWidth * 0.68f).coerceIn(10f, 30f)
+        val circleR = min(rowH * 0.46f, dayWidth * 0.46f)
+        premTodayStroke.strokeWidth = 1f * density
+
+        premDayPaint.textSize = gridFont
+        premWeekendPaint.textSize = gridFont
+        premTodayNumPaint.textSize = gridFont
+
+        var day = 1
+        var row = 0
+        while (day <= daysInMonth) {
+            var col = if (row == 0) firstCell else 0
+            while (col < 7 && day <= daysInMonth) {
+                val cx = padX + dayWidth * col + dayWidth / 2f
+                val cy = gridTop + row * rowH + rowH * 0.5f
+                val num = day.toString()
+                val isToday = year == todayYear && month == todayMonth && day == todayDay
+                when {
+                    isToday -> {
+                        canvas.drawCircle(cx, cy, circleR, premTodayFill)
+                        canvas.drawCircle(cx, cy, circleR, premTodayStroke)
+                        canvas.drawText(
+                            num,
+                            cx - premTodayNumPaint.measureText(num) / 2f,
+                            cy + gridFont * 0.35f,
+                            premTodayNumPaint
+                        )
+                    }
+                    else -> {
+                        val p = if (isWeekend(day, firstCell, fDow)) premWeekendPaint else premDayPaint
+                        canvas.drawText(num, cx - p.measureText(num) / 2f, cy + gridFont * 0.35f, p)
+                    }
                 }
                 day++
                 col++

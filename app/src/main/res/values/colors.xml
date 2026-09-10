@@ -1,10 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launcher_background">#0D1117</color>
-    <color name="aod_background">#000000</color>
-    <color name="aod_clock_text">#F2F2F2</color>
-    <color name="aod_secondary_text">#B0B0B0</color>
+    <color name="aod_background">#050608</color>
+    <color name="aod_clock_text">#F5F7FA</color>
+    <color name="aod_secondary_text">#8B93A1</color>
     <color name="aod_divider">#26FFFFFF</color>
+
+    <!-- Premium AMOLED palette (shared by the StandBy views) -->
+    <color name="aod_surface">#11151B</color>
+    <color name="aod_surface_elevated">#171C24</color>
+    <color name="aod_border">#26303B</color>
+
+    <color name="aod_text_primary">#F5F7FA</color>
+    <color name="aod_text_secondary">#8B93A1</color>
+    <color name="aod_text_tertiary">#59616D</color>
+
+    <color name="aod_accent">#7DD3FC</color>
+    <color name="aod_accent_soft">#263E4C</color>
+
+    <color name="aod_weather_warm">#FBBF24</color>
+    <color name="aod_weather_cold">#93C5FD</color>
+    <color name="aod_weather_cloud">#CBD5E1</color>
+    <color name="aod_weather_rain">#60A5FA</color>
+
+    <color name="aod_success">#86EFAC</color>
+    <color name="aod_warning">#FCD34D</color>
+    <color name="aod_danger">#FCA5A5</color>
 
     <!-- Settings screen palette (dark) -->
     <color name="settings_bg">#0F0F12</color>

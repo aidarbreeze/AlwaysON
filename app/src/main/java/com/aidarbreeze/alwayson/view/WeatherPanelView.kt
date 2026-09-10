@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.View
 import com.aidarbreeze.alwayson.Prefs
+import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.weather.WeatherHour
 import com.aidarbreeze.alwayson.weather.WeatherInfo
 import com.aidarbreeze.alwayson.weather.WeatherLabel
@@ -55,6 +56,7 @@ class WeatherPanelView @JvmOverloads constructor(
         const val STYLE_MONO = 6     // strict white/gray, numbers only
         const val STYLE_SUN = 7      // weather + sun cycle
         const val STYLE_SPLIT = 8    // current | next hours
+        const val STYLE_PREMIUM = 9  // compact AMOLED card
     }
 
     private var info: WeatherInfo? = null
@@ -181,6 +183,37 @@ class WeatherPanelView @JvmOverloads constructor(
         textSize = dpf(10f)
     }
 
+    // ---- premium card (style 9) ----
+    private val premCardFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF11151B.toInt()
+        style = Paint.Style.FILL
+    }
+    private val premCardStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF26303B.toInt()
+        style = Paint.Style.STROKE
+    }
+    private val premTempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFF5F7FA.toInt()
+        textSize = dpf(26f)
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
+    private val premCityPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFF5F7FA.toInt()
+        textSize = dpf(12f)
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        textAlign = Paint.Align.RIGHT
+    }
+    private val premCondPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF8B93A1.toInt()
+        textSize = dpf(11f)
+        textAlign = Paint.Align.RIGHT
+    }
+    private val premDetailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF59616D.toInt()
+        textSize = dpf(10f)
+        textAlign = Paint.Align.LEFT
+    }
+
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
 
     /** Display a temperature with the user's unit (C default, F optional).
@@ -273,6 +306,7 @@ class WeatherPanelView @JvmOverloads constructor(
             STYLE_MONO -> drawMonoMode(canvas, w, h, data)
             STYLE_SUN -> drawSunMode(canvas, w, h, data)
             STYLE_SPLIT -> drawSplitMode(canvas, w, h, data)
+            STYLE_PREMIUM -> drawPremiumMode(canvas, w, h, data)
             else -> drawClassicMode(canvas, w, h, data)
         }
 
@@ -1040,6 +1074,139 @@ class WeatherPanelView @JvmOverloads constructor(
                 weekGlyphPaint
             )
             canvas.drawText("${t(hour.tempC)}", midX - dpf(12f), cy + dpf(4.5f), hourlyTempPaint)
+        }
+    }
+
+    // ================================================================
+    // PREMIUM CARD — compact AMOLED card: icon left, temperature +
+    // feels-like beside it, city / condition / details right-aligned.
+    // Only real values are shown; nothing empty is ever drawn.
+    // ================================================================
+
+    /** Vector icon for a WMO code, or null when nothing fits (unknown code). */
+    private fun weatherIconRes(code: Int): Int? = when (code) {
+        0, 1 -> R.drawable.ic_weather_sunny
+        2, 3 -> R.drawable.ic_weather_cloudy
+        45, 48 -> R.drawable.ic_weather_fog
+        51, 53, 55, 61, 63, 65, 80, 81, 82 -> R.drawable.ic_weather_rain
+        56, 57, 66, 67, 71, 73, 75, 77, 85, 86 -> R.drawable.ic_weather_snow
+        95, 96, 99 -> R.drawable.ic_weather_storm
+        else -> null
+    }
+
+    private fun drawPremiumMode(canvas: Canvas, w: Float, h: Float, data: WeatherInfo) {
+        val inset = dpf(10f)
+        val cardL = inset
+        val cardT = inset
+        val cardR = w - inset
+        val cardB = h - inset
+        if (cardR - cardL < dpf(80f) || cardB - cardT < dpf(56f)) return
+
+        val radius = dpf(22f)
+        premCardStroke.strokeWidth = dpf(1f)
+        canvas.drawRoundRect(cardL, cardT, cardR, cardB, radius, radius, premCardFill)
+        canvas.drawRoundRect(cardL, cardT, cardR, cardB, radius, radius, premCardStroke)
+
+        val pad = dpf(16f)
+        val cx0 = cardL + pad
+        val cx1 = cardR - pad
+        if (cx1 - cx0 < dpf(40f)) return
+
+        // Vertical split: an upper "main" zone (icon/temp | city/condition)
+        // and a lower single details line. Two zones guarantee the groups
+        // never collide even on a narrow (320dp) panel.
+        val detailsH = dpf(14f)
+        val mainTop = cardT + pad
+        val mainBottom = cardB - pad - detailsH
+        val mainMid = (mainTop + mainBottom) / 2f
+
+        // ---------- left group: icon + temperature (+feels-like) ----------
+        val iconSize = dpf(42f)
+        val iconRes = weatherIconRes(data.codeNow)
+        var contentX = cx0
+        if (iconRes != null) {
+            val d = resources.getDrawable(iconRes, context.theme)
+            val top = mainMid - iconSize / 2f
+            d.setBounds(
+                cx0.toInt(), top.toInt(),
+                (cx0 + iconSize).toInt(), (top + iconSize).toInt()
+            )
+            d.draw(canvas)
+            contentX = cx0 + iconSize + dpf(14f)
+        }
+
+        // "Feels like" is shown whenever the API provided it (even when equal
+        // to the real temperature); absence is null, never 0.
+        val tempStr = t(data.tempNowC)
+        val feels = data.feelsNowC?.let { "ощущается как ${t(it)}" } ?: ""
+        premTempPaint.textAlign = Paint.Align.LEFT
+        val gap = dpf(4f)
+        val tempH = premTempFontExtent()
+        val feelsH = if (feels.isNotEmpty()) premMetaFontExtent() + gap else 0f
+        val blockTop = mainMid - (tempH + feelsH) / 2f
+        val tempBase = blockTop + tempH * 0.78f
+        canvas.drawText(tempStr, contentX, tempBase, premTempPaint)
+        if (feels.isNotEmpty()) {
+            metaPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText(
+                feels, contentX,
+                tempBase + gap + premMetaFontExtent() * 0.78f, metaPaint
+            )
+        }
+
+        // ---------- right group: city + condition (right-aligned) ----------
+        val city = data.city.trim()
+        val cond = WeatherLabel.of(data.codeNow)
+        val lineHeights = floatArrayOf(dpf(15f), dpf(14f))
+        var rightH = 0f
+        if (city.isNotEmpty()) rightH += lineHeights[0]
+        if (cond.isNotEmpty()) rightH += lineHeights[1]
+        var y = mainMid - rightH / 2f
+        if (city.isNotEmpty()) {
+            canvas.drawText(city, cx1, y + lineHeights[0] * 0.82f, premCityPaint)
+            y += lineHeights[0]
+        }
+        if (cond.isNotEmpty()) {
+            canvas.drawText(cond, cx1, y + lineHeights[1] * 0.82f, premCondPaint)
+        }
+
+        // ---------- bottom details line (real values only) ----------
+        val details = buildPremiumDetails(data)
+        if (details.isNotEmpty()) {
+            val baseY = cardB - pad - dpf(2f)
+            // Right-align the short line; if it is wider than the card, let it
+            // run to the left edge instead of clipping.
+            val dw = premDetailPaint.measureText(details)
+            var x = cx1 - dw
+            if (x < cx0) x = cx0
+            canvas.drawText(details, x, baseY, premDetailPaint)
+        }
+    }
+
+    private fun premTempFontExtent(): Float {
+        val fm = premTempPaint.fontMetrics
+        return fm.descent - fm.ascent
+    }
+
+    private fun premMetaFontExtent(): Float {
+        val fm = metaPaint.fontMetrics
+        return fm.descent - fm.ascent
+    }
+
+    /** "18°/25°  ·  ↑ 06:12 ↓ 20:41" — today's range + sun times, from real
+     *  values only (empty pieces are skipped, no placeholders). */
+    private fun buildPremiumDetails(data: WeatherInfo): String = buildString {
+        val nowMs = System.currentTimeMillis()
+        val today = data.days.firstOrNull {
+            isSameDay(it.timeMs, nowMs, zone(data))
+        }
+        if (today != null) {
+            append("${t(today.tMin)}/${t(today.tMax)}")
+        }
+        val sun = sunLine(data)
+        if (sun.isNotEmpty()) {
+            if (isNotEmpty()) append("  ·  ")
+            append(sun)
         }
     }
 

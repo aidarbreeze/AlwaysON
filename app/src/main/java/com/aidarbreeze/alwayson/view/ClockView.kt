@@ -29,6 +29,10 @@ import com.aidarbreeze.alwayson.Prefs
  *  11 - BOLD   : "Bold Digital" — big, dense bold digits.
  *  12 - MONO   : "Monospaced" — fixed-width digits, the clock never shifts.
  *  13 - ROUNDED: "Soft Rounded" — digits with rounded (pillow) corners.
+ *  14 - PREMIUM: "Premium AMOLED" — the main focus of the screen: large
+ *                light-weight digits in near-white (#F5F7FA), even tracking,
+ *                the seconds as a small dimmed suffix (#8B93A1), no shadow
+ *                and no glow.
  *
  * The view is sized to fill its column horizontally and picks the biggest
  * legible digit size that still fits, then centres the time. Font-based
@@ -74,9 +78,8 @@ class ClockView @JvmOverloads constructor(
         0 -> Typeface.create("sans-serif-light", Typeface.NORMAL)
         7 -> Typeface.create("serif", Typeface.NORMAL)
         8 -> Typeface.create("sans-serif", Typeface.BOLD_ITALIC)
-        10 -> Typeface.create("sans-serif", Typeface.NORMAL)
+        10, 13, 14 -> Typeface.create("sans-serif", Typeface.NORMAL)
         12 -> Typeface.MONOSPACE
-        13 -> Typeface.create("sans-serif", Typeface.NORMAL)
         else -> Typeface.create("sans-serif", Typeface.BOLD)
     }
 
@@ -99,6 +102,46 @@ class ClockView @JvmOverloads constructor(
         return fromWidth.coerceAtMost(capPx)
     }
 
+    /** Splits "h:mm:ss" into the "h:mm" part and the seconds; times without
+     *  a seconds field come back as (whole, ""). Requires TWO colons so
+     *  "HH:mm" is never mistaken for "time + seconds". */
+    private fun premiumParts(): Pair<String, String> {
+        if (timeText.count { it == ':' } < 2) return timeText to ""
+        val idx = timeText.lastIndexOf(':')
+        if (timeText.length - idx - 1 == 2) {
+            return timeText.substring(0, idx) to timeText.substring(idx + 1)
+        }
+        return timeText to ""
+    }
+
+    /** Biggest size for the PREMIUM style: the large "h:mm" part plus a
+     *  small dimmed seconds suffix must fit [availW] together. Measured in
+     *  the real (letter-spaced) typeface, so fit == draw. */
+    private fun fitPremiumSize(availW: Float, capPx: Float): Float {
+        val (main, sec) = premiumParts()
+        val tf = Typeface.create("sans-serif", Typeface.NORMAL)
+        var size = capPx
+        while (size > 8f) {
+            paint.reset()
+            paint.isAntiAlias = true
+            paint.typeface = tf
+            paint.letterSpacing = 0.025f
+            paint.textSize = size
+            val bigW = paint.measureText(main)
+            var smallW = 0f
+            if (sec.isNotEmpty()) {
+                paint.textSize = size * 0.42f
+                paint.letterSpacing = 0.08f
+                smallW = paint.measureText(sec)
+            }
+            paint.letterSpacing = 0f
+            val gap = if (sec.isNotEmpty()) size * 0.14f else 0f
+            if (bigW + gap + smallW <= availW) break
+            size -= 2f
+        }
+        return size
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // Honour the measure modes: EXACTLY -> use the given size,
         // AT_MOST -> at most the given size (capped by a sane default),
@@ -114,7 +157,12 @@ class ClockView @JvmOverloads constructor(
         val availW = measuredWidth.toFloat()
         val capPx = cap()
         val pad = dp(4f)
-        val textSize = fitTextSize(availW - pad * 2f, capPx)
+        // The PREMIUM style sizes its large part differently (seconds are a
+        // small suffix), so measure the height from that size, not the
+        // single-size fit, or the rendered clock could be taller than the
+        // measured box.
+        val textSize = if (style() == 14) fitPremiumSize(availW - pad * 2f, capPx)
+        else fitTextSize(availW - pad * 2f, capPx)
 
         // Grid-glyph styles (dots, seven-seg LED, square matrix) are sized by
         // the view height directly; the font-drawn styles need font metrics.
@@ -160,6 +208,7 @@ class ClockView @JvmOverloads constructor(
             11 -> drawPlain(canvas, w, h, Typeface.create("sans-serif", Typeface.BOLD))
             12 -> drawPlain(canvas, w, h, Typeface.MONOSPACE)
             13 -> drawSoftRounded(canvas, w, h)
+            14 -> drawPremium(canvas, w, h)
             else -> drawNormal(canvas, w, h)
         }
     }
@@ -570,6 +619,52 @@ class ClockView @JvmOverloads constructor(
         paint.strokeJoin = Paint.Join.ROUND
         paint.strokeCap = Paint.Cap.ROUND
         drawCenteredText(canvas, timeText, w, h, paint)
+    }
+
+    // ---------- style 14: premium AMOLED (the main focus of the screen) ----------
+    // Large light-weight near-white digits with even tracking; the seconds,
+    // when shown, are a small dimmed suffix on the same baseline. No shadow,
+    // no glow — flat and calm on OLED.
+
+    private fun drawPremium(canvas: Canvas, w: Float, h: Float) {
+        val size = fitPremiumSize(w - dp(4f), cap())
+        val (main, sec) = premiumParts()
+        val gap = if (sec.isNotEmpty()) size * 0.14f else 0f
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        paint.style = Paint.Style.FILL
+        paint.textAlign = Paint.Align.LEFT
+        paint.color = 0xFFF5F7FA.toInt()
+
+        paint.textSize = size
+        paint.letterSpacing = 0.025f
+        val bigW = paint.measureText(main)
+        var smallW = 0f
+        if (sec.isNotEmpty()) {
+            paint.textSize = size * 0.42f
+            paint.letterSpacing = 0.08f
+            smallW = paint.measureText(sec)
+        }
+        paint.letterSpacing = 0f
+
+        val total = bigW + gap + smallW
+        val x = (w - total) / 2f
+        paint.textSize = size
+        paint.letterSpacing = 0.025f
+        paint.color = 0xFFF5F7FA.toInt()
+        val fm = paint.fontMetrics
+        val baseline = h / 2f - (fm.ascent + fm.descent) / 2f
+        canvas.drawText(main, x, baseline, paint)
+
+        if (sec.isNotEmpty()) {
+            paint.textSize = size * 0.42f
+            paint.letterSpacing = 0.08f
+            paint.color = 0xFF8B93A1.toInt()
+            canvas.drawText(sec, x + bigW + gap, baseline, paint)
+        }
+        paint.letterSpacing = 0f
     }
 
     private fun drawCenteredText(

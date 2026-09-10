@@ -166,8 +166,9 @@ object Prefs {
 
     /** Clock face style: 0 normal, 1 outline, 2 dots, 3 flip, 4 LED, 5 neon,
      *  6 chips, 7 serif, 8 italic, 9 LED-matrix, 10 classic digital,
-     *  11 bold digital, 12 monospaced, 13 soft rounded. */
-    fun clockStyle(ctx: Context): Int = sp(ctx).getInt(KEY_CLOCK_STYLE, 0)
+     *  11 bold digital, 12 monospaced, 13 soft rounded, 14 premium AMOLED.
+     *  Default: premium (the new default look). */
+    fun clockStyle(ctx: Context): Int = sp(ctx).getInt(KEY_CLOCK_STYLE, 14)
     fun setClockStyle(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(KEY_CLOCK_STYLE, v).apply()
 
@@ -211,12 +212,13 @@ object Prefs {
 
     /**
      * Calendar style: 0 classic, 1 minimal, 2 filled today, 3 outlined today,
-     * 4 weekend accent, 5 monochrome OLED, 6 compact, 7 large numbers.
+     * 4 weekend accent, 5 monochrome OLED, 6 compact, 7 large numbers,
+     * 8 premium card (default).
      */
     fun calendarStyle(ctx: Context): Int =
-        sp(ctx).getInt(KEY_CALENDAR_STYLE, 0).coerceIn(0, 7)
+        sp(ctx).getInt(KEY_CALENDAR_STYLE, 8).coerceIn(0, 8)
     fun setCalendarStyle(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_CALENDAR_STYLE, v.coerceIn(0, 7)).apply()
+        sp(ctx).edit().putInt(KEY_CALENDAR_STYLE, v.coerceIn(0, 8)).apply()
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)
@@ -257,11 +259,12 @@ object Prefs {
         sp(ctx).edit().putString(KEY_WEATHER_CITY, name.trim()).apply()
 
     /** Weather panel style: 0 classic, 1 curve, 2 minimal, 3 forecast strip,
-     *  4 daily, 5 hero temperature, 6 monochrome, 7 weather+sun, 8 split. */
+     *  4 daily, 5 hero temperature, 6 monochrome, 7 weather+sun, 8 split,
+     *  9 premium card (default). */
     fun weatherStyle(ctx: Context): Int =
-        sp(ctx).getInt(KEY_WEATHER_STYLE, 0).coerceIn(0, 8)
+        sp(ctx).getInt(KEY_WEATHER_STYLE, 9).coerceIn(0, 9)
     fun setWeatherStyle(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_WEATHER_STYLE, v.coerceIn(0, 8)).apply()
+        sp(ctx).edit().putInt(KEY_WEATHER_STYLE, v.coerceIn(0, 9)).apply()
 
     /** How long (seconds) each window type stays on screen. Default 10. */
     fun panelDurationCal(ctx: Context): Int =
