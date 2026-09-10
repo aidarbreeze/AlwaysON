@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
+import com.aidarbreeze.alwayson.Prefs
 import java.text.DateFormatSymbols
 import java.util.Calendar
 import java.util.Locale
@@ -16,6 +17,16 @@ import kotlin.math.min
  * A month calendar (like the iPhone StandBy one) drawn on the canvas so it is
  * OLED-friendly. Layout is computed from the view's measured size, so the grid
  * always fits — nothing is clipped on short landscape screens.
+ *
+ * Styles ([Prefs.calendarStyle]):
+ *  0 CLASSIC      — the base grid with a month heading and a filled today.
+ *  1 MINIMAL      — no month heading, today is just a brighter number.
+ *  2 FILLED_TODAY — base grid, today highlighted with a filled disc.
+ *  3 OUTLINED     — base grid, today highlighted with a ring.
+ *  4 WEEKEND      — base grid, weekend days drawn dimmer.
+ *  5 OLED_MONO    — minimal, strict white/gray, today as a thin ring.
+ *  6 COMPACT      — base grid with tighter padding and rows.
+ *  7 LARGE        — base grid with enlarged day numbers.
  */
 class MonthCalendarView @JvmOverloads constructor(
     context: Context,
@@ -28,6 +39,29 @@ class MonthCalendarView @JvmOverloads constructor(
     private val dayPaint = Paint().apply { color = 0xB3FFFFFF.toInt(); isAntiAlias = true }
     private val todayCirclePaint = Paint().apply { color = Color.WHITE; isAntiAlias = true }
     private val todayNumPaint = Paint().apply { color = Color.BLACK; isAntiAlias = true }
+    private val todayRingPaint = Paint().apply {
+        color = Color.WHITE; isAntiAlias = true
+        style = Paint.Style.STROKE; strokeWidth = 2f
+    }
+    private val weekendPaint = Paint().apply { color = 0x66FFFFFF.toInt(); isAntiAlias = true }
+    private val todayNumBright = Paint().apply { color = Color.WHITE; isAntiAlias = true }
+
+    /** Current style code (0..7, see class doc). */
+    private fun style(): Int = Prefs.calendarStyle(context)
+
+    /** True when the month heading is drawn (not in the minimal variants). */
+    private fun showHeading(): Boolean = style() != 1 && style() != 5
+
+    /** Today marker: 0 = filled disc, 1 = ring, 2 = none (brighter number). */
+    private fun todayMarker(): Int = when (style()) {
+        1, 5 -> if (style() == 5) 1 else 2
+        3 -> 1
+        else -> 0
+    }
+
+    private fun weekendDim(): Boolean = style() == 4
+    private fun compact(): Boolean = style() == 6
+    private fun largeNumbers(): Boolean = style() == 7
 
     private var cachedYear = -1
     private var cachedMonth = -1
@@ -81,24 +115,28 @@ class MonthCalendarView @JvmOverloads constructor(
             rebuild(year, month, fDow)
         }
 
-        val padX = min(w * 0.05f, 20f)
-        val padTop = min(h * 0.07f, 22f)
-        val padBottom = min(h * 0.04f, 12f)
+        val compact = compact()
+        val padX = min(w * 0.05f, if (compact) 14f else 20f)
+        val padTop = min(h * 0.07f, if (compact) 14f else 22f)
+        val padBottom = min(h * 0.04f, if (compact) 8f else 12f)
 
         // Month title must stand out — keep it clearly larger than the day grid.
         val titleFont = (min(w, h) * 0.14f).coerceIn(28f, 64f)
         val weekdayFont = (min(w, h) * 0.075f).coerceIn(16f, 30f)
 
-        // Month title, centred over the whole calendar, first letter upper.
-        titlePaint.textSize = titleFont
-        val monthName = monthHeading(month)
-        val monthTitle = "$monthName $year"
-        canvas.drawText(
-            monthTitle,
-            (w - titlePaint.measureText(monthTitle)) / 2f,
-            padTop + titleFont,
-            titlePaint
-        )
+        val showHead = showHeading()
+        if (showHead) {
+            // Month title, centred over the whole calendar, first letter upper.
+            titlePaint.textSize = titleFont
+            val monthName = monthHeading(month)
+            val monthTitle = "$monthName $year"
+            canvas.drawText(
+                monthTitle,
+                (w - titlePaint.measureText(monthTitle)) / 2f,
+                padTop + titleFont,
+                titlePaint
+            )
+        }
 
         val dayWidth = (w - padX * 2f) / 7f
 
@@ -106,7 +144,7 @@ class MonthCalendarView @JvmOverloads constructor(
         // week's first day, so the label shown is (firstDayOfWeek + i)).
         weekdayPaint.textSize = weekdayFont
         val firstDow = if (configuredFirstDow != 0) configuredFirstDow else now.firstDayOfWeek
-        val weekTop = padTop + titleFont * 1.8f
+        val weekTop = if (showHead) padTop + titleFont * 1.8f else padTop + weekdayFont * 0.4f
         for (i in 0 until 7) {
             val cx = padX + dayWidth * i + dayWidth / 2f
             val weekday = (firstDow - 1 + i) % 7 + 1
@@ -132,12 +170,19 @@ class MonthCalendarView @JvmOverloads constructor(
 
         // Day digits as big as both the row height and the column width allow.
         val rowH = availRows / weeks
-        val gridFont = min(rowH * 0.68f, dayWidth * 0.72f).coerceIn(18f, 48f)
+        var gridFont = min(rowH * 0.68f, dayWidth * 0.72f)
+        if (largeNumbers()) gridFont *= 1.22f
+        if (compact) gridFont *= 0.86f
+        gridFont = gridFont.coerceIn(16f, 56f)
         val circleR = min(rowH * 0.44f, dayWidth * 0.44f)
+        todayRingPaint.strokeWidth = (gridFont * 0.09f).coerceIn(1.5f, 4f)
 
         dayPaint.textSize = gridFont
         todayNumPaint.textSize = gridFont
+        todayNumBright.textSize = gridFont
+        weekendPaint.textSize = gridFont
 
+        val marker = todayMarker()
         var day = 1
         var row = 0
         while (day <= daysInMonth) {
@@ -146,21 +191,46 @@ class MonthCalendarView @JvmOverloads constructor(
                 val cx = padX + dayWidth * col + dayWidth / 2f
                 val cy = gridTop + row * rowH + rowH * 0.5f
                 val num = day.toString()
-                if (isToday && day == todayDay) {
-                    canvas.drawCircle(cx, cy, circleR, todayCirclePaint)
-                    todayNumPaint.color = Color.BLACK
-                    canvas.drawText(
-                        num,
-                        cx - todayNumPaint.measureText(num) / 2f,
-                        cy + gridFont * 0.36f,
-                        todayNumPaint
-                    )
+                val isToday = isToday && day == todayDay
+                if (isToday) {
+                    when (marker) {
+                        0 -> { // filled disc
+                            canvas.drawCircle(cx, cy, circleR, todayCirclePaint)
+                            todayNumPaint.color = Color.BLACK
+                            canvas.drawText(
+                                num,
+                                cx - todayNumPaint.measureText(num) / 2f,
+                                cy + gridFont * 0.36f,
+                                todayNumPaint
+                            )
+                        }
+                        1 -> { // ring
+                            canvas.drawCircle(cx, cy, circleR, todayRingPaint)
+                            canvas.drawText(
+                                num,
+                                cx - todayNumBright.measureText(num) / 2f,
+                                cy + gridFont * 0.36f,
+                                todayNumBright
+                            )
+                        }
+                        else -> { // brighter number only
+                            canvas.drawText(
+                                num,
+                                cx - todayNumBright.measureText(num) / 2f,
+                                cy + gridFont * 0.36f,
+                                todayNumBright
+                            )
+                        }
+                    }
                 } else {
+                    // Weekend accent: draw the day number dimmer.
+                    val p = if (weekendDim() && isWeekend(day, firstCell, firstDow)) weekendPaint
+                    else dayPaint
                     canvas.drawText(
                         num,
-                        cx - dayPaint.measureText(num) / 2f,
+                        cx - p.measureText(num) / 2f,
                         cy + gridFont * 0.36f,
-                        dayPaint
+                        p
                     )
                 }
                 day++
@@ -168,6 +238,12 @@ class MonthCalendarView @JvmOverloads constructor(
             }
             row++
         }
+    }
+
+    /** Calendar.DAY_OF_WEEK (1=Sun..7=Sat) for the [day]-th of the shown month. */
+    private fun isWeekend(day: Int, firstCell: Int, firstDow: Int): Boolean {
+        val dow = ((firstDow - 1 + firstCell + (day - 1)) % 7) + 1
+        return dow == 1 || dow == 7
     }
 
     private fun rebuild(year: Int, month: Int, fDow: Int) {

@@ -758,6 +758,24 @@
                     android:textSize="16sp"
                     android:textColor="@color/settings_text" />
             </RadioGroup>
+
+            <TextView
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="2dp"
+                android:text="@string/calendar_style_label" />
+
+            <Spinner
+                android:id="@+id/calendarStyleSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="12dp" />
         </LinearLayout>
 
         <!-- ================= Stocks ================= -->

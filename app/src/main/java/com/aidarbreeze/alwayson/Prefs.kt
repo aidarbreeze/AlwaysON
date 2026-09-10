@@ -34,6 +34,9 @@ object Prefs {
     // First day of the calendar week. 0 = follow the locale/system; otherwise
     // a Calendar.DAY_OF_WEEK constant (1 = Sunday, 2 = Monday, 7 = Saturday).
     private const val KEY_WEEK_START = "week_start"
+    // Calendar style: 0 classic, 1 minimal, 2 filled today, 3 outlined,
+    // 4 weekend accent, 5 monochrome OLED, 6 compact, 7 large numbers.
+    private const val KEY_CALENDAR_STYLE = "calendar_style"
     private const val KEY_AUTO_STANDBY = "auto_standby"
     // Weather (Open-Meteo) alternation panel.
     private const val KEY_WEATHER_ENABLED = "weather_enabled"
@@ -132,6 +135,15 @@ object Prefs {
     fun weekStart(ctx: Context): Int = sp(ctx).getInt(KEY_WEEK_START, 0)
     fun setWeekStart(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(KEY_WEEK_START, v).apply()
+
+    /**
+     * Calendar style: 0 classic, 1 minimal, 2 filled today, 3 outlined today,
+     * 4 weekend accent, 5 monochrome OLED, 6 compact, 7 large numbers.
+     */
+    fun calendarStyle(ctx: Context): Int =
+        sp(ctx).getInt(KEY_CALENDAR_STYLE, 0).coerceIn(0, 7)
+    fun setCalendarStyle(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_CALENDAR_STYLE, v.coerceIn(0, 7)).apply()
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)

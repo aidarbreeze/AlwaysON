@@ -63,6 +63,17 @@
     <string name="week_start_mon">Понедельник</string>
     <string name="week_start_sun">Воскресенье</string>
     <string name="week_start_sat">Суббота</string>
+    <string name="calendar_style_label">Стиль календаря</string>
+    <string-array name="calendar_style_entries">
+        <item>Классическая сетка</item>
+        <item>Минимал</item>
+        <item>Сегодня закрашено</item>
+        <item>Сегодня обведено</item>
+        <item>Выходные приглушены</item>
+        <item>Монохром OLED</item>
+        <item>Компактный</item>
+        <item>Крупные числа</item>
+    </string-array>
 
     <!-- Акции / смена календаря -->
     <string name="stocks_section">Панель акций</string>

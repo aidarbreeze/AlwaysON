@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private lateinit var brightnessSeek: SeekBar
     private lateinit var brightnessValue: TextView
     private lateinit var clockStyleSpinner: Spinner
+    private lateinit var calendarStyleSpinner: Spinner
     private lateinit var thicknessSeek: SeekBar
     private lateinit var thicknessValue: TextView
     private lateinit var outlineThicknessRow: View
@@ -131,6 +132,7 @@ class MainActivity : Activity() {
         brightnessSeek = findViewById(R.id.brightnessSeek)
         brightnessValue = findViewById(R.id.brightnessValue)
         clockStyleSpinner = findViewById(R.id.clockStyleSpinner)
+        calendarStyleSpinner = findViewById(R.id.calendarStyleSpinner)
         thicknessSeek = findViewById(R.id.thicknessSeek)
         thicknessValue = findViewById(R.id.thicknessValue)
         outlineThicknessRow = findViewById(R.id.outlineThicknessRow)
@@ -209,6 +211,30 @@ class MainActivity : Activity() {
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
         clockStyleSpinner.setSelection(style)
+
+        // Calendar style dropdown; the array index equals the style code and
+        // the mini calendar (and the full preview) redraw live.
+        val calEntries = resources.getStringArray(R.array.calendar_style_entries)
+        calendarStyleSpinner.adapter =
+            ArrayAdapter(
+                this,
+                android.R.layout.simple_spinner_item,
+                calEntries
+            ).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+        val calStyle = Prefs.calendarStyle(this).coerceIn(0, calEntries.size - 1)
+        calendarStyleSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
+                ) {
+                    Prefs.setCalendarStyle(this@MainActivity, position)
+                    miniMonth.invalidate()
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        calendarStyleSpinner.setSelection(calStyle)
 
         val thickness = Prefs.clockThickness(this)
         thicknessSeek.progress = thickness - 1

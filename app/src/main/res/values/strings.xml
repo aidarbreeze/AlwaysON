@@ -63,6 +63,17 @@
     <string name="week_start_mon">Monday</string>
     <string name="week_start_sun">Sunday</string>
     <string name="week_start_sat">Saturday</string>
+    <string name="calendar_style_label">Calendar style</string>
+    <string-array name="calendar_style_entries">
+        <item>Classic Grid</item>
+        <item>Minimal</item>
+        <item>Filled Today</item>
+        <item>Outlined Today</item>
+        <item>Accent Weekend</item>
+        <item>Monochrome OLED</item>
+        <item>Compact</item>
+        <item>Large Numbers</item>
+    </string-array>
 
     <!-- Stocks / calendar alternation -->
     <string name="stocks_section">Stocks panel</string>
