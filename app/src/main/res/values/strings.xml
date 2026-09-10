@@ -107,6 +107,17 @@
     <string name="weather_style_label">Forecast style</string>
     <string name="weather_style_classic">Classic</string>
     <string name="weather_style_curve">Curve</string>
+    <string-array name="weather_style_entries">
+        <item>Classic</item>
+        <item>Curve</item>
+        <item>Minimal</item>
+        <item>Forecast Strip</item>
+        <item>Daily Forecast</item>
+        <item>Large Temperature</item>
+        <item>Monochrome OLED</item>
+        <item>Weather + Sun Cycle</item>
+        <item>Compact Split</item>
+    </string-array>
     <string name="weather_geo_button">Use the device location</string>
     <string name="weather_city_label">…or type a city instead:</string>
     <string name="weather_city_hint">City, e.g. Moscow</string>

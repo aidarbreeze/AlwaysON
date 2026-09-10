@@ -183,10 +183,12 @@ object Prefs {
     fun setWeatherCity(ctx: Context, name: String) =
         sp(ctx).edit().putString(KEY_WEATHER_CITY, name.trim()).apply()
 
-    /** Weather panel style: 0 = classic (default), 1 = curve. */
-    fun weatherStyle(ctx: Context): Int = sp(ctx).getInt(KEY_WEATHER_STYLE, 0)
+    /** Weather panel style: 0 classic, 1 curve, 2 minimal, 3 forecast strip,
+     *  4 daily, 5 hero temperature, 6 monochrome, 7 weather+sun, 8 split. */
+    fun weatherStyle(ctx: Context): Int =
+        sp(ctx).getInt(KEY_WEATHER_STYLE, 0).coerceIn(0, 8)
     fun setWeatherStyle(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_WEATHER_STYLE, v.coerceIn(0, 1)).apply()
+        sp(ctx).edit().putInt(KEY_WEATHER_STYLE, v.coerceIn(0, 8)).apply()
 
     /** How long (seconds) each window type stays on screen. Default 10. */
     fun panelDurationCal(ctx: Context): Int =

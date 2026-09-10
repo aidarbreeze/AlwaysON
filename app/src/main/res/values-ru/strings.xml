@@ -107,6 +107,17 @@
     <string name="weather_style_label">Вид прогноза</string>
     <string name="weather_style_classic">Классика</string>
     <string name="weather_style_curve">Кривая</string>
+    <string-array name="weather_style_entries">
+        <item>Классический</item>
+        <item>Кривая</item>
+        <item>Минимал</item>
+        <item>Лента часов</item>
+        <item>Прогноз на дни</item>
+        <item>Крупная температура</item>
+        <item>Монохром OLED</item>
+        <item>Погода + солнце</item>
+        <item>Компактный сплит</item>
+    </string-array>
     <string name="weather_geo_button">Определить по геолокации</string>
     <string name="weather_city_label">…или введите город вручную:</string>
     <string name="weather_city_hint">Город, напр. Москва</string>

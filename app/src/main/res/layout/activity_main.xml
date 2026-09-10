@@ -1046,31 +1046,12 @@
                     android:text="@string/weather_style_label" />
 
                 <RadioGroup
-                    android:id="@+id/weatherStyleGroup"
+                    android:id="@+id/weatherStyleSpinner"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="2dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp">
-
-                    <RadioButton
-                        android:id="@+id/weatherStyleClassic"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:paddingStart="4dp"
-                        android:text="@string/weather_style_classic"
-                        android:textSize="16sp"
-                        android:textColor="@color/settings_text" />
-                    <RadioButton
-                        android:id="@+id/weatherStyleCurve"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:paddingStart="16dp"
-                        android:text="@string/weather_style_curve"
-                        android:textSize="16sp"
-                        android:textColor="@color/settings_text" />
-                </RadioGroup>
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:layout_marginBottom="4dp" />
 
                 <Button
                     android:id="@+id/weatherGeobtn"

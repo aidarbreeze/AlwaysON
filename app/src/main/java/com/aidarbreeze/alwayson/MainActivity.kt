@@ -71,7 +71,7 @@ class MainActivity : Activity() {
     private lateinit var weatherStatus: TextView
     private lateinit var weatherGeobtn: Button
     private lateinit var weatherLocBlock: View
-    private lateinit var weatherStyleGroup: RadioGroup
+    private lateinit var weatherStyleSpinner: Spinner
     private lateinit var scheduleRow: View
     private lateinit var schedGroup: RadioGroup
     private lateinit var schedHoursRow: View
@@ -153,7 +153,7 @@ class MainActivity : Activity() {
         weatherStatus = findViewById(R.id.weatherStatus)
         weatherGeobtn = findViewById(R.id.weatherGeobtn)
         weatherLocBlock = findViewById(R.id.weatherLocBlock)
-        weatherStyleGroup = findViewById(R.id.weatherStyleGroup)
+        weatherStyleSpinner = findViewById(R.id.weatherStyleSpinner)
 
         // Load persisted appearance.
         autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
@@ -362,19 +362,27 @@ class MainActivity : Activity() {
             startMiniPreview()
         }
 
-        if (Prefs.weatherStyle(this) == WeatherPanelView.STYLE_CURVE) {
-            weatherStyleGroup.check(R.id.weatherStyleCurve)
-        } else {
-            weatherStyleGroup.check(R.id.weatherStyleClassic)
-        }
-        weatherStyleGroup.setOnCheckedChangeListener { _, checkedId ->
-            Prefs.setWeatherStyle(
+        val weatherEntries = resources.getStringArray(R.array.weather_style_entries)
+        weatherStyleSpinner.adapter =
+            ArrayAdapter(
                 this,
-                if (checkedId == R.id.weatherStyleCurve) WeatherPanelView.STYLE_CURVE
-                else WeatherPanelView.STYLE_CLASSIC
-            )
-            startMiniPreview()
-        }
+                android.R.layout.simple_spinner_item,
+                weatherEntries
+            ).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+        val weatherStyle = Prefs.weatherStyle(this).coerceIn(0, weatherEntries.size - 1)
+        weatherStyleSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
+                ) {
+                    Prefs.setWeatherStyle(this@MainActivity, position)
+                    startMiniPreview()
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        weatherStyleSpinner.setSelection(weatherStyle)
 
         weatherGeobtn.setOnClickListener { requestLocation() }
 
