@@ -173,11 +173,27 @@ object BatteryInfo {
         }
     }
 
-    /** True while the phone is plugged in and taking a charge. */
+    /** True while the phone is on a working charger. Checks EXTRA_PLUGGED
+     *  (AC / USB / wireless) in addition to the battery status: a FULL status
+     *  alone does not prove the device is still powered, and a full battery
+     *  can report NOT_CHARGING while sitting on the charger. */
     fun isCharging(context: Context): Boolean {
-        val status = status(context)
-        return status == BatteryManager.BATTERY_STATUS_CHARGING ||
-            status == BatteryManager.BATTERY_STATUS_FULL
+        val intent = context.registerReceiver(
+            null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        ) ?: return false
+
+        val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+
+        val isPlugged =
+            plugged == BatteryManager.BATTERY_PLUGGED_AC ||
+                plugged == BatteryManager.BATTERY_PLUGGED_USB ||
+                plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS
+
+        return isPlugged &&
+            status != BatteryManager.BATTERY_STATUS_DISCHARGING &&
+            status != BatteryManager.BATTERY_STATUS_NOT_CHARGING &&
+            status != BatteryManager.BATTERY_STATUS_UNKNOWN
     }
 
     /** True when the battery is draining (not on a working charger). */

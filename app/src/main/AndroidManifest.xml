@@ -67,14 +67,17 @@
         </service>
 
         <!-- Auto-start the StandBy overlay when charging begins or after a
-             reboot while a charge is connected (if the feature is enabled). -->
+             reboot while a charge is connected (if the feature is enabled);
+             stop it when the charger is unplugged. -->
         <receiver
             android:name=".recv.ChargingReceiver"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.POWER_CONNECTED" />
+                <action android:name="android.intent.action.POWER_DISCONNECTED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
 

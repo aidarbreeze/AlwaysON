@@ -17,6 +17,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -76,13 +77,31 @@ class OverlayService : Service(), SensorEventListener {
             }
         }
 
+        /** True while the phone is on a working charger: it must be PLUGGED
+         *  (AC / USB / wireless) AND not in a draining/unknown state. A FULL
+         *  status alone does not prove the device is still on power. */
         fun isCharging(context: Context): Boolean {
             val intent = context.registerReceiver(
                 null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)
             ) ?: return false
-            val status = intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
-            return status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
-                status == android.os.BatteryManager.BATTERY_STATUS_FULL
+
+            val status = intent.getIntExtra(
+                BatteryManager.EXTRA_STATUS,
+                BatteryManager.BATTERY_STATUS_UNKNOWN
+            )
+
+            val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+
+            val connectedToPower =
+                plugged == BatteryManager.BATTERY_PLUGGED_AC ||
+                    plugged == BatteryManager.BATTERY_PLUGGED_USB ||
+                    plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS
+
+            val validBatteryState =
+                status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                    status == BatteryManager.BATTERY_STATUS_FULL
+
+            return connectedToPower && validBatteryState
         }
     }
 
@@ -114,9 +133,17 @@ class OverlayService : Service(), SensorEventListener {
     // arrive, so re-check periodically.
     private val wakeGuard = object : Runnable {
         override fun run() {
-            if (overlayView == null && !screenOn && !wakeArmed) {
+            if (Prefs.autoStandby(this@OverlayService) &&
+                overlayView == null &&
+                !screenOn &&
+                !wakeArmed
+            ) {
                 tryWakeForStandby()
             }
+            // RE-POST UNCONDITIONALLY: the guard must stay alive even when
+            // the feature is off right now — a warm feature-toggle does not
+            // re-run onCreate, and the very next event may switch the
+            // feature on again.
             handler.postDelayed(this, WAKE_GUARD_PERIOD_MS)
         }
     }
@@ -125,7 +152,11 @@ class OverlayService : Service(), SensorEventListener {
     // or screen off), never over an app the user is actively using. Seeded
     // from the real state below — a stale "true" would hide the clock when
     // the service is started while the screen is already off (stand).
-    private var screenOn = true
+    // Fast cache of the screen state for event-driven pre-checks (the wake
+    // guard). The actual decisions ALWAYS read the live state via
+    // isScreenInteractive() — this variable goes stale the moment events are
+    // missed (doze, OEM quirks, service restarts).
+    private var screenOn = false
 
     // Accelerometer "pick up" detection.
     private var sensorManager: SensorManager? = null
@@ -150,14 +181,22 @@ class OverlayService : Service(), SensorEventListener {
                 Intent.ACTION_POWER_DISCONNECTED -> stopSelf()
                 Intent.ACTION_POWER_CONNECTED -> {
                     // A fresh charge session lifts the "user took the phone"
-                    // suppression (persisted, so it survives process death).
+                    // suppression (persisted, so it survives process death)
+                    // and resets the whole wake cycle.
                     suppressed = false
                     Prefs.setStandbySuppressed(this@OverlayService, false)
                     wakeAttempts = 0
+                    wakeArmed = false
+                    cancelWake()
+                    // Re-seed the screen cache: the event arrived while the
+                    // service was quiet, the cache may be stale.
+                    screenOn = isScreenInteractive()
                     evaluateAndSync()
-                    // Plugged in while locked with the screen off -> if the
-                    // clock did not show on its own, wake it via notification.
-                    tryWakeForStandby()
+                    // Plugged in while the screen is off and the clock did
+                    // not show on its own -> wake it via notification.
+                    if (!isScreenInteractive() && overlayView == null) {
+                        tryWakeForStandby()
+                    }
                 }
             }
         }
@@ -229,8 +268,7 @@ class OverlayService : Service(), SensorEventListener {
         // Seed the screen state from the device, not from a guess: the service
         // is often started by a POWER_CONNECTED broadcast while the phone is
         // resting on a stand with the screen off.
-        val pm = getSystemService(POWER_SERVICE) as? PowerManager
-        screenOn = pm?.isInteractive ?: true
+        screenOn = isScreenInteractive()
 
         registerGuarded(powerReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_POWER_CONNECTED)
@@ -267,6 +305,7 @@ class OverlayService : Service(), SensorEventListener {
         // The wake rule (charging + screen off + no clock -> wake it up) must
         // hold even when no event is coming (e.g. after a Power-button exit),
         // so re-check it periodically; the check itself is cheap.
+        handler.removeCallbacks(wakeGuard)
         handler.postDelayed(wakeGuard, WAKE_GUARD_PERIOD_MS)
 
         // Promote to a foreground service only when the feature is enabled:
@@ -285,6 +324,7 @@ class OverlayService : Service(), SensorEventListener {
                 Prefs.setAutoStandby(this, false)
                 suppressed = true
                 Prefs.setStandbySuppressed(this, true)
+                cancelWake()
                 removeOverlay()
                 stopSelf()
                 return START_NOT_STICKY
@@ -292,15 +332,21 @@ class OverlayService : Service(), SensorEventListener {
             else -> {
                 // Fresh start (app enabled / charging connected / boot) resets
                 // the "user took the phone" suppression; ACTION_REFRESH
-                // (preview opened/closed) must not.
+                // (preview opened/closed, in-app re-evaluation) must not.
                 if (intent?.action != ACTION_REFRESH) {
                     suppressed = false
                     Prefs.setStandbySuppressed(this, false)
                 }
+                // The service may be starting in the MIDDLE of a charging
+                // session (boot on the charger, app opened, receiver start)
+                // — so the decision below reads the CURRENT live battery and
+                // screen state instead of only waiting for the next
+                // POWER_CONNECTED event.
+                screenOn = isScreenInteractive()
                 evaluateAndSync()
-                // Covers boot-while-charging / start-while-locked: if the
-                // clock did not show on its own, wake via notification.
-                tryWakeForStandby()
+                if (isCharging(this) && !isScreenInteractive() && overlayView == null) {
+                    tryWakeForStandby()
+                }
                 // A disabled feature must not keep (or revive) us: the system
                 // would otherwise restart a sticky service we just stopped.
                 return if (Prefs.autoStandby(this)) START_STICKY else START_NOT_STICKY
@@ -351,49 +397,83 @@ class OverlayService : Service(), SensorEventListener {
     private fun currentOrientationType(): Int =
         if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 1 else 0
 
+    /** Live screen state — always read from the device, never from the
+     *  (possibly stale) [screenOn] cache. */
+    private fun isScreenInteractive(): Boolean {
+        val pm = getSystemService(POWER_SERVICE) as? PowerManager
+        return pm?.isInteractive ?: false
+    }
+
     private fun evaluateAndSync() {
+        // 1) The feature is off -> never show, and never keep the
+        //    foreground service (and its notification) alive either. This
+        //    service can still be started as a side effect (e.g. the
+        //    full-screen preview asks us to re-evaluate on open/close).
         if (!Prefs.autoStandby(this)) {
-            // The feature is disabled. This service can still be started as a
-            // side effect (e.g. the full-screen preview asks us to re-evaluate
-            // on open/close) — never leave a foreground service running with
-            // its persistent notification in that case.
             removeOverlay()
             stopSelf()
             return
         }
+
+        // 2) No power -> no StandBy screen. Stay armed (as a quiet
+        //    foreground service) so that plugging the cable in later is
+        //    caught by our own POWER_CONNECTED receiver reliably, without
+        //    the app having to launch itself from the background.
         if (!isCharging(this)) {
-            // Not charging -> no StandBy screen. Stay armed (as a quiet
-            // foreground service) so that plugging the cable in later is
-            // caught by our own POWER_CONNECTED receiver reliably, without the
-            // app having to launch itself from the background. When the user
-            // turns the feature off, MainActivity stops this service.
             removeOverlay()
             return
         }
 
-        val allowed = Prefs.autoStandby(this) &&
-            !suppressed &&
-            Prefs.isStandbyTimeAllowed(this, java.util.Calendar.getInstance()) &&
-            !StandbyUiState.previewVisible &&
-            !StandbyUiState.dreaming &&
-            Settings.canDrawOverlays(this)
-
-        if (!allowed) {
+        // 3) No overlay permission -> nothing we can draw; do not try.
+        if (!Settings.canDrawOverlays(this)) {
             removeOverlay()
             return
         }
 
-        // Only auto-show while the phone is resting (locked or screen off), so
-        // we never cover an app the user is actively using while it charges.
-        if (atRest()) showOverlay()
-    }
+        // 4) Outside the allowed hours (the schedule gate, e.g. night only).
+        if (!Prefs.isStandbyTimeAllowed(this, java.util.Calendar.getInstance())) {
+            removeOverlay()
+            return
+        }
 
-    /** True when the phone is idle enough for a desk clock: screen off, or on
-     *  but behind the keyguard. Never true while the user is using an app. */
-    private fun atRest(): Boolean {
-        if (!screenOn) return true
-        val km = getSystemService(KEYGUARD_SERVICE) as? android.app.KeyguardManager
-        return km?.isKeyguardLocked == true
+        // 5) The user is looking at the in-app preview — it owns the screen.
+        if (StandbyUiState.previewVisible) {
+            removeOverlay()
+            return
+        }
+
+        // 6) The system daydream owns the screen (if the firmware honours it).
+        if (StandbyUiState.dreaming) {
+            removeOverlay()
+            return
+        }
+
+        // 7) "User took the phone" suppression for this charge session:
+        //    after a tap / Power-button exit the clock stays hidden until
+        //    the next plug-in. (The explicit wake path can still re-arm it.)
+        if (suppressed) {
+            removeOverlay()
+            return
+        }
+
+        // 8) The screen state is read LIVE (PowerManager.isInteractive) —
+        //    never from the possibly stale `screenOn` cache:
+        //    - screen OFF            -> desk clock (the phone is resting).
+        //    - screen ON but locked  -> desk clock over the keyguard.
+        //    - screen ON and unlocked-> the user is using an app; never
+        //                               cover it while the phone charges.
+        if (!isScreenInteractive()) {
+            showOverlay()
+            cancelWake()
+        } else if ((getSystemService(KEYGUARD_SERVICE) as? android.app.KeyguardManager)
+                ?.isKeyguardLocked == true
+        ) {
+            showOverlay()
+            cancelWake()
+        } else {
+            removeOverlay()
+            cancelWake()
+        }
     }
 
     // ---------- "wake the screen" notification ----------
@@ -411,7 +491,7 @@ class OverlayService : Service(), SensorEventListener {
 
     private fun tryWakeForStandby() {
         if (overlayView != null) return     // clock is already on screen
-        if (screenOn) return                // nothing to wake
+        if (isScreenInteractive()) return   // live check: nothing to wake
         if (!Prefs.autoStandby(this)) return
         if (!isCharging(this)) return
         if (StandbyUiState.previewVisible || StandbyUiState.dreaming) return
@@ -421,12 +501,25 @@ class OverlayService : Service(), SensorEventListener {
 
         // Re-arm: the user put the phone down (locked it) while charging —
         // the "user took the phone" suppression must not keep the desk clock
-        // hidden.
+        // hidden (this wake path IS the "charging + off + no clock -> show"
+        // rule, so it deliberately lifts the suppression).
         suppressed = false
         Prefs.setStandbySuppressed(this, false)
 
+        if (!postWakeNotification()) return // notifications denied: skip the
+                                            // whole wake cycle, budget intact
+        wakeArmed = true
+        wakeAttempts++
+
+        handler.removeCallbacks(wakeTimeout)
+        handler.postDelayed(wakeTimeout, WAKE_TIMEOUT_MS)
+    }
+
+    /** Posts the one-shot silent full-screen wake notification. Returns false
+     *  if notifications are not allowed (the wake is silently skipped). */
+    private fun postWakeNotification(): Boolean {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-        ?: return
+            ?: return false
         if (nm.getNotificationChannel(CHANNEL_WAKE) == null) {
             nm.createNotificationChannel(
                 NotificationChannel(
@@ -458,17 +551,14 @@ class OverlayService : Service(), SensorEventListener {
             // channel with no sound/vibration still wakes the screen).
             .setCategory(Notification.CATEGORY_STATUS)
             .build()
-        try {
+        return try {
             nm.notify(NOTIF_ID_WAKE, notif)
-            wakeArmed = true
-            wakeAttempts++
+            true
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS denied: we cannot wake the screen this way;
             // the clock will show on the next screen-on transition instead.
-            return
+            false
         }
-        handler.removeCallbacks(wakeTimeout)
-        handler.postDelayed(wakeTimeout, WAKE_TIMEOUT_MS)
     }
 
     /** Remove the one-shot wake notification (idempotent). */
