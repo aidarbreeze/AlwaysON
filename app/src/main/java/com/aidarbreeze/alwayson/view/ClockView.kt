@@ -25,9 +25,15 @@ import com.aidarbreeze.alwayson.Prefs
  *  7 - SERIF   : elegant thin serif ("editorial") digits.
  *  8 - ITALIC  : heavy slanted italic digits (sporty).
  *  9 - MATRIX  : like DOTS but drawn with sharp square LED pixels.
+ *  10 - CLASSIC: "Classic Digital" — strict, regular-weight sans-serif digits.
+ *  11 - BOLD   : "Bold Digital" — big, dense bold digits.
+ *  12 - MONO   : "Monospaced" — fixed-width digits, the clock never shifts.
+ *  13 - ROUNDED: "Soft Rounded" — digits with rounded (pillow) corners.
  *
  * The view is sized to fill its column horizontally and picks the biggest
- * legible digit size that still fits, then centres the time.
+ * legible digit size that still fits, then centres the time. Font-based
+ * styles compute the size from a width-stable reference (digits -> "8"), so
+ * the font size never jumps when the digits change.
  */
 class ClockView @JvmOverloads constructor(
     context: Context,
@@ -58,11 +64,15 @@ class ClockView @JvmOverloads constructor(
         return dp * resources.displayMetrics.density
     }
 
-    /** Biggest digit text size (px) for one line that fits [availW], capped. */
+    /** Biggest digit text size (px) for one line that fits [availW], capped.
+     *  The width is measured on a width-stable reference (every digit ->
+     *  "8", the widest glyph) so the chosen size — and therefore the clock
+     *  width — never jumps when the digits change (e.g. 11:11 -> 12:45). */
     private fun fitTextSize(availW: Float, capPx: Float): Float {
         paint.textSize = 1000f
         paint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
-        val w1000 = paint.measureText(timeText)
+        val ref = timeText.map { if (it.isDigit()) '8' else it }.joinToString("")
+        val w1000 = paint.measureText(ref)
         if (w1000 <= 0f) return capPx
         val fromWidth = (availW * 1000f / w1000) * 0.97f
         return fromWidth.coerceAtMost(capPx)
@@ -110,6 +120,10 @@ class ClockView @JvmOverloads constructor(
             7 -> drawSerif(canvas, w, h)
             8 -> drawItalic(canvas, w, h)
             9 -> drawDotGrid(canvas, w, h, square = true)
+            10 -> drawPlain(canvas, w, h, Typeface.create("sans-serif", Typeface.NORMAL))
+            11 -> drawPlain(canvas, w, h, Typeface.create("sans-serif", Typeface.BOLD))
+            12 -> drawPlain(canvas, w, h, Typeface.MONOSPACE)
+            13 -> drawSoftRounded(canvas, w, h)
             else -> drawNormal(canvas, w, h)
         }
     }
@@ -485,6 +499,47 @@ class ClockView @JvmOverloads constructor(
         paint.typeface = tf
         paint.color = Color.WHITE
         paint.style = Paint.Style.FILL
+        drawCenteredText(canvas, timeText, w, h, paint)
+    }
+
+    // ---------- styles 10/11/12: plain digits in a chosen typeface ----------
+    // 10 Classic Digital (regular sans), 11 Bold Digital (bold sans),
+    // 12 Monospaced (fixed-width, the clock never shifts as digits change).
+
+    private fun drawPlain(canvas: Canvas, w: Float, h: Float, tf: Typeface) {
+        var size = fitTextSize(w, cap())
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textSize = size
+        paint.typeface = tf
+        // The base fit was computed on a BOLD sans reference; re-check on the
+        // actual typeface (e.g. monospace digits are wider) and shrink if
+        // needed so the line always fits the column.
+        val ref = timeText.map { if (it.isDigit()) '8' else it }.joinToString("")
+        val measured = paint.measureText(ref)
+        val avail = w - dp(4f)
+        if (measured > avail && measured > 0f) size *= avail / measured
+        paint.textSize = size
+        paint.color = Color.WHITE
+        paint.style = Paint.Style.FILL
+        drawCenteredText(canvas, timeText, w, h, paint)
+    }
+
+    // ---------- style 13: soft rounded ("pillow") digits ----------
+
+    private fun drawSoftRounded(canvas: Canvas, w: Float, h: Float) {
+        val size = fitTextSize(w, cap())
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textSize = size
+        paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        paint.color = Color.WHITE
+        // FILL_AND_STROKE with round joins/caps rounds the corners of the
+        // glyphs into a soft, rounded look.
+        paint.style = Paint.Style.FILL_AND_STROKE
+        paint.strokeWidth = (size * 0.10f).coerceIn(2f, dp(10f))
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.strokeCap = Paint.Cap.ROUND
         drawCenteredText(canvas, timeText, w, h, paint)
     }
 

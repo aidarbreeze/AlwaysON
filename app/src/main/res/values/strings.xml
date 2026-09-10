@@ -41,6 +41,10 @@
         <item>Serif</item>
         <item>Bold italic</item>
         <item>Square LED-matrix</item>
+        <item>Classic Digital</item>
+        <item>Bold Digital</item>
+        <item>Monospaced</item>
+        <item>Soft Rounded</item>
     </string-array>
     <string name="style_normal">Normal</string>
     <string name="style_outline">Outline (hollow digits)</string>

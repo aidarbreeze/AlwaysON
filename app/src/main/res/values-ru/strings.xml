@@ -41,6 +41,10 @@
         <item>Serif</item>
         <item>Жирный курсив</item>
         <item>Квадратная LED-матрица</item>
+        <item>Классические цифры</item>
+        <item>Жирные цифры</item>
+        <item>Моноширинный</item>
+        <item>Мягкий округлый</item>
     </string-array>
     <string name="style_normal">Обычный</string>
     <string name="style_outline">Контур (полые цифры)</string>

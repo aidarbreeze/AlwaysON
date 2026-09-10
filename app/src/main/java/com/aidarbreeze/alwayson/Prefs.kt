@@ -89,7 +89,8 @@ object Prefs {
         sp(ctx).edit().putBoolean(KEY_AUTO_BRIGHTNESS, on).apply()
 
     /** Clock face style: 0 normal, 1 outline, 2 dots, 3 flip, 4 LED, 5 neon,
-     *  6 chips, 7 serif, 8 italic, 9 LED-matrix. */
+     *  6 chips, 7 serif, 8 italic, 9 LED-matrix, 10 classic digital,
+     *  11 bold digital, 12 monospaced, 13 soft rounded. */
     fun clockStyle(ctx: Context): Int = sp(ctx).getInt(KEY_CLOCK_STYLE, 0)
     fun setClockStyle(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(KEY_CLOCK_STYLE, v).apply()
