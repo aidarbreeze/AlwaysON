@@ -40,6 +40,21 @@
             android:exported="false"
             android:theme="@style/StandbyTheme" />
 
+        <!-- Invisible wake-up helper: launched by the one-shot notification's
+             fullScreenIntent when the phone is charging, locked (Power /
+             on-screen lock button) and the StandBy clock is not showing.
+             Turns the screen on (staying locked), starts the overlay service,
+             then removes itself. -->
+        <activity
+            android:name=".WakeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity=""
+            android:theme="@style/WakeTheme" />
+
         <!-- Auto StandBy: overlay while charging. Hides when the phone is
              picked up / woken / touched, so it never blocks normal use. -->
         <service

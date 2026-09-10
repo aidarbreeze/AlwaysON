@@ -130,6 +130,8 @@
     <string name="notif_text">Active — keeps the clock on while charging</string>
     <string name="notif_hide">Hide now</string>
     <string name="notif_channel">StandBy overlay</string>
+    <string name="notif_wake_text">Turning on the StandBy screen…</string>
+    <string name="notif_channel_wake">StandBy wake-up</string>
 
     <!-- Note -->
     <string name="tech_note_title">How it works</string>

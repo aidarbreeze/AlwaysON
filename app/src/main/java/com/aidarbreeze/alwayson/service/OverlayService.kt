@@ -56,6 +56,15 @@ class OverlayService : Service(), SensorEventListener {
         const val ACTION_REFRESH = "com.aidarbreeze.alwayson.REFRESH"
         const val NOTIF_ID = 1001
         const val CHANNEL_ID = "alwayson_standby"
+        // One-shot "wake the screen" notification (see tryWakeForStandby).
+        const val NOTIF_ID_WAKE = 1002
+        const val CHANNEL_WAKE = "alwayson_wake"
+        // If the OEM ignores the wake notification, do not leave it in the
+        // shade forever.
+        const val WAKE_TIMEOUT_MS = 20_000L
+        // Period of the "is the clock supposed to be up right now?" re-check.
+        const val WAKE_GUARD_PERIOD_MS = 60_000L
+        const val WAKE_MAX_ATTEMPTS = 3
 
         fun requestReevaluate(context: Context) {
             try {
@@ -86,6 +95,31 @@ class OverlayService : Service(), SensorEventListener {
     // charge session starts, so we never nag over a phone that is in use.
     private var suppressed = false
     private var shownOrientationType = -1
+
+    // While true, a one-shot "wake" notification is in the shade (see
+    // tryWakeForStandby); it is removed as soon as the screen comes back or
+    // the overlay is shown.
+    private var wakeArmed = false
+    // Bounded retries: if the OEM ignores the notification (screen never
+    // comes on), do not flash a new one forever — three attempts per
+    // charge/session, then wait for a real event (plug, boot, screen).
+    private var wakeAttempts = 0
+    private val wakeTimeout = Runnable {
+        // The screen never came on from the notification — drop it anyway.
+        if (overlayView == null) cancelWake()
+    }
+    // The wake rule must hold in EVERY state, not only on events: while
+    // charging, if the screen is off and the clock is not showing, bring it
+    // back. After a Power-button exit no further screen events may ever
+    // arrive, so re-check periodically.
+    private val wakeGuard = object : Runnable {
+        override fun run() {
+            if (overlayView == null && !screenOn && !wakeArmed) {
+                tryWakeForStandby()
+            }
+            handler.postDelayed(this, WAKE_GUARD_PERIOD_MS)
+        }
+    }
 
     // Tracked so we only auto-show the clock when the phone is resting (locked
     // or screen off), never over an app the user is actively using. Seeded
@@ -119,7 +153,11 @@ class OverlayService : Service(), SensorEventListener {
                     // suppression (persisted, so it survives process death).
                     suppressed = false
                     Prefs.setStandbySuppressed(this@OverlayService, false)
+                    wakeAttempts = 0
                     evaluateAndSync()
+                    // Plugged in while locked with the screen off -> if the
+                    // clock did not show on its own, wake it via notification.
+                    tryWakeForStandby()
                 }
             }
         }
@@ -142,18 +180,32 @@ class OverlayService : Service(), SensorEventListener {
                         // The desk clock was showing (screen held on by us), so
                         // the user pressed Power to leave it -> hand the phone
                         // back and stay quiet for this charge session.
+                        // (Deliberately NO immediate wake here: the Power
+                        // button must be able to switch the clock off; the
+                        // next charge-session / screen transition may bring it
+                        // back per the user's rule.)
                         exitStandby()
                     } else {
                         // Screen went to sleep from normal use. If we're still
                         // charging, the phone is now resting -> become a clock.
                         evaluateAndSync()
+                        // Locked via Power / on-screen lock button while
+                        // charging and the clock did not show on its own ->
+                        // wake the screen with a (then removed) notification.
+                        tryWakeForStandby()
                     }
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
+                    // The screen responded — the previous wake cycle is over,
+                    // reset the attempt budget for the next one.
+                    wakeAttempts = 0
                     // e.g. plugging the cable / waking. If the phone is resting
                     // (still locked) and charging, this shows the clock.
                     evaluateAndSync()
+                    // Whatever the outcome, the one-shot wake notification has
+                    // done (or lost) its job: keep the shade clean.
+                    cancelWake()
                 }
             }
         }
@@ -212,6 +264,11 @@ class OverlayService : Service(), SensorEventListener {
             }
         }
 
+        // The wake rule (charging + screen off + no clock -> wake it up) must
+        // hold even when no event is coming (e.g. after a Power-button exit),
+        // so re-check it periodically; the check itself is cheap.
+        handler.postDelayed(wakeGuard, WAKE_GUARD_PERIOD_MS)
+
         // Promote to a foreground service only when the feature is enabled:
         // the "reevaluate" requests from the preview use a plain startService
         // and must not flash a persistent notification for a disabled feature.
@@ -241,6 +298,9 @@ class OverlayService : Service(), SensorEventListener {
                     Prefs.setStandbySuppressed(this, false)
                 }
                 evaluateAndSync()
+                // Covers boot-while-charging / start-while-locked: if the
+                // clock did not show on its own, wake via notification.
+                tryWakeForStandby()
                 // A disabled feature must not keep (or revive) us: the system
                 // would otherwise restart a sticky service we just stopped.
                 return if (Prefs.autoStandby(this)) START_STICKY else START_NOT_STICKY
@@ -249,6 +309,7 @@ class OverlayService : Service(), SensorEventListener {
     }
 
     override fun onDestroy() {
+        cancelWake()
         removeOverlay()
         unregisterSensors()
         try {
@@ -335,6 +396,94 @@ class OverlayService : Service(), SensorEventListener {
         return km?.isKeyguardLocked == true
     }
 
+    // ---------- "wake the screen" notification ----------
+    //
+    // Rule (per user request): while the phone is CHARGING and the screen is
+    // OFF without showing the StandBy clock (e.g. the user locked it with the
+    // Power button or the on-screen lock button), post a one-shot silent
+    // notification whose fullScreenIntent lights the screen. On some OEM
+    // builds the overlay alone does not appear in that state, but a
+    // full-screen-intent notification reliably wakes the locked screen; once
+    // it is lit, the normal evaluateAndSync() shows the clock over the
+    // keyguard. The notification is removed as soon as it is no longer
+    // needed (screen on / overlay shown / timeout) so it never clutters the
+    // notification shade.
+
+    private fun tryWakeForStandby() {
+        if (overlayView != null) return     // clock is already on screen
+        if (screenOn) return                // nothing to wake
+        if (!Prefs.autoStandby(this)) return
+        if (!isCharging(this)) return
+        if (StandbyUiState.previewVisible || StandbyUiState.dreaming) return
+        if (!Prefs.isStandbyTimeAllowed(this, java.util.Calendar.getInstance())) return
+        if (!Settings.canDrawOverlays(this)) return
+        if (wakeAttempts >= WAKE_MAX_ATTEMPTS) return // OEM ignored us before
+
+        // Re-arm: the user put the phone down (locked it) while charging —
+        // the "user took the phone" suppression must not keep the desk clock
+        // hidden.
+        suppressed = false
+        Prefs.setStandbySuppressed(this, false)
+
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        ?: return
+        if (nm.getNotificationChannel(CHANNEL_WAKE) == null) {
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_WAKE,
+                    getString(R.string.notif_channel_wake),
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    setSound(null, null)
+                    enableVibration(false)
+                }
+            )
+        }
+        val content = PendingIntent.getActivity(
+            this, 2, Intent(this, com.aidarbreeze.alwayson.MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val fullScreen = PendingIntent.getActivity(
+            this, 3, Intent(this, com.aidarbreeze.alwayson.WakeActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notif = Notification.Builder(this, CHANNEL_WAKE)
+            .setSmallIcon(R.drawable.ic_stat_standby)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.notif_wake_text))
+            .setContentIntent(content)
+            .setFullScreenIntent(fullScreen, true)
+            .setAutoCancel(true)
+            // Silence comes from the soundless channel above (a high-importance
+            // channel with no sound/vibration still wakes the screen).
+            .setCategory(Notification.CATEGORY_STATUS)
+            .build()
+        try {
+            nm.notify(NOTIF_ID_WAKE, notif)
+            wakeArmed = true
+            wakeAttempts++
+        } catch (_: SecurityException) {
+            // POST_NOTIFICATIONS denied: we cannot wake the screen this way;
+            // the clock will show on the next screen-on transition instead.
+            return
+        }
+        handler.removeCallbacks(wakeTimeout)
+        handler.postDelayed(wakeTimeout, WAKE_TIMEOUT_MS)
+    }
+
+    /** Remove the one-shot wake notification (idempotent). */
+    private fun cancelWake() {
+        handler.removeCallbacks(wakeTimeout)
+        if (!wakeArmed) return
+        wakeArmed = false
+        try {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
+                ?.cancel(NOTIF_ID_WAKE)
+        } catch (_: Exception) {
+            // already gone
+        }
+    }
+
     private fun showOverlay() {
         if (overlayView != null) return
         val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
@@ -373,6 +522,7 @@ class OverlayService : Service(), SensorEventListener {
         }
         overlayView = view
         shownOrientationType = currentOrientationType()
+        cancelWake() // the clock is up — the wake notification is no longer needed
 
         val c = StandbyController(this, view)
         c.start()

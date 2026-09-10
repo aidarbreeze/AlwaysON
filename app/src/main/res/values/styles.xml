@@ -57,4 +57,13 @@
         <item name="android:windowBackground">@color/aod_background</item>
         <item name="android:windowNoTitle">true</item>
     </style>
+
+    <!-- Fully transparent, used only by the invisible WakeActivity. -->
+    <style name="WakeTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

@@ -130,6 +130,8 @@
     <string name="notif_text">Активно — держит часы на экране во время зарядки</string>
     <string name="notif_hide">Скрыть</string>
     <string name="notif_channel">Наложение StandBy</string>
+    <string name="notif_wake_text">Включаю экран StandBy…</string>
+    <string name="notif_channel_wake">Пробуждение StandBy</string>
 
     <!-- Примечание -->
     <string name="tech_note_title">Как это работает</string>
