@@ -53,7 +53,11 @@ class ClockView @JvmOverloads constructor(
         }
     }
 
+    /** Re-measure AND redraw: a style/size/thickness change can change the
+     *  measured height (font metrics differ), and invalidate() alone would
+     *  keep the stale layout. */
     fun refresh() {
+        requestLayout()
         invalidate()
     }
 
@@ -64,13 +68,30 @@ class ClockView @JvmOverloads constructor(
         return dp * resources.displayMetrics.density
     }
 
+    /** The typeface the current style is drawn with. Used for MEASUREMENT too,
+     *  so onMeasure() and onDraw() always agree on size/width per style. */
+    private fun typefaceForStyle(): Typeface = when (style()) {
+        0 -> Typeface.create("sans-serif-light", Typeface.NORMAL)
+        7 -> Typeface.create("serif", Typeface.NORMAL)
+        8 -> Typeface.create("sans-serif", Typeface.BOLD_ITALIC)
+        10 -> Typeface.create("sans-serif", Typeface.NORMAL)
+        12 -> Typeface.MONOSPACE
+        13 -> Typeface.create("sans-serif", Typeface.NORMAL)
+        else -> Typeface.create("sans-serif", Typeface.BOLD)
+    }
+
     /** Biggest digit text size (px) for one line that fits [availW], capped.
      *  The width is measured on a width-stable reference (every digit ->
-     *  "8", the widest glyph) so the chosen size — and therefore the clock
-     *  width — never jumps when the digits change (e.g. 11:11 -> 12:45). */
-    private fun fitTextSize(availW: Float, capPx: Float): Float {
+     *  "8", the widest glyph) in the style's OWN typeface, so the chosen size
+     *  — and therefore the clock width — never jumps when the digits change
+     *  (e.g. 11:11 -> 12:45) and matches what is actually drawn. */
+    private fun fitTextSize(
+        availW: Float,
+        capPx: Float,
+        typeface: Typeface = typefaceForStyle()
+    ): Float {
         paint.textSize = 1000f
-        paint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        paint.typeface = typeface
         val ref = timeText.map { if (it.isDigit()) '8' else it }.joinToString("")
         val w1000 = paint.measureText(ref)
         if (w1000 <= 0f) return capPx
@@ -79,11 +100,19 @@ class ClockView @JvmOverloads constructor(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val availW = android.view.View.MeasureSpec.getSize(widthMeasureSpec).toFloat()
-        val density = resources.displayMetrics.density
-        // Cap roughly like the previous large clock so the digits never blow up
-        // into a huge tower on very short strings.
-        val capPx = 118f * density
+        // Honour the measure modes: EXACTLY -> use the given size,
+        // AT_MOST -> at most the given size (capped by a sane default),
+        // UNSPECIFIED -> a sane default width.
+        val widthMode = MeasureSpec.getMode(widthMeasureSpec)
+        val widthSize = MeasureSpec.getSize(widthMeasureSpec)
+        val desiredWidth = dp(320f).toInt()
+        val measuredWidth = when (widthMode) {
+            MeasureSpec.EXACTLY -> widthSize
+            MeasureSpec.AT_MOST -> minOf(desiredWidth, widthSize)
+            else -> desiredWidth
+        }
+        val availW = measuredWidth.toFloat()
+        val capPx = cap()
         val pad = dp(4f)
         val textSize = fitTextSize(availW - pad * 2f, capPx)
 
@@ -93,7 +122,14 @@ class ClockView @JvmOverloads constructor(
             2, 4, 9 -> textSize
             else -> textHeight(textSize) + dp(6f)
         }
-        setMeasuredDimension(availW.toInt(), height.toInt())
+        val heightMode = MeasureSpec.getMode(heightMeasureSpec)
+        val heightSize = MeasureSpec.getSize(heightMeasureSpec)
+        val finalHeight = when (heightMode) {
+            MeasureSpec.EXACTLY -> heightSize
+            MeasureSpec.AT_MOST -> minOf(height.toInt(), heightSize)
+            else -> height.toInt()
+        }
+        setMeasuredDimension(measuredWidth, finalHeight)
     }
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
@@ -507,19 +543,12 @@ class ClockView @JvmOverloads constructor(
     // 12 Monospaced (fixed-width, the clock never shifts as digits change).
 
     private fun drawPlain(canvas: Canvas, w: Float, h: Float, tf: Typeface) {
-        var size = fitTextSize(w, cap())
+        // Measured directly in this style's typeface, so fit == draw.
+        val size = fitTextSize(w - dp(4f), cap(), tf)
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tf
-        // The base fit was computed on a BOLD sans reference; re-check on the
-        // actual typeface (e.g. monospace digits are wider) and shrink if
-        // needed so the line always fits the column.
-        val ref = timeText.map { if (it.isDigit()) '8' else it }.joinToString("")
-        val measured = paint.measureText(ref)
-        val avail = w - dp(4f)
-        if (measured > avail && measured > 0f) size *= avail / measured
-        paint.textSize = size
         paint.color = Color.WHITE
         paint.style = Paint.Style.FILL
         drawCenteredText(canvas, timeText, w, h, paint)

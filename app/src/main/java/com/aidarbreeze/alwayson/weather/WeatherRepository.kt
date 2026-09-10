@@ -70,16 +70,23 @@ object WeatherRepository {
         onResult: (Result) -> Unit
     ) {
         val c = ctx.applicationContext
+
+        // A failed geocode leaves lat/lon as NaN — never hit the network with
+        // that (guaranteed 400 + pointless traffic); show last-known instead.
+        if (lat.isNaN() || lon.isNaN()) {
+            val cur = synchronized(lock) { lastGood }
+            deliver(Result(cur, fresh = false, stale = cur != null, offline = false), onResult)
+            return
+        }
+
         val key = keyOf(lat, lon)
         ensureLoaded(c)
 
         val cached = synchronized(lock) {
             if (lastGoodKey == key) lastGood else null
         }
-        if (cached != null && !force &&
-            System.currentTimeMillis() - lastGoodTs < TTL_MS
-        ) {
-            onResult(Result(cached, fresh = true, stale = false, offline = false))
+        if (cached != null && !force && isFresh(synchronized(lock) { lastGoodTs })) {
+            deliver(Result(cached, fresh = true, stale = false, offline = false), onResult)
             return
         }
 
@@ -93,7 +100,7 @@ object WeatherRepository {
         if (!shouldFetch) {
             // An identical fetch is already running; deliver what we have now.
             val cur = synchronized(lock) { if (lastGoodKey == key) lastGood else null }
-            onResult(Result(cur, fresh = false, stale = cur != null, offline = !isOnline(c)))
+            deliver(Result(cur, fresh = false, stale = cur != null, offline = !isOnline(c)), onResult)
             return
         }
 
@@ -143,12 +150,35 @@ object WeatherRepository {
         }
     }
 
+    /** Always hand the result back on the main thread: `get()` can be called
+     *  from the UI thread (cache hit — already main) or from background
+     *  threads (the two synchronous paths below), and consumers assume a
+     *  single delivery thread. */
+    private fun deliver(result: Result, onResult: (Result) -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) onResult(result)
+        else main.post { onResult(result) }
+    }
+
+    /** Fresh = a positive timestamp AND age inside [0, TTL). The ts>0 guard
+     *  catches a corrupted/absent "ts", and the lower bound catches system
+     *  clocks that were rolled backwards (negative age is not "extra fresh"). */
+    private fun isFresh(ts: Long): Boolean {
+        if (ts <= 0L) return false
+        val age = System.currentTimeMillis() - ts
+        return age in 0L until TTL_MS
+    }
+
     private fun isOnline(ctx: Context): Boolean {
         return try {
             val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
                 ?: return true
-            val net = cm.activeNetwork ?: return true
-            val caps = cm.getNetworkCapabilities(net) ?: return true
+            // No active network at all = airplane mode / Wi-Fi off. The old
+            // `?: return true` treated that as "online" and burned a doomed
+            // request before falling back. (Not requiring
+            // NET_CAPABILITY_VALIDATED on purpose: some healthy setups never
+            // set it, and a failed fetch degrades gracefully anyway.)
+            val net = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(net) ?: return false
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         } catch (_: Exception) {
             true
@@ -163,17 +193,37 @@ object WeatherRepository {
             j.put("city", info.city)
             j.put("temp", info.tempNowC)
             j.put("code", info.codeNow)
-            j.put("feels", info.feelsNowC)
+            // 0° is a real "feels like" value, so presence is the signal:
+            // only write the key when the API actually sent it.
+            if (info.feelsNowC != null) j.put("feels", info.feelsNowC)
             j.put("sunrise", info.sunriseMs)
             j.put("sunset", info.sunsetMs)
+            j.put("tz", info.timezoneId)
             j.put("lat", lat)
             j.put("lon", lon)
             j.put("ts", System.currentTimeMillis())
+            // Build the arrays with explicit puts. `put(arrayOf<Any>(...))`
+            // boxes the Kotlin Array as a generic Object, which org.json
+            // serializes with Array.toString() ("[Ljava.lang.Object;@…") —
+            // silently corrupting the on-disk cache on every save.
             val hours = JSONArray()
-            for (h in info.hours) hours.put(arrayOf<Any>(h.timeMs, h.tempC, h.code))
+            for (h in info.hours) {
+                val a = JSONArray()
+                a.put(h.timeMs)
+                a.put(h.tempC)
+                a.put(h.code)
+                hours.put(a)
+            }
             j.put("hours", hours)
             val days = JSONArray()
-            for (d in info.days) days.put(arrayOf<Any>(d.timeMs, d.code, d.tMin, d.tMax))
+            for (d in info.days) {
+                val a = JSONArray()
+                a.put(d.timeMs)
+                a.put(d.code)
+                a.put(d.tMin)
+                a.put(d.tMax)
+                days.put(a)
+            }
             j.put("days", days)
             c.getSharedPreferences(FILE, Context.MODE_PRIVATE)
                 .edit().putString(KEY_FULL, j.toString()).apply()
@@ -191,9 +241,12 @@ object WeatherRepository {
         val city = j.optString("city")
         val temp = j.optInt("temp")
         val code = j.optInt("code")
-        val feels = j.optInt("feels")
+        // Absent key = not provided (null); optInt would read it as 0, which
+        // is a real temperature and would render as "feels like 0°".
+        val feels: Int? = if (j.has("feels")) j.optInt("feels") else null
         val sunrise = j.optLong("sunrise")
         val sunset = j.optLong("sunset")
+        val tz = j.optString("tz", "")
         val hoursArr = j.optJSONArray("hours")
         val hours = ArrayList<WeatherHour>()
         if (hoursArr != null) {
@@ -213,6 +266,6 @@ object WeatherRepository {
             }
         }
         if (hours.isEmpty() && days.isEmpty()) return null
-        return WeatherInfo(city, temp, code, hours, days, feels, sunrise, sunset)
+        return WeatherInfo(city, temp, code, hours, days, feels, sunrise, sunset, tz)
     }
 }

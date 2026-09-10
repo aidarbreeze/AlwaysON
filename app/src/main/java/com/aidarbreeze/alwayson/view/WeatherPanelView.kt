@@ -17,7 +17,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.min
+import kotlin.math.round
 
 /**
  * Monochrome weather panel (white on black, OLED theme) with two selectable
@@ -182,14 +184,28 @@ class WeatherPanelView @JvmOverloads constructor(
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
 
     /** Display a temperature with the user's unit (C default, F optional).
-     *  Conversion is display-only; the stored data stays Celsius. */
-    private fun t(c: Int): String =
-        if (Prefs.tempUnit(context) == 1) "${(c * 9 + 160) / 5}°" else "$c°"
+     *  Conversion is display-only; the stored data stays Celsius. Rounded to
+     *  the nearest degree (truncation would be off by 1° in some cases). */
+    private fun t(c: Int): String {
+        if (Prefs.tempUnit(context) != 1) return "$c°"
+        val fahrenheit = round(c * 9f / 5f + 32f).toInt()
+        return "${fahrenheit}°"
+    }
 
-    /** "↑ 06:12 ↓ 20:41" (empty when the API gave no sun times). */
+    /** The forecast point's timezone. All human-readable times (hour labels,
+     *  "today" detection, sun times) are formatted in THIS zone, because the
+     *  API returns local times for the forecast location (timezone=auto). */
+    private fun zone(data: WeatherInfo): TimeZone =
+        if (data.timezoneId.isNotBlank()) TimeZone.getTimeZone(data.timezoneId)
+        else TimeZone.getDefault()
+
+    /** "↑ 06:12 ↓ 20:41" (empty when the API gave no sun times). Times are in
+     *  the forecast city's zone, not the device zone. */
     private fun sunLine(data: WeatherInfo): String {
         if (data.sunriseMs <= 0L && data.sunsetMs <= 0L) return ""
-        val tf = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val tf = SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
+            timeZone = zone(data)
+        }
         val sb = StringBuilder()
         if (data.sunriseMs > 0L) sb.append("↑ ").append(tf.format(Date(data.sunriseMs)))
         if (data.sunsetMs > 0L) {
@@ -199,10 +215,12 @@ class WeatherPanelView @JvmOverloads constructor(
         return sb.toString()
     }
 
-    /** "feels like" fragment, empty when unknown or equal to the real temp. */
+    /** "feels like" fragment, empty when not provided or equal to the real
+     *  temp. 0° is a real value, so absence is null (not 0). */
     private fun feelsText(data: WeatherInfo): String {
-        if (data.feelsNowC == 0 || data.feelsNowC == data.tempNowC) return ""
-        return "ощущ. ${t(data.feelsNowC)}"
+        val feels = data.feelsNowC ?: return ""
+        if (feels == data.tempNowC) return ""
+        return "ощущ. ${t(feels)}"
     }
 
     /** Small meta line: "ощущ. N°" + "↑ HH:MM ↓ HH:MM" (either may be empty). */
@@ -352,7 +370,7 @@ class WeatherPanelView @JvmOverloads constructor(
         hourlyGlyphPaint.textAlign = Paint.Align.CENTER
         hourlyTempPaint.textAlign = Paint.Align.CENTER
 
-        val cal = Calendar.getInstance()
+        val cal = Calendar.getInstance(zone(data))
         for (i in 0 until n) {
             val cx = dpf(4f) + colW * (i + 0.5f)
             val hour = candidates[i]
@@ -378,7 +396,7 @@ class WeatherPanelView @JvmOverloads constructor(
         // Skip fully past days (stale cache); today and future stay.
         var start = 0
         while (start < days.size && days[start].timeMs < nowMs &&
-            !isSameDay(days[start].timeMs, nowMs)
+            !isSameDay(days[start].timeMs, nowMs, zone(data))
         ) start++
         if (start >= days.size) start = maxOf(0, days.size - 1)
         val count = maxOf(1, minOf(maxRows, days.size - start))
@@ -396,15 +414,15 @@ class WeatherPanelView @JvmOverloads constructor(
         }
 
         val locale = Locale.getDefault()
-        val wf = SimpleDateFormat("E", locale)
-        val df = SimpleDateFormat("d", locale)
+        val wf = SimpleDateFormat("E", locale).apply { timeZone = zone(data) }
+        val df = SimpleDateFormat("d", locale).apply { timeZone = zone(data) }
         val pad = dpf(16f)
 
         for (i in 0 until count) {
             val d = days[start + i]
             val rowTop = top + rowH * i
             val midY = rowTop + rowH / 2f
-            val isToday = isSameDay(d.timeMs, nowMs)
+            val isToday = isSameDay(d.timeMs, nowMs, zone(data))
 
             val label = "${wf.format(Date(d.timeMs))} ${df.format(Date(d.timeMs))}"
             val range = "${t(d.tMin)}/${t(d.tMax)}"
@@ -548,7 +566,7 @@ class WeatherPanelView @JvmOverloads constructor(
 
             // time labels under the curve
             if (hasWeek) {
-                val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+                val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault()).apply { timeZone = zone(data) }
                 curveLabelPaint.textAlign = Paint.Align.CENTER
                 for (frac in floatArrayOf(0.25f, 0.5f, 0.75f)) {
                     val t = nowMs + (windowMs * frac).toLong()
@@ -562,14 +580,14 @@ class WeatherPanelView @JvmOverloads constructor(
         if (hasWeek && days.isNotEmpty()) {
             var start = 0
             while (start < days.size && days[start].timeMs < nowMs &&
-                !isSameDay(days[start].timeMs, nowMs)
+                !isSameDay(days[start].timeMs, nowMs, zone(data))
             ) start++
             if (start >= days.size) start = maxOf(0, days.size - 1)
             val count = maxOf(1, minOf(rows * 2, days.size - start))
 
             val locale = Locale.getDefault()
-            val wf = SimpleDateFormat("E", locale)
-            val df = SimpleDateFormat("d", locale)
+            val wf = SimpleDateFormat("E", locale).apply { timeZone = zone(data) }
+            val df = SimpleDateFormat("d", locale).apply { timeZone = zone(data) }
             val colW = (w - 2 * pad) / 2f
 
             for (i in 0 until count) {
@@ -578,7 +596,7 @@ class WeatherPanelView @JvmOverloads constructor(
                 val row = i % rows
                 val cx = pad + col * colW
                 val cy = weekTop + rowH * row
-                val isToday = isSameDay(d.timeMs, nowMs)
+                val isToday = isSameDay(d.timeMs, nowMs, zone(data))
 
                 val label = "${wf.format(Date(d.timeMs))} ${df.format(Date(d.timeMs))}"
                 val range = "${t(d.tMin)}/${t(d.tMax)}"
@@ -665,7 +683,7 @@ class WeatherPanelView @JvmOverloads constructor(
         hourlyTempPaint.textSize = ch * 0.17f
         hourlyTempPaint.textAlign = Paint.Align.CENTER
 
-        val cal = Calendar.getInstance()
+        val cal = Calendar.getInstance(zone(data))
         for (i in 0 until n) {
             val cx = dpf(4f) + colW * (i + 0.5f)
             val hour = candidates[i]
@@ -687,7 +705,7 @@ class WeatherPanelView @JvmOverloads constructor(
         val nowMs = System.currentTimeMillis()
         var start = 0
         while (start < days.size && days[start].timeMs < nowMs &&
-            !isSameDay(days[start].timeMs, nowMs)
+            !isSameDay(days[start].timeMs, nowMs, zone(data))
         ) start++
         if (start >= days.size) start = maxOf(0, days.size - 1)
         val count = maxOf(1, minOf(7, days.size - start))
@@ -704,8 +722,8 @@ class WeatherPanelView @JvmOverloads constructor(
         }
 
         val locale = Locale.getDefault()
-        val wf = SimpleDateFormat("E", locale)
-        val df = SimpleDateFormat("d", locale)
+        val wf = SimpleDateFormat("E", locale).apply { timeZone = zone(data) }
+        val df = SimpleDateFormat("d", locale).apply { timeZone = zone(data) }
         val pad = dpf(16f)
         val top = dpf(16f)
         val rowH = (h - dpf(28f)) / count
@@ -721,7 +739,7 @@ class WeatherPanelView @JvmOverloads constructor(
         for (i in 0 until count) {
             val d = days[start + i]
             val midY = top + rowH * i + rowH / 2f
-            val isToday = isSameDay(d.timeMs, nowMs)
+            val isToday = isSameDay(d.timeMs, nowMs, zone(data))
             val label = "${wf.format(Date(d.timeMs))} ${df.format(Date(d.timeMs))}"
             val range = "${t(d.tMin)}/${t(d.tMax)}"
             val lp = if (isToday) dayLabelBold else dayLabelPaint
@@ -838,7 +856,7 @@ class WeatherPanelView @JvmOverloads constructor(
             val colW = usable / n
             timePaint.textAlign = Paint.Align.CENTER
             hourlyTempPaint.textAlign = Paint.Align.CENTER
-            val cal = Calendar.getInstance()
+            val cal = Calendar.getInstance(zone(data))
             for (i in 0 until n) {
                 val cx = dpf(4f) + colW * (i + 0.5f)
                 val hour = candidates[i]
@@ -855,7 +873,7 @@ class WeatherPanelView @JvmOverloads constructor(
         val nowMs = System.currentTimeMillis()
         var start = 0
         while (start < days.size && days[start].timeMs < nowMs &&
-            !isSameDay(days[start].timeMs, nowMs)
+            !isSameDay(days[start].timeMs, nowMs, zone(data))
         ) start++
         if (start >= days.size) start = maxOf(0, days.size - 1)
         val count = maxOf(1, minOf(5, days.size - start))
@@ -870,8 +888,8 @@ class WeatherPanelView @JvmOverloads constructor(
             tHi += 1
         }
         val locale = Locale.getDefault()
-        val wf = SimpleDateFormat("E", locale)
-        val df = SimpleDateFormat("d", locale)
+        val wf = SimpleDateFormat("E", locale).apply { timeZone = zone(data) }
+        val df = SimpleDateFormat("d", locale).apply { timeZone = zone(data) }
         val top = dpf(92f)
         val rowH = (h - dpf(12f) - top) / count
         dayLabelPaint.textSize = dpf(13f)
@@ -1008,7 +1026,7 @@ class WeatherPanelView @JvmOverloads constructor(
         val rowH = (h - dpf(24f)) / 4f
         timePaint.textAlign = Paint.Align.LEFT
         hourlyTempPaint.textAlign = Paint.Align.RIGHT
-        val cal = Calendar.getInstance()
+        val cal = Calendar.getInstance(zone(data))
         for (i in 0 until n) {
             val hour = candidates[i]
             val cy = dpf(14f) + rowH * i + rowH * 0.5f
@@ -1025,9 +1043,11 @@ class WeatherPanelView @JvmOverloads constructor(
         }
     }
 
-    private fun isSameDay(a: Long, b: Long): Boolean {
-        val ca = Calendar.getInstance().apply { timeInMillis = a }
-        val cb = Calendar.getInstance().apply { timeInMillis = b }
+    /** Both instants compared in the forecast city's zone, so the "today"
+     *  highlight matches the times the panel actually shows. */
+    private fun isSameDay(a: Long, b: Long, tz: TimeZone): Boolean {
+        val ca = Calendar.getInstance(tz).apply { timeInMillis = a }
+        val cb = Calendar.getInstance(tz).apply { timeInMillis = b }
         return ca.get(Calendar.YEAR) == cb.get(Calendar.YEAR) &&
             ca.get(Calendar.DAY_OF_YEAR) == cb.get(Calendar.DAY_OF_YEAR)
     }

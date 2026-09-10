@@ -20,11 +20,15 @@ data class WeatherInfo(
     val codeNow: Int,
     val hours: List<WeatherHour>,
     val days: List<WeatherDay>,
-    /** "Feels like" temperature now, C (0 = unknown). */
-    val feelsNowC: Int = 0,
-    /** Today's sunrise / sunset as local epoch ms (0 = unknown). */
+    /** "Feels like" temperature now, C; null = not provided (0 is a real value). */
+    val feelsNowC: Int? = null,
+    /** Today's sunrise / sunset as absolute epoch ms (0 = unknown). The
+     *  instants are already converted to the forecast timezone. */
     val sunriseMs: Long = 0L,
-    val sunsetMs: Long = 0L
+    val sunsetMs: Long = 0L,
+    /** IANA zone of the forecast point (e.g. "Europe/Amsterdam"); all
+     *  human-readable times must be formatted in this zone. */
+    val timezoneId: String = ""
 )
 
 /** A place chosen by name (manual city input). */
@@ -115,15 +119,25 @@ object WeatherApi {
 
             val tempNow = Math.round(cur.getDouble("temperature_2m")).toInt()
             val codeNow = cur.getInt("weather_code")
-            val feelsNow = if (cur.has("apparent_temperature"))
-                Math.round(cur.getDouble("apparent_temperature")).toInt() else 0
+            // 0 is a REAL temperature, so "missing" must be null, not 0.
+            val feelsNow: Int? =
+                if (cur.has("apparent_temperature") && !cur.isNull("apparent_temperature"))
+                    Math.round(cur.getDouble("apparent_temperature")).toInt() else null
+
+            // timezone=auto -> all times in the response are LOCAL to the
+            // forecast point. Parse them in that zone, not the device zone,
+            // or the hours/sun times shift by the zone difference.
+            val timezoneId = root.optString("timezone", "")
+            val zone = if (timezoneId.isNotBlank())
+                java.util.TimeZone.getTimeZone(timezoneId)
+            else java.util.TimeZone.getDefault()
 
             // ---- hourly (rounded to the hour) ----
             val hourly = root.getJSONObject("hourly")
             val hTimes = hourly.getJSONArray("time")
             val hTemp = hourly.getJSONArray("temperature_2m")
             val hCode = hourly.optJSONArray("weather_code") ?: hourly.getJSONArray("weather_code")
-            val hFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US)
+            val hFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).apply { timeZone = zone }
             val hours = ArrayList<WeatherHour>()
             for (i in 0 until hTimes.length()) {
                 if (hTemp.isNull(i)) continue
@@ -144,9 +158,9 @@ object WeatherApi {
             val dCode = daily.optJSONArray("weather_code") ?: daily.getJSONArray("weather_code")
             val dMax = daily.getJSONArray("temperature_2m_max")
             val dMin = daily.getJSONArray("temperature_2m_min")
-            val dFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val dFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = zone }
             // Today's sunrise/sunset (first day = today, local "yyyy-MM-ddTHH:mm").
-            val isoFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US)
+            val isoFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).apply { timeZone = zone }
             var sunriseMs = 0L
             var sunsetMs = 0L
             if (dTimes.length() > 0) {
@@ -177,7 +191,7 @@ object WeatherApi {
             }
 
             if (days.isEmpty() && hours.isEmpty()) null
-            else WeatherInfo(city, tempNow, codeNow, hours, days, feelsNow, sunriseMs, sunsetMs)
+            else WeatherInfo(city, tempNow, codeNow, hours, days, feelsNow, sunriseMs, sunsetMs, timezoneId)
         } catch (_: Exception) {
             null
         }

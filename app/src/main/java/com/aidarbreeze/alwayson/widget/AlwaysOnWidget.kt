@@ -111,7 +111,10 @@ class AlwaysOnWidget : AppWidgetProvider() {
             if (parts.isNotEmpty()) parts.append("  ·  ")
             if (snap.city.isNotBlank()) parts.append(snap.city.trim()).append("  ")
             val c = snap.tempNowC
-            val shown = if (Prefs.tempUnit(context) == 1) (c * 9 + 160) / 5 else c
+            // Round to the nearest degree (truncation is off by 1° sometimes).
+            val shown = if (Prefs.tempUnit(context) == 1)
+                kotlin.math.round(c * 9f / 5f + 32f).toInt()
+            else c
             parts.append(shown).append("°")
             val label = WeatherLabel.of(snap.codeNow)
             if (label.isNotEmpty()) parts.append("  ").append(label)

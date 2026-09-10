@@ -110,7 +110,6 @@ class MonthCalendarView @JvmOverloads constructor(
         todayDay = now.get(Calendar.DAY_OF_MONTH)
         todayMonth = month
         todayYear = year
-        val isToday = year == todayYear && month == todayMonth
         if (year != cachedYear || month != cachedMonth || fDow != cachedFirstDow) {
             rebuild(year, month, fDow)
         }
@@ -150,10 +149,19 @@ class MonthCalendarView @JvmOverloads constructor(
             val weekday = (firstDow - 1 + i) % 7 + 1
             val label = weekLabels[weekday - 1]
             if (label.isNotEmpty()) {
+                // Shrink this label only if it would overflow its column
+                // (some locales give short names with a dot: "чт.", "Thu.").
+                val maxW = dayWidth * 0.9f
+                var size = weekdayFont
+                weekdayPaint.textSize = size
+                while (size > 8f && weekdayPaint.measureText(label) > maxW) {
+                    size -= 1f
+                    weekdayPaint.textSize = size
+                }
                 canvas.drawText(
                     label,
                     cx - weekdayPaint.measureText(label) / 2f,
-                    weekTop + weekdayFont,
+                    weekTop + size,
                     weekdayPaint
                 )
             }
@@ -191,8 +199,10 @@ class MonthCalendarView @JvmOverloads constructor(
                 val cx = padX + dayWidth * col + dayWidth / 2f
                 val cy = gridTop + row * rowH + rowH * 0.5f
                 val num = day.toString()
-                val isToday = isToday && day == todayDay
-                if (isToday) {
+                // Full day+month+year check, no shadowing.
+                val cellIsToday =
+                    year == todayYear && month == todayMonth && day == todayDay
+                if (cellIsToday) {
                     when (marker) {
                         0 -> { // filled disc
                             canvas.drawCircle(cx, cy, circleR, todayCirclePaint)
@@ -255,17 +265,13 @@ class MonthCalendarView @JvmOverloads constructor(
         // todayDay is maintained in onDraw (it changes at midnight without a
         // month change).
 
-        val names = c.getDisplayNames(
-            Calendar.DAY_OF_WEEK, Calendar.SHORT, Locale.getDefault()
-        ) ?: emptyMap()
+        // Direct lookup by Calendar constant (1=SUN .. 7=SAT); no map-order
+        // or key-format assumptions. "пн" -> "Пн", "Mon" -> "Mon".
+        val locale = Locale.getDefault()
+        val symbols = DateFormatSymbols(locale)
         for (d in 1..7) {
-            val raw = names.entries
-                .firstOrNull { it.key != null && it.value == d }
-                ?.key ?: ""
-            // "пн" -> "Пн", "вс" -> "Вс" — readable single word per column.
-            weekLabels[d - 1] = raw.replaceFirstChar {
-                it.titlecase(Locale.getDefault())
-            }
+            val raw = symbols.shortWeekdays[d].orEmpty()
+            weekLabels[d - 1] = raw.replaceFirstChar { it.titlecase(locale) }
         }
         cachedYear = year
         cachedMonth = month
