@@ -49,6 +49,13 @@ class WeatherPanelView @JvmOverloads constructor(
     private var info: WeatherInfo? = null
     private var statusText = ""
     private var style = STYLE_CLASSIC
+    private var stale = false
+
+    private val stalePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x66FFFFFF.toInt()
+        textSize = dpf(9f)
+        textAlign = Paint.Align.RIGHT
+    }
 
     private val statusPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0x88FFFFFF.toInt()
@@ -202,11 +209,13 @@ class WeatherPanelView @JvmOverloads constructor(
         invalidate()
     }
 
-    /** Show the forecast in the requested style. */
-    fun show(data: WeatherInfo, style: Int = STYLE_CLASSIC) {
+    /** Show the forecast in the requested style. [stale] marks a last-known
+     *  forecast that is shown while a background refresh failed. */
+    fun show(data: WeatherInfo, style: Int = STYLE_CLASSIC, stale: Boolean = false) {
         info = data
         statusText = ""
         this.style = style
+        this.stale = stale
         invalidate()
     }
 
@@ -227,6 +236,11 @@ class WeatherPanelView @JvmOverloads constructor(
             drawCurveMode(canvas, w, h, data)
         } else {
             drawClassicMode(canvas, w, h, data)
+        }
+
+        // Last-known forecast shown after a failed refresh — a subtle note.
+        if (stale) {
+            canvas.drawText("обновлено ранее", w - dpf(16f), h - dpf(6f), stalePaint)
         }
     }
 

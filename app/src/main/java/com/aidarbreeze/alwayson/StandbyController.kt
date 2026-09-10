@@ -22,9 +22,8 @@ import com.aidarbreeze.alwayson.view.ClockView
 import com.aidarbreeze.alwayson.view.MonthCalendarView
 import com.aidarbreeze.alwayson.view.StockChartView
 import com.aidarbreeze.alwayson.view.WeatherPanelView
-import com.aidarbreeze.alwayson.weather.WeatherApi
 import com.aidarbreeze.alwayson.weather.WeatherInfo
-import com.aidarbreeze.alwayson.weather.WeatherSharedCache
+import com.aidarbreeze.alwayson.weather.WeatherRepository
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -89,12 +88,9 @@ class StandbyController(context: Context, root: View) {
     private var currentStock: Pair<String, Int>? = null
     private val stockFreshMs = 60_000L
     private var weatherCached: WeatherInfo? = null
-    private var weatherFetchedAt = 0L
-    private var weatherFetching = false
+    private var weatherStale = false
     private var panelSeq: List<Panel> = emptyList()
     private var panelStep = 0
-    private var weatherGen = 0L
-    private val weatherFreshMs = 55L * 60L * 1000L // refetch the forecast hourly
     // Long-press in the preview pins the current window (pauses rotation).
     private var pinned = false
 
@@ -232,7 +228,13 @@ class StandbyController(context: Context, root: View) {
         }
     }
 
+    /** Start ticking. Idempotent: pending frames from a previous start are
+     *  cancelled first, so calling start() twice can never double the timers
+     *  or the panel cycle. */
     fun start() {
+        handler.removeCallbacks(tick)
+        handler.removeCallbacks(drift)
+        handler.removeCallbacks(panelRunnable)
         applyOptions()
         updateClock()
         updateMedia()
@@ -512,47 +514,41 @@ class StandbyController(context: Context, root: View) {
     private fun renderWeather() {
         val data = weatherCached
         if (data == null) {
-            weatherView.setStatus(
-                if (weatherFetching) "Погода: загрузка…" else "Погода: нет данных"
-            )
+            weatherView.setStatus("Погода: нет данных")
             return
         }
-        weatherView.show(data, Prefs.weatherStyle(appContext))
+        weatherView.show(data, Prefs.weatherStyle(appContext), weatherStale)
     }
 
-    /** Fetch the forecast on a background thread when it is missing or stale. */
-    private fun fetchWeatherIfStale() {
-        if (weatherFetching) return
-        val cached = weatherCached
-        if (cached != null &&
-            System.currentTimeMillis() - weatherFetchedAt < weatherFreshMs
-        ) {
-            return
-        }
+    /**
+     * Ensure we have a forecast, via the shared [WeatherRepository]: it dedupes
+     * in-flight requests, applies a TTL (so panel switches never re-fetch) and
+     * hands back the last-known forecast with a stale mark when a refresh
+     * fails — so a transient network error never blanks a good forecast.
+     * The repository delivers on the main thread.
+     */
+    private fun fetchWeatherIfStale(force: Boolean = false) {
+        if (!weatherReady()) return
         val loc = Prefs.weatherLocation(appContext) ?: return
-        weatherFetching = true
         if (weatherCached == null && weatherView.visibility == View.VISIBLE) {
             weatherView.setStatus("Погода: загрузка…")
         }
-        val gen = ++weatherGen
-        val city = Prefs.weatherCity(appContext)
-        Thread {
-            val data = WeatherApi.fetch(loc.first, loc.second, city)
-            handler.post {
-                if (gen != weatherGen) return@post
-                weatherFetching = false
-                if (data != null) {
-                    weatherCached = data
-                    weatherFetchedAt = System.currentTimeMillis()
-                    // Persist a snapshot for the home-screen widget (it must
-                    // not do its own networking).
-                    WeatherSharedCache.save(appContext, data)
-                    if (weatherView.visibility == View.VISIBLE) renderWeather()
-                } else if (weatherView.visibility == View.VISIBLE) {
-                    weatherView.setStatus("Погода: нет данных / нет сети")
-                }
+        WeatherRepository.get(
+            appContext, loc.first, loc.second, Prefs.weatherCity(appContext), force
+        ) { res ->
+            if (res.info != null) {
+                weatherCached = res.info
+                weatherStale = res.stale
+                if (weatherView.visibility == View.VISIBLE) renderWeather()
+            } else if (weatherView.visibility == View.VISIBLE) {
+                // Nothing at all (never fetched for this location): a clear
+                // state, not a stale forecast of another city.
+                weatherStale = false
+                weatherView.setStatus(
+                    if (res.offline) "Погода: нет сети" else "Погода: нет данных"
+                )
             }
-        }.start()
+        }
     }
 
     // ---------- auto brightness (ambient light) ----------
@@ -690,16 +686,20 @@ class StandbyController(context: Context, root: View) {
         if (level < 0 || scale <= 0) return
         val percent = (level * 100f / scale).toInt()
 
-        // Raw signed value (negative while charging on this device).
-        val raw = BatteryInfo.readCurrentNowRaw(appContext)
-        if (raw == null) {
+        // Normalised charge current in mA (always positive, 0 when the device
+        // does not report it). The sign is derived from the charge status,
+        // NOT from the raw value's sign — raw signs are not consistent across
+        // devices, and the raw property is in microamps, which must not be
+        // shown as-is.
+        val ma = BatteryInfo.readCurrentMa(appContext)
+        if (ma <= 0) {
             batteryText.text = "$percent%"
             return
         }
-
-        // Invert the sign so charging shows as a positive number with "+".
-        val display = -raw
-        val withSign = if (display > 0) "+$display" else "$display"
+        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+            status == BatteryManager.BATTERY_STATUS_FULL
+        val withSign = if (charging) "+$ma" else "-$ma"
         batteryText.text = "$percent% · $withSign"
     }
 

@@ -314,6 +314,7 @@ class OverlayService : Service(), SensorEventListener {
             !suppressed &&
             Prefs.isStandbyTimeAllowed(this, java.util.Calendar.getInstance()) &&
             !StandbyUiState.previewVisible &&
+            !StandbyUiState.dreaming &&
             Settings.canDrawOverlays(this)
 
         if (!allowed) {

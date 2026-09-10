@@ -32,7 +32,7 @@ import com.aidarbreeze.alwayson.view.StockChartView
 import com.aidarbreeze.alwayson.view.WeatherPanelView
 import com.aidarbreeze.alwayson.weather.WeatherApi
 import com.aidarbreeze.alwayson.weather.WeatherInfo
-import com.aidarbreeze.alwayson.weather.WeatherSharedCache
+import com.aidarbreeze.alwayson.weather.WeatherRepository
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -94,6 +94,14 @@ class MainActivity : Activity() {
         override fun run() {
             updatePreview()
             previewHandler.postDelayed(this, 1000)
+        }
+    }
+
+    // Debounced persist+rebuild for the ticker watchlist input.
+    private val tickerDebounce = Runnable {
+        if (!isFinishing && !isDestroyed) {
+            Prefs.setStockTickers(this, tickerInput.text?.toString() ?: "")
+            startMiniPreview()
         }
     }
 
@@ -247,8 +255,18 @@ class MainActivity : Activity() {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                Prefs.setStockTickers(this@MainActivity, s?.toString() ?: "")
-                startMiniPreview()
+                val raw = s?.toString() ?: ""
+                // Visible validation: more than 3 tickers -> a clear hint that
+                // only the first three will be used (duplicates/spaces are
+                // cleaned automatically on save).
+                val tokens = raw.split(Regex("[,;\\s]+")).filter { it.isNotBlank() }
+                tickerInput.error =
+                    if (tokens.size > 3) getString(R.string.tickers_max_error) else null
+                // Debounce: persist + rebuild once per typing pause, not per
+                // keystroke (per-key rebuilds would fire network fetches for
+                // partial symbols like "S", "SB", "SBE").
+                previewHandler.removeCallbacks(tickerDebounce)
+                previewHandler.postDelayed(tickerDebounce, 500)
             }
         })
         refInput.addTextChangedListener(object : TextWatcher {
@@ -515,10 +533,6 @@ class MainActivity : Activity() {
     private val miniStockAttempt = HashMap<String, Long>()
     private val miniStockFreshMs = 60_000L
     private var miniWeatherCached: WeatherInfo? = null
-    private var miniWeatherFetchedAt = 0L
-    private var miniWeatherFetching = false
-    private var miniWeatherGen = 0L
-    private val miniWeatherFreshMs = 55L * 60L * 1000L
     private val miniTicker = object : Runnable {
         override fun run() {
             miniAdvance()
@@ -607,9 +621,10 @@ class MainActivity : Activity() {
                 } else {
                     miniWeather.setStatus("Погода: загрузка…")
                 }
-                if (System.currentTimeMillis() - miniWeatherFetchedAt >= miniWeatherFreshMs) {
-                    fetchMiniWeather()
-                }
+                // The shared repository dedupes in-flight fetches and applies a
+                // TTL, so this is a no-op (no network) while the forecast is
+                // fresh — panel switches never re-fetch.
+                fetchMiniWeather()
             }
         }
     }
@@ -642,29 +657,27 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun fetchMiniWeather() {
-        if (miniWeatherFetching) return
+    /** Weather for the mini-preview, via the shared repository (deduped, TTL,
+     *  last-known-with-stale-mark on failure). Delivered on the main thread. */
+    private fun fetchMiniWeather(force: Boolean = false) {
         val loc = Prefs.weatherLocation(this) ?: return
-        miniWeatherFetching = true
-        val gen = ++miniWeatherGen
-        val city = Prefs.weatherCity(this)
-        Thread {
-            val data = WeatherApi.fetch(loc.first, loc.second, city)
-            previewHandler.post {
-                if (gen != miniWeatherGen) return@post
-                miniWeatherFetching = false
-                if (data != null) {
-                    miniWeatherCached = data
-                    miniWeatherFetchedAt = System.currentTimeMillis()
-                    // Feed the home-screen widget's last-known snapshot too.
-                    WeatherSharedCache.save(this, data)
-                    val p = miniSeq.getOrNull(miniStep)
-                    if (p != null && p.kind == 2) {
-                        miniWeather.show(data, Prefs.weatherStyle(this))
-                    }
+        WeatherRepository.get(this, loc.first, loc.second, Prefs.weatherCity(this), force) { res ->
+            if (isFinishing || isDestroyed) return@get
+            if (res.info != null) {
+                miniWeatherCached = res.info
+                val p = miniSeq.getOrNull(miniStep)
+                if (p != null && p.kind == 2) {
+                    miniWeather.show(res.info, Prefs.weatherStyle(this), res.stale)
+                }
+            } else {
+                val p = miniSeq.getOrNull(miniStep)
+                if (p != null && p.kind == 2) {
+                    miniWeather.setStatus(
+                        if (res.offline) "Погода: нет сети" else "Погода: нет данных"
+                    )
                 }
             }
-        }.start()
+        }
     }
 
     /** Spinner bound to the shared 5/10/20/30/60-second duration options. */

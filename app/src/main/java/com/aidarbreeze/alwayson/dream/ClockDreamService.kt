@@ -9,6 +9,7 @@ import android.view.View
 import android.view.WindowManager
 import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.StandbyController
+import com.aidarbreeze.alwayson.ui.StandbyUiState
 
 /**
  * Screen saver ("daydream") showing the iPhone-StandBy-style clock: big time,
@@ -64,18 +65,25 @@ class ClockDreamService : DreamService() {
     override fun onDreamingStarted() {
         super.onDreamingStarted()
         dreaming = true
+        StandbyUiState.dreaming = true
         showLayout()
         controller?.start()
+        // Let the charging overlay step aside immediately (no stacked blacks).
+        com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
     }
 
     override fun onDreamingStopped() {
         dreaming = false
+        StandbyUiState.dreaming = false
         controller?.stop()
         super.onDreamingStopped()
+        // The dream gave the screen back — re-arm the overlay if it may show.
+        com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
     }
 
     override fun onDetachedFromWindow() {
         dreaming = false
+        StandbyUiState.dreaming = false
         controller?.stop()
         controller = null
         orientationListener?.disable()

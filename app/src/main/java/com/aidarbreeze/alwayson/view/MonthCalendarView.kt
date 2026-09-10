@@ -34,7 +34,11 @@ class MonthCalendarView @JvmOverloads constructor(
     private var cachedFirstDow = -1
     private var daysInMonth = 31
     private var firstCell = 0
+    // "Today" is stored as a full day+month+year triple so a cell is only ever
+    // highlighted when all three match (robust across midnight/year change).
     private var todayDay = 0
+    private var todayMonth = -1
+    private var todayYear = -1
     private var weekLabels = arrayOf("", "", "", "", "", "", "")
 
     // Configured first day of week; 0 means "follow the locale/system".
@@ -70,6 +74,9 @@ class MonthCalendarView @JvmOverloads constructor(
         // highlighted "today" must be refreshed on every draw — the month
         // structure itself only changes when the month/year/week-start does.
         todayDay = now.get(Calendar.DAY_OF_MONTH)
+        todayMonth = month
+        todayYear = year
+        val isToday = year == todayYear && month == todayMonth
         if (year != cachedYear || month != cachedMonth || fDow != cachedFirstDow) {
             rebuild(year, month, fDow)
         }
@@ -139,7 +146,7 @@ class MonthCalendarView @JvmOverloads constructor(
                 val cx = padX + dayWidth * col + dayWidth / 2f
                 val cy = gridTop + row * rowH + rowH * 0.5f
                 val num = day.toString()
-                if (day == todayDay) {
+                if (isToday && day == todayDay) {
                     canvas.drawCircle(cx, cy, circleR, todayCirclePaint)
                     todayNumPaint.color = Color.BLACK
                     canvas.drawText(
