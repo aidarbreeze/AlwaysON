@@ -64,6 +64,22 @@ object Prefs {
     private const val KEY_STANDBY_SUPPRESSED = "standby_suppressed"
     // OLED protection: dim the white content level (see dimMode).
     private const val KEY_DIM_MODE = "dim_mode"
+    // Clock size: 0 small, 1 normal (default), 2 large.
+    private const val KEY_CLOCK_SIZE = "clock_size"
+    // Date line format: 0 = weekday + day + month (default), 1 = short
+    // (dd.MM), 2 = full (month name + day).
+    private const val KEY_DATE_FORMAT = "date_format"
+    // Temperature unit: 0 = Celsius (default), 1 = Fahrenheit (display only).
+    private const val KEY_TEMP_UNIT = "temp_unit"
+    // Seconds display: 0 never, 1 always, 2 preview only.
+    private const val KEY_SECONDS_MODE = "seconds_mode"
+    // Battery display: 0 hidden, 1 percent, 2 current, 3 charging indicator.
+    private const val KEY_BATTERY_MODE = "battery_mode"
+    // Diagnostics: last successful data updates + last errors.
+    private const val KEY_LAST_WEATHER_MS = "last_weather_ms"
+    private const val KEY_LAST_WEATHER_ERR = "last_weather_err"
+    private const val KEY_LAST_STOCK_MS = "last_stock_ms"
+    private const val KEY_LAST_STOCK_ERR = "last_stock_err"
 
     private fun sp(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -78,6 +94,63 @@ object Prefs {
     fun showBattery(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_SHOW_BATTERY, false)
     fun setShowBattery(ctx: Context, v: Boolean) =
         sp(ctx).edit().putBoolean(KEY_SHOW_BATTERY, v).apply()
+
+    /**
+     * Seconds display: 0 never, 1 always, 2 preview only. Migrated from the
+     * legacy binary switch (on -> always, off -> never).
+     */
+    fun secondsMode(ctx: Context): Int {
+        val s = sp(ctx)
+        return if (s.contains(KEY_SECONDS_MODE)) s.getInt(KEY_SECONDS_MODE, 0).coerceIn(0, 2)
+        else if (s.getBoolean(KEY_SHOW_SECONDS, false)) 1 else 0
+    }
+    fun setSecondsMode(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_SECONDS_MODE, v.coerceIn(0, 2)).apply()
+
+    /**
+     * Battery display: 0 hidden, 1 percent, 2 percent + current, 3 percent +
+     * charging indicator. Migrated from the legacy switch (on -> current).
+     */
+    fun batteryMode(ctx: Context): Int {
+        val s = sp(ctx)
+        return if (s.contains(KEY_BATTERY_MODE)) s.getInt(KEY_BATTERY_MODE, 0).coerceIn(0, 3)
+        else if (s.getBoolean(KEY_SHOW_BATTERY, false)) 2 else 0
+    }
+    fun setBatteryMode(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_BATTERY_MODE, v.coerceIn(0, 3)).apply()
+
+    /** Clock size: 0 small, 1 normal, 2 large. */
+    fun clockSize(ctx: Context): Int = sp(ctx).getInt(KEY_CLOCK_SIZE, 1).coerceIn(0, 2)
+    fun setClockSize(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_CLOCK_SIZE, v.coerceIn(0, 2)).apply()
+
+    /** Date line: 0 weekday + day + month, 1 short (dd.MM), 2 full. */
+    fun dateFormat(ctx: Context): Int = sp(ctx).getInt(KEY_DATE_FORMAT, 0).coerceIn(0, 2)
+    fun setDateFormat(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_DATE_FORMAT, v.coerceIn(0, 2)).apply()
+
+    /** Temperature unit: 0 Celsius, 1 Fahrenheit (display only). */
+    fun tempUnit(ctx: Context): Int = sp(ctx).getInt(KEY_TEMP_UNIT, 0).coerceIn(0, 1)
+    fun setTempUnit(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(KEY_TEMP_UNIT, v.coerceIn(0, 1)).apply()
+
+    fun lastWeatherUpdateMs(ctx: Context): Long = sp(ctx).getLong(KEY_LAST_WEATHER_MS, 0L)
+    fun setLastWeatherUpdateMs(ctx: Context, v: Long) =
+        sp(ctx).edit().putLong(KEY_LAST_WEATHER_MS, v).apply()
+    fun lastWeatherError(ctx: Context): String = sp(ctx).getString(KEY_LAST_WEATHER_ERR, "") ?: ""
+    fun setLastWeatherError(ctx: Context, v: String) =
+        sp(ctx).edit().putString(KEY_LAST_WEATHER_ERR, v).apply()
+    fun lastStockUpdateMs(ctx: Context): Long = sp(ctx).getLong(KEY_LAST_STOCK_MS, 0L)
+    fun setLastStockUpdateMs(ctx: Context, v: Long) =
+        sp(ctx).edit().putLong(KEY_LAST_STOCK_MS, v).apply()
+    fun lastStockError(ctx: Context): String = sp(ctx).getString(KEY_LAST_STOCK_ERR, "") ?: ""
+    fun setLastStockError(ctx: Context, v: String) =
+        sp(ctx).edit().putString(KEY_LAST_STOCK_ERR, v).apply()
+
+    /** Factory-reset every preference (the "reset settings" button). */
+    fun reset(ctx: Context) {
+        sp(ctx).edit().clear().apply()
+    }
 
     /** Clock brightness, 0..100. Default 100 (full). */
     fun brightness(ctx: Context): Int =

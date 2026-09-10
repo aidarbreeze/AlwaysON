@@ -558,7 +558,15 @@ class ClockView @JvmOverloads constructor(
         canvas.drawText(text, w / 2f, baseline, p)
     }
 
-    private fun cap(): Float = 118f * resources.displayMetrics.density
+    private fun cap(): Float =
+        118f * resources.displayMetrics.density * sizeFactor()
+
+    /** User clock-size setting: 0 small, 1 normal, 2 large. */
+    private fun sizeFactor(): Float = when (Prefs.clockSize(context)) {
+        0 -> 0.72f
+        2 -> 1.3f
+        else -> 1f
+    }
 
     // Standard 5x7 (columns packed in low bits, LSB = leftmost) glyphs.
     private fun glyph(ch: Char): Array<Int>? {

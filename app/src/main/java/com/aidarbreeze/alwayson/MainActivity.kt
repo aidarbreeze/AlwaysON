@@ -23,6 +23,7 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
+import com.aidarbreeze.alwayson.media.NowPlayingListenerService
 import com.aidarbreeze.alwayson.service.OverlayService
 import com.aidarbreeze.alwayson.stock.Candle
 import com.aidarbreeze.alwayson.stock.StockApi
@@ -55,8 +56,15 @@ class MainActivity : Activity() {
     private lateinit var thicknessValue: TextView
     private lateinit var outlineThicknessRow: View
     private lateinit var use24Switch: Switch
-    private lateinit var secondsSwitch: Switch
-    private lateinit var batterySwitch: Switch
+    private lateinit var secondsSpinner: Spinner
+    private lateinit var batterySpinner: Spinner
+    private lateinit var clockSizeSpinner: Spinner
+    private lateinit var dateFormatSpinner: Spinner
+    private lateinit var tempUnitSpinner: Spinner
+    private lateinit var btnDiagnostics: Button
+    private lateinit var diagnostics: TextView
+    private lateinit var btnRefreshData: Button
+    private lateinit var btnResetPrefs: Button
     private lateinit var dimSwitch: Switch
     private lateinit var batteryProbe: TextView
     private lateinit var stocksSwitch: Switch
@@ -137,10 +145,17 @@ class MainActivity : Activity() {
         thicknessValue = findViewById(R.id.thicknessValue)
         outlineThicknessRow = findViewById(R.id.outlineThicknessRow)
         use24Switch = findViewById(R.id.use24Switch)
-        secondsSwitch = findViewById(R.id.secondsSwitch)
-        batterySwitch = findViewById(R.id.batterySwitch)
+        secondsSpinner = findViewById(R.id.secondsSpinner)
+        batterySpinner = findViewById(R.id.batterySpinner)
+        clockSizeSpinner = findViewById(R.id.clockSizeSpinner)
+        dateFormatSpinner = findViewById(R.id.dateFormatSpinner)
+        tempUnitSpinner = findViewById(R.id.tempUnitSpinner)
         dimSwitch = findViewById(R.id.dimSwitch)
         batteryProbe = findViewById(R.id.batteryProbe)
+        btnDiagnostics = findViewById(R.id.btnDiagnostics)
+        diagnostics = findViewById(R.id.diagnostics)
+        btnRefreshData = findViewById(R.id.btnRefreshData)
+        btnResetPrefs = findViewById(R.id.btnResetPrefs)
         stocksSwitch = findViewById(R.id.stocksSwitch)
         stockInputs = findViewById(R.id.stockInputs)
         tickerInput = findViewById(R.id.tickerInput)
@@ -158,8 +173,6 @@ class MainActivity : Activity() {
         // Load persisted appearance.
         autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
         use24Switch.isChecked = Prefs.force24h(this)
-        secondsSwitch.isChecked = Prefs.showSeconds(this)
-        batterySwitch.isChecked = Prefs.showBattery(this)
         brightnessSeek.progress = Prefs.brightness(this)
         updateBrightnessLabel()
         updateBrightnessEnabledState()
@@ -324,12 +337,24 @@ class MainActivity : Activity() {
             Prefs.setForce24h(this, checked)
             updatePreview()
         }
-        secondsSwitch.setOnCheckedChangeListener { _, checked ->
-            Prefs.setShowSeconds(this, checked)
+        bindIntSpinner(secondsSpinner, R.array.seconds_entries, Prefs.secondsMode(this)) {
+            Prefs.setSecondsMode(this, it)
             updatePreview()
         }
-        batterySwitch.setOnCheckedChangeListener { _, checked ->
-            Prefs.setShowBattery(this, checked)
+        bindIntSpinner(batterySpinner, R.array.battery_entries, Prefs.batteryMode(this)) {
+            Prefs.setBatteryMode(this, it)
+        }
+        bindIntSpinner(clockSizeSpinner, R.array.clock_size_entries, Prefs.clockSize(this)) {
+            Prefs.setClockSize(this, it)
+            updatePreview()
+        }
+        bindIntSpinner(dateFormatSpinner, R.array.date_format_entries, Prefs.dateFormat(this)) {
+            Prefs.setDateFormat(this, it)
+            updatePreview()
+        }
+        bindIntSpinner(tempUnitSpinner, R.array.temp_unit_entries, Prefs.tempUnit(this)) {
+            Prefs.setTempUnit(this, it)
+            startMiniPreview()
         }
         dimSwitch.isChecked = Prefs.dimMode(this)
         dimSwitch.setOnCheckedChangeListener { _, checked ->
@@ -477,6 +502,100 @@ class MainActivity : Activity() {
             batteryProbe.text = lines.joinToString("\n")
             batteryProbe.visibility = View.VISIBLE
         }
+
+        // ---------- diagnostics / maintenance ----------
+        btnDiagnostics.setOnClickListener {
+            diagnostics.text = buildDiagnostics()
+        }
+        btnRefreshData.setOnClickListener {
+            // Force a fresh weather + chart fetch for the preview. The overlay
+            // and the widget pick up the shared cache on their next update.
+            fetchMiniWeather(force = true)
+            miniStockAttempt.clear()
+            val p = miniSeq.getOrNull(miniStep)
+            if (p != null && p.kind == 1) fetchMiniStock(p.symbol, p.interval)
+            diagnostics.text = ""
+        }
+        btnResetPrefs.setOnClickListener {
+            android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.reset_confirm_title)
+                .setMessage(R.string.reset_confirm_msg)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    Prefs.reset(this)
+                    recreate()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+    }
+
+    /** A human-readable status dump for the Diagnostics card. */
+    private fun buildDiagnostics(): String {
+        val b = StringBuilder()
+        val ver = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+        } catch (_: Exception) {
+            "?"
+        }
+        b.append(getString(R.string.diag_version)).append(": ").append(ver).append('\n')
+        b.append(getString(R.string.diag_overlay)).append(": ")
+            .append(if (canDraw()) getString(R.string.diag_granted) else getString(R.string.diag_denied))
+            .append('\n')
+        b.append(getString(R.string.diag_notif)).append(": ")
+            .append(if (notifAccessGranted()) getString(R.string.diag_granted) else getString(R.string.diag_denied))
+            .append('\n')
+        b.append(getString(R.string.diag_location)).append(": ")
+        if (Location.hasPermission(this)) {
+            val ll = Prefs.weatherLocation(this)
+            b.append(
+                if (ll != null) {
+                    String.format(java.util.Locale.US, "%.2f, %.2f", ll.first, ll.second)
+                } else getString(R.string.diag_granted)
+            )
+        } else {
+            b.append(getString(R.string.diag_denied))
+        }
+        b.append('\n')
+        b.append(getString(R.string.diag_auto)).append(": ")
+            .append(if (Prefs.autoStandby(this)) getString(R.string.diag_on) else getString(R.string.diag_off))
+        if (Prefs.standbySchedule(this) == 1) {
+            b.append("  ").append(Prefs.standbyFromHour(this)).append(":00\u2013")
+                .append(Prefs.standbyToHour(this)).append(":00")
+        }
+        b.append('\n')
+        appendDataLine(b, getString(R.string.diag_weather),
+            Prefs.lastWeatherUpdateMs(this), Prefs.lastWeatherError(this))
+        appendDataLine(b, getString(R.string.diag_stock),
+            Prefs.lastStockUpdateMs(this), Prefs.lastStockError(this))
+        return b.toString()
+    }
+
+    private fun appendDataLine(b: StringBuilder, name: String, ts: Long, err: String) {
+        b.append(name).append(": ")
+        if (ts > 0L) {
+            val tf = SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+            b.append(getString(R.string.diag_updated)).append(' ')
+                .append(tf.format(java.util.Date(ts)))
+        } else {
+            b.append(getString(R.string.diag_never))
+        }
+        if (err.isNotBlank()) {
+            b.append(" \u00B7 ").append(getString(R.string.diag_err)).append(": ").append(err)
+        }
+        b.append('\n')
+    }
+
+    /** Is "notification access" granted for our media listener? */
+    private fun notifAccessGranted(): Boolean {
+        return try {
+            val cn = android.content.ComponentName(this, NowPlayingListenerService::class.java)
+            val enabled = android.provider.Settings.Secure.getString(
+                contentResolver, "enabled_notification_listeners"
+            ) ?: return false
+            enabled.split(':').any { it == cn.flattenToString() }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     override fun onResume() {
@@ -513,7 +632,8 @@ class MainActivity : Activity() {
         val millis = now.timeInMillis
         val use24 = if (Prefs.force24h(this)) true
         else android.text.format.DateFormat.is24HourFormat(this)
-        val secs = Prefs.showSeconds(this)
+        // The preview shows seconds in modes "always" and "preview only".
+        val secs = Prefs.secondsMode(this) == 1 || Prefs.secondsMode(this) == 2
         val pattern = when {
             use24 && secs -> "HH:mm:ss"
             use24 -> "HH:mm"
@@ -524,13 +644,16 @@ class MainActivity : Activity() {
         previewClock.refresh()
 
         val locale = Locale.getDefault()
-        val dp = if (locale.language.equals("ru", ignoreCase = true)) {
-            "EEEE, d MMMM"
-        } else {
-            "EEEE, MMMM d"
+        val ru = locale.language.equals("ru", ignoreCase = true)
+        val mode = Prefs.dateFormat(this)
+        val dp = when (mode) {
+            1 -> "dd.MM"
+            2 -> if (ru) "d MMMM" else "MMMM d"
+            else -> if (ru) "EEEE, d MMMM" else "EEEE, MMMM d"
         }
         val line = SimpleDateFormat(dp, locale).format(millis)
-        previewDate.text = line.replaceFirstChar { it.titlecase(locale) }
+        previewDate.text =
+            if (mode == 0) line.replaceFirstChar { it.titlecase(locale) } else line
 
         // Reflect the chosen clock brightness (and the OLED dim cap) on the
         // preview content only (the pure-black background is unaffected and
@@ -731,6 +854,30 @@ class MainActivity : Activity() {
                 override fun onNothingSelected(p: AdapterView<*>?) {}
             }
         spinner.setSelection(values.indexOf(current).coerceAtLeast(0))
+    }
+
+    /** Spinner for a simple int setting where the array index IS the stored
+     *  code (seconds, battery, clock size, date format, temp unit). */
+    private fun bindIntSpinner(
+        spinner: Spinner,
+        entriesRes: Int,
+        current: Int,
+        onSet: (Int) -> Unit
+    ) {
+        val entries = resources.getStringArray(entriesRes)
+        spinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            entries
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        spinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    onSet(pos)
+                }
+                override fun onNothingSelected(p: AdapterView<*>?) {}
+            }
+        spinner.setSelection(current.coerceIn(0, entries.size - 1))
     }
 
     // ---------- weather location ----------

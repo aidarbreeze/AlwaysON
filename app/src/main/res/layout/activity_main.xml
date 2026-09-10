@@ -508,14 +508,14 @@
                 android:paddingEnd="12dp">
                 <TextView
                     style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/seconds_label" />
+                <Spinner
+                    android:id="@+id/secondsSpinner"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/switch_seconds" />
-                <Switch
-                    android:id="@+id/secondsSwitch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
                     android:layout_marginStart="12dp" />
             </LinearLayout>
 
@@ -535,14 +535,14 @@
                 android:paddingEnd="12dp">
                 <TextView
                     style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/battery_label" />
+                <Spinner
+                    android:id="@+id/batterySpinner"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/switch_battery" />
-                <Switch
-                    android:id="@+id/batterySwitch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
                     android:layout_marginStart="12dp" />
             </LinearLayout>
 
@@ -570,6 +570,60 @@
                     android:id="@+id/dimSwitch"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/clock_size_label" />
+                <Spinner
+                    android:id="@+id/clockSizeSpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/date_format_label" />
+                <Spinner
+                    android:id="@+id/dateFormatSpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:layout_marginStart="12dp" />
             </LinearLayout>
 
@@ -1045,8 +1099,25 @@
                     android:paddingTop="10dp"
                     android:text="@string/weather_style_label" />
 
-                <RadioGroup
+                <Spinner
                     android:id="@+id/weatherStyleSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/temp_unit_label" />
+
+                <Spinner
+                    android:id="@+id/tempUnitSpinner"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="16dp"
@@ -1089,6 +1160,48 @@
                     android:paddingBottom="10dp"
                     android:text="" />
             </LinearLayout>
+        </LinearLayout>
+
+        <!-- ================= Diagnostics ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/diag_title" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <Button
+                android:id="@+id/btnDiagnostics"
+                style="@style/ActionButton"
+                android:text="@string/btn_diagnostics" />
+
+            <TextView
+                android:id="@+id/diagnostics"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="4dp"
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:textColor="@color/settings_text"
+                android:text="" />
+
+            <Button
+                android:id="@+id/btnRefreshData"
+                style="@style/ActionButton"
+                android:text="@string/btn_refresh_data" />
+
+            <Button
+                android:id="@+id/btnResetPrefs"
+                style="@style/ActionButton"
+                android:layout_marginBottom="14dp"
+                android:text="@string/btn_reset_prefs" />
         </LinearLayout>
 
         <!-- ================= How it works ================= -->

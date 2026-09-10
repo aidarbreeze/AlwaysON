@@ -11,6 +11,7 @@ import android.os.BatteryManager
 import android.os.SystemClock
 import android.text.format.DateFormat
 import android.widget.RemoteViews
+import com.aidarbreeze.alwayson.Prefs
 import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.StandbyActivity
 import com.aidarbreeze.alwayson.weather.WeatherLabel
@@ -109,7 +110,9 @@ class AlwaysOnWidget : AppWidgetProvider() {
         if (snap != null) {
             if (parts.isNotEmpty()) parts.append("  ·  ")
             if (snap.city.isNotBlank()) parts.append(snap.city.trim()).append("  ")
-            parts.append(snap.tempNowC).append("°")
+            val c = snap.tempNowC
+            val shown = if (Prefs.tempUnit(context) == 1) (c * 9 + 160) / 5 else c
+            parts.append(shown).append("°")
             val label = WeatherLabel.of(snap.codeNow)
             if (label.isNotEmpty()) parts.append("  ").append(label)
         }

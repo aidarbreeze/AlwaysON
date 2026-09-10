@@ -148,4 +148,59 @@
     <string name="sched_from">с</string>
     <string name="sched_to">до</string>
 
+    <!-- Отображение (секунды / батарея / размер / дата / единица) -->
+    <string name="seconds_label">Секунды</string>
+    <string-array name="seconds_entries">
+        <item>Никогда</item>
+        <item>Всегда</item>
+        <item>Только в превью</item>
+    </string-array>
+    <string name="battery_label">Батарея</string>
+    <string-array name="battery_entries">
+        <item>Скрыть</item>
+        <item>Процент</item>
+        <item>Процент + ток</item>
+        <item>Зарядка</item>
+    </string-array>
+    <string name="clock_size_label">Размер часов</string>
+    <string-array name="clock_size_entries">
+        <item>Малый</item>
+        <item>Обычный</item>
+        <item>Крупный</item>
+    </string-array>
+    <string name="date_format_label">Формат даты</string>
+    <string-array name="date_format_entries">
+        <item>День недели + число</item>
+        <item>Короткий (ЧЧ.ММ)</item>
+        <item>Полный</item>
+    </string-array>
+    <string name="temp_unit_label">Единица температуры</string>
+    <string-array name="temp_unit_entries">
+        <item>°C</item>
+        <item>°F</item>
+    </string-array>
+
+    <!-- Диагностика / обслуживание -->
+    <string name="diag_title">Диагностика</string>
+    <string name="btn_diagnostics">Показать состояние</string>
+    <string name="btn_refresh_data">Обновить данные сейчас</string>
+    <string name="btn_reset_prefs">Сбросить все настройки</string>
+    <string name="reset_confirm_title">Сбросить настройки?</string>
+    <string name="reset_confirm_msg">Все настройки вернутся к значениям по умолчанию (включая список тикеров и город погоды).</string>
+    <string name="diag_version">Версия</string>
+    <string name="diag_overlay">Разрешение overlay</string>
+    <string name="diag_notif">Доступ к уведомлениям</string>
+    <string name="diag_location">Геолокация</string>
+    <string name="diag_auto">Авто-StandBy</string>
+    <string name="diag_weather">Погода</string>
+    <string name="diag_stock">Акции</string>
+    <string name="diag_granted">выдано</string>
+    <string name="diag_denied">не выдано</string>
+    <string name="diag_on">вкл</string>
+    <string name="diag_off">выкл</string>
+    <string name="diag_none">—</string>
+    <string name="diag_updated">обновлено</string>
+    <string name="diag_never">никогда</string>
+    <string name="diag_err">последняя ошибка</string>
+
 </resources>

@@ -211,7 +211,7 @@ class StandbyController(context: Context, root: View) {
     /** Apply display options (battery visibility, brightness) to the views. */
     fun applyOptions() {
         batteryText.visibility =
-            if (Prefs.showBattery(appContext)) View.VISIBLE else View.GONE
+            if (Prefs.batteryMode(appContext) != 0) View.VISIBLE else View.GONE
         // Clock style / thickness may have changed in settings -> redraw.
         clockView.refresh()
         // Calendar week start may have changed.
@@ -489,6 +489,8 @@ class StandbyController(context: Context, root: View) {
                 if (stockAttemptAt[key] != attempt) return@post // superseded
                 if (data != null && data.size >= 2) {
                     stockCached[key] = data
+                    Prefs.setLastStockUpdateMs(appContext, System.currentTimeMillis())
+                    Prefs.setLastStockError(appContext, "")
                     if (currentStock == symbol to code) {
                         stockView.setData(symbol, ref, label, data, code * 60)
                     }
@@ -498,6 +500,7 @@ class StandbyController(context: Context, root: View) {
                     // Only show the error when we have nothing to show at all —
                     // a transient network hiccup must not wipe an older chart.
                     stockView.setStatus("нет данных / нет сети")
+                    Prefs.setLastStockError(appContext, "нет данных / нет сети")
                 }
             }
         }.start()
@@ -539,14 +542,16 @@ class StandbyController(context: Context, root: View) {
             if (res.info != null) {
                 weatherCached = res.info
                 weatherStale = res.stale
+                Prefs.setLastWeatherUpdateMs(appContext, System.currentTimeMillis())
+                Prefs.setLastWeatherError(appContext, "")
                 if (weatherView.visibility == View.VISIBLE) renderWeather()
             } else if (weatherView.visibility == View.VISIBLE) {
                 // Nothing at all (never fetched for this location): a clear
                 // state, not a stale forecast of another city.
                 weatherStale = false
-                weatherView.setStatus(
-                    if (res.offline) "Погода: нет сети" else "Погода: нет данных"
-                )
+                val err = if (res.offline) "нет сети" else "нет данных"
+                weatherView.setStatus("Погода: $err")
+                Prefs.setLastWeatherError(appContext, err)
             }
         }
     }
@@ -621,7 +626,8 @@ class StandbyController(context: Context, root: View) {
         val millis = now.timeInMillis
         val use24 = if (Prefs.force24h(appContext)) true
         else android.text.format.DateFormat.is24HourFormat(appContext)
-        val secs = Prefs.showSeconds(appContext)
+        // Mode 1 = always, 2 = preview only (so no seconds on the AOD).
+        val secs = Prefs.secondsMode(appContext) == 1
         val pattern = when {
             use24 && secs -> "HH:mm:ss"
             use24 -> "HH:mm"
@@ -633,17 +639,21 @@ class StandbyController(context: Context, root: View) {
         dateText.text = dateLine(now)
     }
 
-    /** Full date line shown above the clock, e.g. "Понедельник, 8 сентября"
-     *  (weekday + day + month, no year, weekday capitalised). */
+    /** Date line shown above the clock, per the user's format:
+     *  0 = "Понедельник, 8 сентября" (weekday + day + month, capitalised),
+     *  1 = short "08.09", 2 = full "8 сентября". */
     private fun dateLine(now: Calendar): String {
         val locale = Locale.getDefault()
-        val pattern = if (locale.language.equals("ru", ignoreCase = true)) {
-            "EEEE, d MMMM"
-        } else {
-            "EEEE, MMMM d"
+        val ru = locale.language.equals("ru", ignoreCase = true)
+        val pattern = when (Prefs.dateFormat(appContext)) {
+            1 -> "dd.MM"
+            2 -> if (ru) "d MMMM" else "MMMM d"
+            else -> if (ru) "EEEE, d MMMM" else "EEEE, MMMM d"
         }
         val raw = SimpleDateFormat(pattern, locale).format(now.timeInMillis)
-        return raw.replaceFirstChar { it.titlecase(locale) }
+        return if (Prefs.dateFormat(appContext) == 0)
+            raw.replaceFirstChar { it.titlecase(locale) }
+        else raw
     }
 
     private fun updateMedia() {
@@ -685,22 +695,29 @@ class StandbyController(context: Context, root: View) {
         val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
         if (level < 0 || scale <= 0) return
         val percent = (level * 100f / scale).toInt()
-
-        // Normalised charge current in mA (always positive, 0 when the device
-        // does not report it). The sign is derived from the charge status,
-        // NOT from the raw value's sign — raw signs are not consistent across
-        // devices, and the raw property is in microamps, which must not be
-        // shown as-is.
-        val ma = BatteryInfo.readCurrentMa(appContext)
-        if (ma <= 0) {
-            batteryText.text = "$percent%"
-            return
-        }
         val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
         val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
             status == BatteryManager.BATTERY_STATUS_FULL
-        val withSign = if (charging) "+$ma" else "-$ma"
-        batteryText.text = "$percent% · $withSign"
+        when (Prefs.batteryMode(appContext)) {
+            // 1: percent only
+            1 -> batteryText.text = "$percent%"
+            // 3: percent + charging indicator
+            3 -> batteryText.text = if (charging) "$percent% \u26A1\uFE0E" else "$percent%"
+            // 2 (default): percent + live charge current when the device
+            //    reports it. Normalised mA (always positive); the sign is
+            //    derived from the charge status, NOT from the raw value's
+            //    sign (raw signs are not consistent across devices, and the
+            //    raw property is in microamps and must not be shown as-is).
+            else -> {
+                val ma = BatteryInfo.readCurrentMa(appContext)
+                if (ma <= 0) {
+                    batteryText.text = "$percent%"
+                    return
+                }
+                val withSign = if (charging) "+$ma" else "-$ma"
+                batteryText.text = "$percent% · $withSign"
+            }
+        }
     }
 
     /** Sends a hardware-style media key (previous/next) to control playback. */
