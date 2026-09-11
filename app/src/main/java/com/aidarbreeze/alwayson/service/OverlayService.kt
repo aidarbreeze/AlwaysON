@@ -37,18 +37,21 @@ import com.aidarbreeze.alwayson.ui.StandbyUiState
 import kotlin.math.sqrt
 
 /**
- * "StandBy while charging". Shows a dim, orientation-aware clock overlay while
- * the device is charging and resting. Two goals:
+ * "StandBy while charging". Shows a dim, orientation-aware clock overlay
+ * while the device is charging and resting. The rule: while charging, the
+ * clock is shown whenever the screen is off (or locked); it reliably gives
+ * the phone back (removes the overlay, revealing the normal lock/home
+ * screen) the moment the user is actually using it:
  *
- *  1. The screen stays on (dimmed) for the whole charge session, like a desk
- *     clock / iPhone StandBy on a stand.
- *  2. It reliably gives the phone back (removes the overlay, revealing the
- *     normal lock/home screen) the moment the user interacts:
- *       - tapping the screen anywhere,
- *       - pressing power / waking the screen,
- *       - or picking the phone up (detected with the accelerometer).
+ *  - tapping the screen anywhere,
+ *  - unlocking / waking the screen,
+ *  - or picking the phone up (detected with the accelerometer).
  *
- * It only shows again on the next charging session (or when re-enabled).
+ * Pressing the power button behaves exactly like a screen timeout: the
+ * screen goes dark and the clock shows again. The overlay window carries
+ * FLAG_KEEP_SCREEN_ON, so it relights the screen by itself; the one-shot
+ * full-screen-intent notification is only a fallback for OEM builds that
+ * ignore that.
  */
 class OverlayService : Service(), SensorEventListener {
 
@@ -63,6 +66,10 @@ class OverlayService : Service(), SensorEventListener {
         // If the OEM ignores the wake notification, do not leave it in the
         // shade forever.
         const val WAKE_TIMEOUT_MS = 20_000L
+        // How long the overlay window gets to relight the screen by itself
+        // (via FLAG_KEEP_SCREEN_ON) before the full-screen-intent
+        // notification is tried as a fallback.
+        const val RELIGHT_CHECK_MS = 3_000L
         // Period of the "is the clock supposed to be up right now?" re-check.
         const val WAKE_GUARD_PERIOD_MS = 60_000L
         const val WAKE_MAX_ATTEMPTS = 3
@@ -110,9 +117,6 @@ class OverlayService : Service(), SensorEventListener {
     private var controller: StandbyController? = null
     private var orientationListener: OrientationEventListener? = null
 
-    // Once the user takes/wakes the phone we stop showing until the next
-    // charge session starts, so we never nag over a phone that is in use.
-    private var suppressed = false
     private var shownOrientationType = -1
 
     // While true, a one-shot "wake" notification is in the shade (see
@@ -133,8 +137,11 @@ class OverlayService : Service(), SensorEventListener {
     // arrive, so re-check periodically.
     private val wakeGuard = object : Runnable {
         override fun run() {
+            // Note: no `overlayView == null` pre-check — the clock window can
+            // be attached while the screen is still dark (an OEM that ignores
+            // FLAG_KEEP_SCREEN_ON); in that state the clock is not visible
+            // and the wake notification is exactly what may relight it.
             if (Prefs.autoStandby(this@OverlayService) &&
-                overlayView == null &&
                 !screenOn &&
                 !wakeArmed
             ) {
@@ -146,6 +153,22 @@ class OverlayService : Service(), SensorEventListener {
             // feature on again.
             handler.postDelayed(this, WAKE_GUARD_PERIOD_MS)
         }
+    }
+
+    // The overlay window carries FLAG_KEEP_SCREEN_ON: on most devices a
+    // freshly attached overlay relights a screen that just went dark. Some
+    // OEM builds ignore that for a locked screen — for them the clock window
+    // can sit attached while the display stays dark, so after a short grace
+    // the full-screen-intent notification relights the screen instead.
+    private val relightCheck = Runnable {
+        if (!isScreenInteractive()) {
+            tryWakeForStandby()
+        }
+    }
+
+    private fun scheduleRelightCheck() {
+        handler.removeCallbacks(relightCheck)
+        handler.postDelayed(relightCheck, RELIGHT_CHECK_MS)
     }
 
     // Tracked so we only auto-show the clock when the phone is resting (locked
@@ -180,11 +203,7 @@ class OverlayService : Service(), SensorEventListener {
             when (intent.action) {
                 Intent.ACTION_POWER_DISCONNECTED -> stopSelf()
                 Intent.ACTION_POWER_CONNECTED -> {
-                    // A fresh charge session lifts the "user took the phone"
-                    // suppression (persisted, so it survives process death)
-                    // and resets the whole wake cycle.
-                    suppressed = false
-                    Prefs.setStandbySuppressed(this@OverlayService, false)
+                    // A fresh charge session resets the whole wake cycle.
                     wakeAttempts = 0
                     wakeArmed = false
                     cancelWake()
@@ -192,10 +211,12 @@ class OverlayService : Service(), SensorEventListener {
                     // service was quiet, the cache may be stale.
                     screenOn = isScreenInteractive()
                     evaluateAndSync()
-                    // Plugged in while the screen is off and the clock did
-                    // not show on its own -> wake it via notification.
-                    if (!isScreenInteractive() && overlayView == null) {
-                        tryWakeForStandby()
+                    // Plugged in with the screen dark: evaluateAndSync should
+                    // have shown the clock; if the screen is still dark
+                    // (an OEM that ignores FLAG_KEEP_SCREEN_ON) the
+                    // notification is the fallback.
+                    if (!isScreenInteractive()) {
+                        scheduleRelightCheck()
                     }
                 }
             }
@@ -216,26 +237,29 @@ class OverlayService : Service(), SensorEventListener {
                 Intent.ACTION_SCREEN_OFF -> {
                     screenOn = false
                     if (overlayView != null) {
-                        // The desk clock was showing (screen held on by us), so
-                        // the user pressed Power to leave it -> hand the phone
-                        // back and stay quiet for this charge session.
-                        // (Deliberately NO immediate wake here: the Power
-                        // button must be able to switch the clock off; the
-                        // next charge-session / screen transition may bring it
-                        // back per the user's rule.)
-                        exitStandby()
-                    } else {
-                        // Screen went to sleep from normal use. If we're still
-                        // charging, the phone is now resting -> become a clock.
-                        evaluateAndSync()
-                        // Locked via Power / on-screen lock button while
-                        // charging and the clock did not show on its own ->
-                        // wake the screen with a (then removed) notification.
-                        tryWakeForStandby()
+                        // The desk clock was showing and the user pressed
+                        // Power. The Power button behaves EXACTLY like a
+                        // screen timeout: "charging + screen off" means the
+                        // clock must be up. Detach and re-evaluate below —
+                        // the fresh overlay window relights the display via
+                        // FLAG_KEEP_SCREEN_ON.
+                        removeOverlay()
+                    }
+                    // Screen went dark (timeout or Power). If we're still
+                    // charging, the phone is resting -> become a clock.
+                    evaluateAndSync()
+                    // If the screen is still dark (the window has not
+                    // relit it yet, or the OEM ignores KEEP_SCREEN_ON),
+                    // the full-screen-intent notification is the fallback.
+                    if (!isScreenInteractive()) {
+                        scheduleRelightCheck()
                     }
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
+                    // The display is lit: any pending "is it still dark?"
+                    // check is moot now.
+                    handler.removeCallbacks(relightCheck)
                     // The screen responded — the previous wake cycle is over,
                     // reset the attempt budget for the next one.
                     wakeAttempts = 0
@@ -261,10 +285,6 @@ class OverlayService : Service(), SensorEventListener {
 
     override fun onCreate() {
         super.onCreate()
-        // Remembered across process death: a dismissed overlay must not come
-        // back on its own during the same charge session.
-        suppressed = Prefs.standbySuppressed(this)
-
         // Seed the screen state from the device, not from a guess: the service
         // is often started by a POWER_CONNECTED broadcast while the phone is
         // resting on a stand with the screen off.
@@ -322,21 +342,12 @@ class OverlayService : Service(), SensorEventListener {
         when (intent?.action) {
             ACTION_HIDE -> {
                 Prefs.setAutoStandby(this, false)
-                suppressed = true
-                Prefs.setStandbySuppressed(this, true)
                 cancelWake()
                 removeOverlay()
                 stopSelf()
                 return START_NOT_STICKY
             }
             else -> {
-                // Fresh start (app enabled / charging connected / boot) resets
-                // the "user took the phone" suppression; ACTION_REFRESH
-                // (preview opened/closed, in-app re-evaluation) must not.
-                if (intent?.action != ACTION_REFRESH) {
-                    suppressed = false
-                    Prefs.setStandbySuppressed(this, false)
-                }
                 // The service may be starting in the MIDDLE of a charging
                 // session (boot on the charger, app opened, receiver start)
                 // — so the decision below reads the CURRENT live battery and
@@ -344,8 +355,12 @@ class OverlayService : Service(), SensorEventListener {
                 // POWER_CONNECTED event.
                 screenOn = isScreenInteractive()
                 evaluateAndSync()
-                if (isCharging(this) && !isScreenInteractive() && overlayView == null) {
-                    tryWakeForStandby()
+                // Started with the screen dark: evaluateAndSync should have
+                // shown the clock; if the screen is still dark (an OEM that
+                // ignores FLAG_KEEP_SCREEN_ON) the notification is the
+                // fallback.
+                if (!isScreenInteractive()) {
+                    scheduleRelightCheck()
                 }
                 // A disabled feature must not keep (or revive) us: the system
                 // would otherwise restart a sticky service we just stopped.
@@ -448,15 +463,7 @@ class OverlayService : Service(), SensorEventListener {
             return
         }
 
-        // 7) "User took the phone" suppression for this charge session:
-        //    after a tap / Power-button exit the clock stays hidden until
-        //    the next plug-in. (The explicit wake path can still re-arm it.)
-        if (suppressed) {
-            removeOverlay()
-            return
-        }
-
-        // 8) The screen state is read LIVE (PowerManager.isInteractive) —
+        // 7) The screen state is read LIVE (PowerManager.isInteractive) —
         //    never from the possibly stale `screenOn` cache:
         //    - screen OFF            -> desk clock (the phone is resting).
         //    - screen ON but locked  -> desk clock over the keyguard.
@@ -490,7 +497,11 @@ class OverlayService : Service(), SensorEventListener {
     // notification shade.
 
     private fun tryWakeForStandby() {
-        if (overlayView != null) return     // clock is already on screen
+        // Deliberately NO `overlayView == null` early-return: the clock
+        // window can be attached while the screen is still dark (an OEM that
+        // ignores FLAG_KEEP_SCREEN_ON) — in that state the clock is not
+        // visible and the notification is exactly what may relight the
+        // screen.
         if (isScreenInteractive()) return   // live check: nothing to wake
         if (!Prefs.autoStandby(this)) return
         if (!isCharging(this)) return
@@ -498,13 +509,6 @@ class OverlayService : Service(), SensorEventListener {
         if (!Prefs.isStandbyTimeAllowed(this, java.util.Calendar.getInstance())) return
         if (!Settings.canDrawOverlays(this)) return
         if (wakeAttempts >= WAKE_MAX_ATTEMPTS) return // OEM ignored us before
-
-        // Re-arm: the user put the phone down (locked it) while charging —
-        // the "user took the phone" suppression must not keep the desk clock
-        // hidden (this wake path IS the "charging + off + no clock -> show"
-        // rule, so it deliberately lifts the suppression).
-        suppressed = false
-        Prefs.setStandbySuppressed(this, false)
 
         if (!postWakeNotification()) return // notifications denied: skip the
                                             // whole wake cycle, budget intact
@@ -650,11 +654,11 @@ class OverlayService : Service(), SensorEventListener {
         }
     }
 
-    /** User took/woke the phone: hide now and stay quiet this charge session. */
+    /** The user is using the phone (tap / unlock / pickup): hide the clock
+     *  now. The StandBy rule brings it back on the next screen-off/lock
+     *  transition while charging. */
     private fun exitStandby() {
         removeOverlay()
-        suppressed = true
-        Prefs.setStandbySuppressed(this, true)
     }
 
     // ---------- pick-up detection (accelerometer) ----------

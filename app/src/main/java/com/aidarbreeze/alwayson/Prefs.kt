@@ -61,7 +61,6 @@ object Prefs {
     private const val KEY_STANDBY_TO_HOUR = "standby_to_hour"
     // The user dismissed the auto overlay for this charge session; kept
     // across process death so a kill+reboot does not nag again.
-    private const val KEY_STANDBY_SUPPRESSED = "standby_suppressed"
     // OLED protection: dim the white content level (see dimMode).
     private const val KEY_DIM_MODE = "dim_mode"
     // Clock size: 0 small, 1 normal (default), 2 large.
@@ -343,11 +342,6 @@ object Prefs {
         return if (from < to) h in from until to else h >= from || h < to
     }
 
-    /** The user dismissed the auto overlay (persisted across process death). */
-    fun standbySuppressed(ctx: Context): Boolean =
-        sp(ctx).getBoolean(KEY_STANDBY_SUPPRESSED, false)
-    fun setStandbySuppressed(ctx: Context, v: Boolean) =
-        sp(ctx).edit().putBoolean(KEY_STANDBY_SUPPRESSED, v).apply()
 
     /**
      * OLED protection: the desk clock can sit on a stand for hours, so cap
