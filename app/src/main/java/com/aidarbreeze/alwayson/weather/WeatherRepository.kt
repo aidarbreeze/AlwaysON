@@ -37,8 +37,16 @@ object WeatherRepository {
     private const val FILE = "alwayson_weather_cache"
     private const val KEY_FULL = "full"
 
+    // Rate limiting: minimum interval between weather API calls (15 minutes)
+    private const val RATE_LIMIT_MS = 15L * 60L * 1000L
     // 30 min is fresh enough for a forecast and stops per-panel re-fetching.
     private const val TTL_MS = 30L * 60L * 1000L
+    
+    // Input validation: valid latitude/longitude ranges
+    private const val MIN_LAT = -90.0
+    private const val MAX_LAT = 90.0
+    private const val MIN_LON = -180.0
+    private const val MAX_LON = 180.0
 
     private val main = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor { r ->
@@ -49,9 +57,15 @@ object WeatherRepository {
     private var lastGood: WeatherInfo? = null
     private var lastGoodKey: String? = null
     private var lastGoodTs: Long = 0L
+    private var lastFetchTime: Long = 0L  // For rate limiting
     private var diskLoaded = false
 
     private fun keyOf(lat: Double, lon: Double): String = "$lat|$lon"
+    
+    /** Validate that coordinates are within valid ranges */
+    private fun isValidCoordinates(lat: Double, lon: Double): Boolean {
+        return lat in MIN_LAT..MAX_LAT && lon in MIN_LON..MAX_LON
+    }
 
     /**
      * Make sure we have a forecast for (lat,lon) and deliver the best
@@ -78,6 +92,13 @@ object WeatherRepository {
             deliver(Result(cur, fresh = false, stale = cur != null, offline = false), onResult)
             return
         }
+        
+        // Security: Validate coordinates are within valid ranges
+        if (!isValidCoordinates(lat, lon)) {
+            val cur = synchronized(lock) { lastGood }
+            deliver(Result(cur, fresh = false, stale = cur != null, offline = false), onResult)
+            return
+        }
 
         val key = keyOf(lat, lon)
         ensureLoaded(c)
@@ -90,15 +111,21 @@ object WeatherRepository {
             return
         }
 
+        // Rate limiting: check if enough time has passed since last fetch
+        val now = System.currentTimeMillis()
         val shouldFetch = synchronized(lock) {
-            if (inFlightKey == key) false
-            else {
+            if (inFlightKey == key) {
+                false
+            } else if (now - lastFetchTime < RATE_LIMIT_MS && !force) {
+                // Rate limit enforced - not enough time since last fetch
+                false
+            } else {
                 inFlightKey = key
                 true
             }
         }
         if (!shouldFetch) {
-            // An identical fetch is already running; deliver what we have now.
+            // An identical fetch is already running OR rate limit active; deliver what we have now.
             val cur = synchronized(lock) { if (lastGoodKey == key) lastGood else null }
             deliver(Result(cur, fresh = false, stale = cur != null, offline = !isOnline(c)), onResult)
             return
@@ -112,6 +139,7 @@ object WeatherRepository {
                     lastGood = data
                     lastGoodKey = key
                     lastGoodTs = System.currentTimeMillis()
+                    lastFetchTime = System.currentTimeMillis()
                 }
                 persistFull(c, data, lat, lon)
                 WeatherSharedCache.save(c, data) // snapshot for the widget

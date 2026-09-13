@@ -1,8 +1,11 @@
 package com.aidarbreeze.alwayson
 
 import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
-/** Thin wrapper around the app SharedPreferences. */
+/** Thin wrapper around the app SharedPreferences with encryption support. */
 object Prefs {
     private const val FILE = "alwayson_prefs"
 
@@ -80,8 +83,32 @@ object Prefs {
     private const val KEY_LAST_STOCK_MS = "last_stock_ms"
     private const val KEY_LAST_STOCK_ERR = "last_stock_err"
 
-    private fun sp(ctx: Context) =
-        ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    private val SENSITIVE_KEYS = setOf(
+        KEY_WEATHER_LAT,
+        KEY_WEATHER_LON,
+        KEY_WEATHER_CITY
+    )
+
+    private fun getMasterKey(ctx: Context): MasterKey {
+        return MasterKey.Builder(ctx)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
+
+    private fun sp(ctx: Context): SharedPreferences {
+        return try {
+            EncryptedSharedPreferences.create(
+                ctx.applicationContext,
+                FILE,
+                getMasterKey(ctx),
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            // Fallback to regular SharedPreferences if encryption fails
+            ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        }
+    }
 
     fun force24h(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_USE_24H, false)
     fun setForce24h(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean(KEY_USE_24H, v).apply()

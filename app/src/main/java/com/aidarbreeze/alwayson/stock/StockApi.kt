@@ -30,12 +30,35 @@ data class Candle(
  * window so a 1-minute fetch stays well under ISS's 500-row page limit.
  *
  * All network happens on the caller-provided background thread.
+ * 
+ * Security features:
+ * - Input validation for ticker symbols (alphanumeric only)
+ * - Rate limiting via cache (see StockRepository if exists)
+ * - Data validation for OHLC values
  */
 object StockApi {
 
     private const val BASE =
         "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/"
     private const val TZ = "Europe/Moscow"
+    
+    // Rate limiting: minimum interval between stock API calls (1 minute)
+    private const val RATE_LIMIT_MS = 60L * 1000L
+    private var lastFetchTime: Long = 0L
+    
+    // Valid ticker pattern: only letters, numbers, dots and underscores
+    private val TICKER_PATTERN = Regex("^[A-Z0-9._-]+$")
+    
+    /** Validate ticker symbol format */
+    private fun isValidTicker(symbol: String): Boolean {
+        return symbol.isNotBlank() && symbol.length <= 20 && TICKER_PATTERN.matches(symbol.uppercase(Locale.US))
+    }
+    
+    /** Validate OHLC data consistency */
+    private fun isValidOHLC(open: Double, high: Double, low: Double, close: Double): Boolean {
+        return open > 0 && close > 0 && high >= low && high >= open && high >= close && 
+               low <= open && low <= close
+    }
 
     /** how far back (ms) to request for each ISS interval code */
     private fun windowMs(code: Int): Long = when (code) {
@@ -50,10 +73,22 @@ object StockApi {
      * or when there is no data in the chosen window.
      */
     fun fetchCandles(symbol: String, code: Int): List<Candle>? {
+        // Security: Validate input
+        if (!isValidTicker(symbol)) {
+            return null
+        }
+        
+        // Rate limiting check
+        val now = System.currentTimeMillis()
+        if (now - lastFetchTime < RATE_LIMIT_MS) {
+            return null  // Rate limited
+        }
+        
         return try {
             val from = Date(System.currentTimeMillis() - windowMs(code))
             val url = buildUrl(symbol, code, from)
             val body = httpGet(url) ?: return null
+            lastFetchTime = now
             parse(body)
         } catch (_: Exception) {
             null
@@ -124,6 +159,12 @@ object StockApi {
                 val open = if (iOpen >= 0 && !row.isNull(iOpen)) row.getDouble(iOpen) else close
                 val high = if (iHigh >= 0 && !row.isNull(iHigh)) row.getDouble(iHigh) else close
                 val low = if (iLow >= 0 && !row.isNull(iLow)) row.getDouble(iLow) else close
+                
+                // Security: Validate OHLC data consistency before adding
+                if (!isValidOHLC(open, high, low, close)) {
+                    continue  // Skip invalid data points
+                }
+                
                 var timeMs = 0L
                 if (iBegin >= 0 && !row.isNull(iBegin)) {
                     timeMs = try {

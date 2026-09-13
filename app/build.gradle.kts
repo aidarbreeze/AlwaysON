@@ -17,11 +17,16 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 
@@ -36,6 +41,9 @@ android {
 }
 
 dependencies {
+    // AndroidX Security library for EncryptedSharedPreferences
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    
     // The app intentionally uses only the Android framework (no external
     // AndroidX / Material dependencies) so the project builds straight out of
     // the box in Android Studio without version-matching issues.

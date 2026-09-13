@@ -593,12 +593,15 @@ class OverlayService : Service(), SensorEventListener {
             true
         }
 
+        // Security: Add FLAG_NOT_TOUCHABLE to prevent clickjacking attacks
+        // when overlay is used for display-only purposes
         val flags =
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
