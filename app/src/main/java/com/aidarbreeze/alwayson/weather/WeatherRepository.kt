@@ -135,24 +135,34 @@ object WeatherRepository {
         }
 
         executor.execute {
-            val offline = !isOnline(c)
-            val data: WeatherInfo? = if (offline) null else WeatherApi.fetch(lat, lon, city)
-            val result = if (data != null) {
-                synchronized(lock) {
-                    lastGood = data
-                    lastGoodKey = key
-                    lastGoodTs = System.currentTimeMillis()
-                    lastFetchByKey[key] = System.currentTimeMillis()
+            try {
+                val offline = !isOnline(c)
+                val data: WeatherInfo? = if (offline) null else WeatherApi.fetch(lat, lon, city)
+                val result = if (data != null) {
+                    synchronized(lock) {
+                        lastGood = data
+                        lastGoodKey = key
+                        lastGoodTs = System.currentTimeMillis()
+                        lastFetchByKey[key] = System.currentTimeMillis()
+                    }
+                    persistFull(c, data, lat, lon)
+                    WeatherSharedCache.save(c, data) // snapshot for the widget
+                    Result(data, fresh = true, stale = false, offline = false)
+                } else {
+                    val cur = synchronized(lock) { if (lastGoodKey == key) lastGood else null }
+                    Result(cur, fresh = false, stale = cur != null, offline = offline)
                 }
-                persistFull(c, data, lat, lon)
-                WeatherSharedCache.save(c, data) // snapshot for the widget
-                Result(data, fresh = true, stale = false, offline = false)
-            } else {
+                main.post { onResult(result) }
+            } catch (_: Throwable) {
+                // Never let one bad fetch wedge the single worker: hand back
+                // the last-known forecast for this location (if any).
                 val cur = synchronized(lock) { if (lastGoodKey == key) lastGood else null }
-                Result(cur, fresh = false, stale = cur != null, offline = offline)
+                main.post { onResult(Result(cur, fresh = false, stale = cur != null, offline = true)) }
+            } finally {
+                // Released even on failure, or every later fetch for this
+                // location would take the "already in flight" path forever.
+                synchronized(lock) { inFlightKey = null }
             }
-            synchronized(lock) { inFlightKey = null }
-            main.post { onResult(result) }
         }
     }
 

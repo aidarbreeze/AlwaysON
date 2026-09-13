@@ -62,7 +62,8 @@ object NowPlayingCache {
                     true
                 )
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
+            // Even an OOM while scaling must not kill the caller thread.
             null
         }
         synchronized(memoLock) {

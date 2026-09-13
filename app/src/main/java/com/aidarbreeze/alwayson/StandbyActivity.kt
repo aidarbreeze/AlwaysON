@@ -78,6 +78,12 @@ class StandbyActivity : Activity() {
             window.attributes.layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
-        window.attributes = window.attributes
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Re-hide after any focus loss (system dialogs, shade). Sticky
+        // immersive normally restores itself; this is belt & braces.
+        if (hasFocus) hideSystemUi()
     }
 }

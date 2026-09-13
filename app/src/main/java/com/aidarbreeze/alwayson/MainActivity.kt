@@ -829,6 +829,9 @@ class MainActivity : Activity() {
         Thread {
             val res = StockApi.fetch(symbol, code)
             previewHandler.post {
+                // The fetch may finish after the screen is gone: drop it
+                // instead of touching a dead activity's views.
+                if (isFinishing || isDestroyed) return@post
                 if (miniStockAttempt[key] != attempt) return@post
                 val p = miniSeq.getOrNull(miniStep)
                 val data = res.candles
@@ -900,6 +903,13 @@ class MainActivity : Activity() {
     ) {
         prev.setOnClickListener { cycleCarousel(entries, get, set, -1) }
         next.setOnClickListener { cycleCarousel(entries, get, set, +1) }
+        if (entries.isNotEmpty()) {
+            // Self-heal a persisted value that no longer fits the carousel
+            // (e.g. a downgrade shrank the array): clamp it once instead of
+            // showing a label that does not match the applied style.
+            val cur = get()
+            if (cur !in entries.indices) set(cur.coerceIn(0, entries.size - 1))
+        }
         updateCarouselLabel(label, entries, get())
     }
 
@@ -1193,6 +1203,9 @@ class MainActivity : Activity() {
         Thread {
             val place = WeatherApi.geocode(q)
             runOnUiThread {
+                // The fetch outlives the screen when the user leaves fast:
+                // never touch the views of a dead activity.
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 if (place == null) {
                     weatherStatus.text = getString(R.string.weather_city_not_found)
                     return@runOnUiThread
