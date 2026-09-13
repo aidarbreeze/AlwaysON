@@ -1,28 +1,39 @@
 ```
-# Android build artifacts
-*.apk
-*.aar
+# Compiled and build artifacts
+*.class
 *.dex
 *.so
+*.aar
+*.apk
 *.jar
-*.class
+obj/
+bin/
+gen/
+out/
 
-# Android build directories
-build/
+# Dependencies
 .gradle/
-captures/
+build/
 .externalNativeBuild/
+cxx/
 
-# IDE files
-.idea/
-*.iml
-*.ipr
-*.iws
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
 .vscode/
+.idea/
+*.swp
+*.swo
 
-# Log files
+# Logs and temp files
 *.log
+*.tmp
+*.temp
 
-# Local configuration
-local.properties
+# OS generated files
+.DS_Store
+Thumbs.db
 ```

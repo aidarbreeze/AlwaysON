@@ -212,17 +212,21 @@ class MainActivity : Activity() {
                 it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             }
         val style = Prefs.clockStyle(this).coerceIn(0, styleEntries.size - 1)
-        clockStyleSpinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
-                ) {
-                    Prefs.setClockStyle(this@MainActivity, position)
-                    updateOutlineThicknessRow()
-                    updatePreview()
-                }
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
+        // Suppress listener during initial setSelection to avoid unnecessary preview refresh.
+        var clockStyleListener: AdapterView.OnItemSelectedListener? = null
+        clockStyleListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?, view: View?, position: Int, id: Long
+            ) {
+                // Ignore events fired during initial setup (before listener is assigned).
+                if (clockStyleSpinner.onItemSelectedListener !== clockStyleListener) return
+                Prefs.setClockStyle(this@MainActivity, position)
+                updateOutlineThicknessRow()
+                updatePreview()
             }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        clockStyleSpinner.onItemSelectedListener = clockStyleListener
         clockStyleSpinner.setSelection(style)
 
         // Calendar style dropdown; the array index equals the style code and
@@ -237,16 +241,18 @@ class MainActivity : Activity() {
                 it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             }
         val calStyle = Prefs.calendarStyle(this).coerceIn(0, calEntries.size - 1)
-        calendarStyleSpinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
-                ) {
-                    Prefs.setCalendarStyle(this@MainActivity, position)
-                    miniMonth.invalidate()
-                }
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
+        var calListener: AdapterView.OnItemSelectedListener? = null
+        calListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?, view: View?, position: Int, id: Long
+            ) {
+                if (calendarStyleSpinner.onItemSelectedListener !== calListener) return
+                Prefs.setCalendarStyle(this@MainActivity, position)
+                miniMonth.invalidate()
             }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        calendarStyleSpinner.onItemSelectedListener = calListener
         calendarStyleSpinner.setSelection(calStyle)
 
         val thickness = Prefs.clockThickness(this)
@@ -397,16 +403,18 @@ class MainActivity : Activity() {
                 it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             }
         val weatherStyle = Prefs.weatherStyle(this).coerceIn(0, weatherEntries.size - 1)
-        weatherStyleSpinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
-                ) {
-                    Prefs.setWeatherStyle(this@MainActivity, position)
-                    startMiniPreview()
-                }
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
+        var weatherListener: AdapterView.OnItemSelectedListener? = null
+        weatherListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?, view: View?, position: Int, id: Long
+            ) {
+                if (weatherStyleSpinner.onItemSelectedListener !== weatherListener) return
+                Prefs.setWeatherStyle(this@MainActivity, position)
+                startMiniPreview()
             }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        weatherStyleSpinner.onItemSelectedListener = weatherListener
         weatherStyleSpinner.setSelection(weatherStyle)
 
         weatherGeobtn.setOnClickListener { requestLocation() }
@@ -436,22 +444,26 @@ class MainActivity : Activity() {
                 hourEntries
             ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
         }
+        var fromListener: AdapterView.OnItemSelectedListener? = null
+        var toListener: AdapterView.OnItemSelectedListener? = null
+        fromListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                if (schedFromSpinner.onItemSelectedListener !== fromListener) return
+                Prefs.setStandbyFromHour(this@MainActivity, pos)
+            }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
+        toListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                if (schedToSpinner.onItemSelectedListener !== toListener) return
+                Prefs.setStandbyToHour(this@MainActivity, pos)
+            }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
+        schedFromSpinner.onItemSelectedListener = fromListener
+        schedToSpinner.onItemSelectedListener = toListener
         schedFromSpinner.setSelection(Prefs.standbyFromHour(this))
         schedToSpinner.setSelection(Prefs.standbyToHour(this))
-        schedFromSpinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                    Prefs.setStandbyFromHour(this@MainActivity, pos)
-                }
-                override fun onNothingSelected(p: AdapterView<*>?) {}
-            }
-        schedToSpinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                    Prefs.setStandbyToHour(this@MainActivity, pos)
-                }
-                override fun onNothingSelected(p: AdapterView<*>?) {}
-            }
         schedGroup.setOnCheckedChangeListener { _, checkedId ->
             val custom = checkedId == R.id.schedByTime
             Prefs.setStandbySchedule(this, if (custom) 1 else 0)
@@ -640,7 +652,8 @@ class MainActivity : Activity() {
             secs -> "h:mm:ss"
             else -> "h:mm"
         }
-        previewClock.setTime(SimpleDateFormat(pattern, Locale.getDefault()).format(millis))
+        val timeStr = SimpleDateFormat(pattern, Locale.getDefault()).format(millis)
+        previewClock.setTime(timeStr)
         previewClock.refresh()
 
         val locale = Locale.getDefault()
@@ -652,16 +665,23 @@ class MainActivity : Activity() {
             else -> if (ru) "EEEE, d MMMM" else "EEEE, MMMM d"
         }
         val line = SimpleDateFormat(dp, locale).format(millis)
-        previewDate.text =
+        val dateText =
             if (mode == 0) line.replaceFirstChar { it.titlecase(locale) } else line
+        
+        // Only update date text if it actually changed to avoid unnecessary redraws.
+        if (previewDate.text != dateText) {
+            previewDate.text = dateText
+        }
 
         // Reflect the chosen clock brightness (and the OLED dim cap) on the
         // preview content only (the pure-black background is unaffected and
-        // stays readable).
+        // stays readable). Only touch alpha if the value changed.
         val dim = if (Prefs.dimMode(this)) 0.85f else 1f
-        val alpha = (Prefs.brightness(this) / 100f).coerceIn(0.22f, 1f) * dim
-        previewClock.alpha = alpha
-        previewDate.alpha = alpha
+        val targetAlpha = (Prefs.brightness(this) / 100f).coerceIn(0.22f, 1f) * dim
+        if (previewClock.alpha != targetAlpha) {
+            previewClock.alpha = targetAlpha
+            previewDate.alpha = targetAlpha
+        }
     }
 
     /** Show the outline-thickness slider only while the outline style is picked. */
@@ -778,10 +798,12 @@ class MainActivity : Activity() {
                 } else {
                     miniWeather.setStatus("Погода: загрузка…")
                 }
-                // The shared repository dedupes in-flight fetches and applies a
-                // TTL, so this is a no-op (no network) while the forecast is
-                // fresh — panel switches never re-fetch.
-                fetchMiniWeather()
+                // Only fetch weather when cache is empty or stale. The repository
+                // already dedupes in-flight requests and applies TTL, but we avoid
+                // even calling it on every panel switch to reduce overhead.
+                if (miniWeatherCached == null) {
+                    fetchMiniWeather()
+                }
             }
         }
     }
