@@ -108,6 +108,11 @@ class ClockView @JvmOverloads constructor(
     // Solar face: scratch rect for the sun-path arc (no per-frame alloc).
     private val arcRect = android.graphics.RectF()
 
+    // Set by onMeasure: <1 when the width-fitted content is taller than the
+    // measured box (tight landscape column / short screens) — onDraw then
+    // scales the whole face down so nothing clips instead.
+    private var contentScale = 1f
+
     // Neon style: the 16-layer bloom is rendered once into a bitmap and only
     // re-rendered when the text or the size changes (otherwise every frame
     // would overdraw the huge glyphs 16 times).
@@ -356,6 +361,11 @@ class ClockView @JvmOverloads constructor(
             MeasureSpec.AT_MOST -> minOf(height.toInt(), heightSize)
             else -> height.toInt()
         }
+        contentScale = if (height > finalHeight && height > 0f) {
+            (finalHeight / height).coerceIn(0.2f, 1f)
+        } else {
+            1f
+        }
         setMeasuredDimension(measuredWidth, finalHeight)
     }
 
@@ -380,6 +390,15 @@ class ClockView @JvmOverloads constructor(
             neonBmp = null
             neonKey = ""
         }
+        // Height-driven faces (grids, chips, analog) size themselves from
+        // the measured box and always fit; the width-fitted faces scale down
+        // when the box came back shorter than the fitted content.
+        val heightDriven = s == 2 || s == 4 || s == 6 || s == 9 || s == 16
+        val sc = if (heightDriven) 1f else contentScale
+        if (sc < 1f) {
+            canvas.save()
+            canvas.scale(sc, sc, w / 2f, h / 2f)
+        }
         when (s) {
             1 -> drawOutline(canvas, w, h)
             2 -> drawDotGrid(canvas, w, h, square = false)
@@ -403,6 +422,7 @@ class ClockView @JvmOverloads constructor(
             20 -> drawMinimalMono(canvas, w, h)
             else -> drawNormal(canvas, w, h)
         }
+        if (sc < 1f) canvas.restore()
     }
 
     // ---------- style 0: plain text ----------

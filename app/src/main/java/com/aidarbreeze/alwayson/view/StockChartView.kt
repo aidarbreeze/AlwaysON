@@ -275,6 +275,7 @@ class StockChartView @JvmOverloads constructor(
         val plotR = w - padR
         val plotW = plotR - plotL
         val plotH = plotB - plotT
+        if (plotW < dpf(40f) || plotH < dpf(24f)) return // too small for a chart
 
         // ---- vertical range: fit the visible DATA only ----
         val dMin = candles.minOfOrNull { it.low } ?: 0.0
