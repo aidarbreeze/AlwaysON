@@ -30,6 +30,8 @@
     <string name="brightness_label">Clock brightness</string>
 
     <string name="clock_style_title">Clock style</string>
+    <string name="night_mode_title">Night Mode</string>
+    <string name="night_mode_summary">Red tint of the standby screen in the dark, like iPhone</string>
     <string name="preview_gesture_hint">Swipe the clock to change its style • swipe the panel for its style • tap the panel for the next window</string>
     <string name="carousel_prev">Previous style</string>
     <string name="carousel_next">Next style</string>
@@ -51,6 +53,23 @@
         <item>Monospaced</item>
         <item>Soft Rounded</item>
         <item>Premium AMOLED</item>
+        <item>Stacked (iPhone)</item>
+        <item>Analog (iPhone)</item>
+        <item>Float (iPhone)</item>
+        <item>Solar (iPhone)</item>
+        <item>World map (iPhone)</item>
+        <item>Minimal mono</item>
+    </string-array>
+    <string name="clock_color_title">Clock color</string>
+    <string-array name="clock_color_entries">
+        <item>White</item>
+        <item>Blue</item>
+        <item>Sky</item>
+        <item>Green</item>
+        <item>Amber</item>
+        <item>Orange</item>
+        <item>Red</item>
+        <item>Purple</item>
     </string-array>
     <string name="style_normal">Normal</string>
     <string name="style_outline">Outline (hollow digits)</string>
@@ -80,6 +99,7 @@
         <item>Compact</item>
         <item>Large Numbers</item>
         <item>Premium Card</item>
+        <item>iPhone style</item>
     </string-array>
 
     <!-- Stocks / calendar alternation -->

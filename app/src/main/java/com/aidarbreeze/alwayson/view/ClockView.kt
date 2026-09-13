@@ -7,8 +7,20 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.AttributeSet
+import android.os.SystemClock
 import android.view.View
 import com.aidarbreeze.alwayson.Prefs
+import com.aidarbreeze.alwayson.weather.WeatherRepository
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
 
 /**
  * Big clock face that can render the time in several visual styles:
@@ -34,6 +46,18 @@ import com.aidarbreeze.alwayson.Prefs
  *                light-weight digits in near-white (#F5F7FA), even tracking,
  *                the seconds as a small dimmed suffix (#8B93A1), no shadow
  *                and no glow.
+ *  15 - STACKED: iPhone StandBy Digital — hours over minutes, extra-bold,
+ *                no colon.
+ *  16 - ANALOG : iPhone StandBy analog — squircle tick dial, 12/3/6/9
+ *                numerals, white hands, thin orange second hand.
+ *  17 - FLOAT  : iPhone StandBy Float — giant bubble digits in the accent
+ *                color with a "pop" animation on every minute change.
+ *  18 - SOLAR  : iPhone StandBy Solar — big time over the sun-path arc with
+ *                real sunrise/sunset (from the weather cache when present).
+ *  19 - WORLD  : iPhone StandBy World — dotted world map (with a "you are
+ *                here" dot when the location is known), local time + UTC.
+ *  20 - MONO   : iPhone Minimal Mono — small calm letterspaced monospaced
+ *                digits.
  *
  * The view is sized to fill its column horizontally and picks the biggest
  * legible digit size that still fits, then centres the time. Font-based
@@ -63,6 +87,27 @@ class ClockView @JvmOverloads constructor(
         color = 0x26FFFFFF
     }
 
+    // Reused stroke/fill paints for the iPhone faces (analog ticks/hands,
+    // solar arc, world dots) so their onDraw stays allocation-free too.
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+
+    // Float face: minute-change "pop" animation state.
+    private var floatLastMinute = ""
+    private var floatAnimStart = 0L
+
+    // Solar face: cached sunrise/sunset (ms), refreshed at most every 10 min.
+    private var sunCache: Pair<Long, Long>? = null
+    private var sunCacheTs = 0L
+
+    // Solar face: scratch rect for the sun-path arc (no per-frame alloc).
+    private val arcRect = android.graphics.RectF()
+
     // Neon style: the 16-layer bloom is rendered once into a bitmap and only
     // re-rendered when the text or the size changes (otherwise every frame
     // would overdraw the huge glyphs 16 times).
@@ -87,10 +132,52 @@ class ClockView @JvmOverloads constructor(
         private val tfSerif: Typeface by lazy {
             Typeface.create("serif", Typeface.NORMAL)
         }
+        private val tfBlack: Typeface by lazy {
+            Typeface.create("sans-serif-black", Typeface.NORMAL)
+        }
+
+        // Dotted world map for style 19 (60 x 30, '#' = land). Coarse on
+        // purpose: at dot size it reads as continents, not pixels.
+        private val WORLD_MAP = arrayOf(
+            "........##.............##................###................",
+            ".......#####..........####.............###..................",
+            "......##############.#######.......########################.",
+            "....#################...####...#############################",
+            "..#####################..##...##############################",
+            ".......#################.....###############################",
+            ".........##############......##############################.",
+            ".........##############......###########################....",
+            ".........#############.......##########################.....",
+            "..........###########......###########################......",
+            "...........#####...##......##################.#####.........",
+            "............####............#################.###...........",
+            ".............###.............######.###....##.###...........",
+            "..............###.............#######..........##...........",
+            ".................#####........######..........##.####.......",
+            ".................######.......######...........##.###.......",
+            ".................######.......######........................",
+            "..................#####.......#####..#............####......",
+            "..................####.........###...##..........######.....",
+            "..................###...........###..............######.....",
+            "..................###............##..............#####......",
+            "..................##..............................###.....#.",
+            "..................##.....................................##.",
+            "..................#.........................................",
+            "............................................................",
+            "............................................................",
+            "............................................................",
+            "............................................................",
+            "............................................................",
+            "............................................................",
+        )
     }
 
     fun setTime(text: String) {
-        if (text == timeText) return
+        // The analog/solar faces show live seconds (hands, sun drift) even
+        // when the text itself hides them, so they redraw on every tick —
+        // the 1-second ticker calls setTime() regardless.
+        val live = style() == 16 || style() == 18
+        if (text == timeText && !live) return
         // "9:59" -> "10:00" changes the fitted size and needs a re-measure;
         // same-length ticks ("10:00" -> "10:01") only need a redraw. Calling
         // requestLayout() every second would re-layout the whole settings
@@ -116,6 +203,34 @@ class ClockView @JvmOverloads constructor(
         invalidate()
     }
 
+    /** The user-chosen clock accent color (white by default). */
+    private fun ink(): Int = Prefs.clockColorValue(context)
+
+    /** Current wall-clock time as (hour24, minute, second). Used by the
+     *  analog/solar faces so they never depend on the text format. */
+    private fun wallTime(): Triple<Int, Int, Int> {
+        val c = Calendar.getInstance()
+        return Triple(
+            c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE),
+            c.get(Calendar.SECOND)
+        )
+    }
+
+    /** Splits "H:mm[:ss]" into (hour, minute, secondsOrEmpty). Falls back to
+     *  the wall clock when the text does not parse (never crash on draw). */
+    private fun textParts(): Triple<String, String, String> {
+        val p = timeText.split(":")
+        if (p.size >= 2 && p[0].isNotEmpty() && p[1].isNotEmpty()) {
+            val sec = if (p.size >= 3) p[2].filter { it.isDigit() } else ""
+            return Triple(p[0], p[1], sec)
+        }
+        val (h, m) = wallTime()
+        val use24 = Prefs.force24h(context) ||
+            android.text.format.DateFormat.is24HourFormat(context)
+        val hh = if (use24) h else if (h % 12 == 0) 12 else h % 12
+        return Triple(hh.toString(), "%02d".format(m), "")
+    }
+
     private fun style(): Int = Prefs.clockStyle(context)
 
     private fun thicknessPx(): Float {
@@ -130,7 +245,8 @@ class ClockView @JvmOverloads constructor(
         7 -> tfSerif
         8 -> tfBoldItalic
         10, 13, 14 -> tfSans
-        12 -> Typeface.MONOSPACE
+        12, 20 -> Typeface.MONOSPACE
+        15, 17 -> tfBlack
         else -> tfBold
     }
 
@@ -211,13 +327,26 @@ class ClockView @JvmOverloads constructor(
         // small suffix), so measure the height from that size, not the
         // single-size fit, or the rendered clock could be taller than the
         // measured box.
-        val textSize = if (style() == 14) fitPremiumSize(availW - pad * 2f, capPx)
-        else fitTextSize(availW - pad * 2f, capPx)
+        val st = style()
+        val textSize = when (st) {
+            14 -> fitPremiumSize(availW - pad * 2f, capPx)
+            15 -> fitStackedSize(availW - pad * 2f, capPx)
+            16 -> 0f // analog is measured geometrically (a square dial)
+            17 -> fitTextSize(availW - pad * 2f, capPx, tfBlack)
+            18, 19 -> fitTextSize(availW - pad * 2f, capPx, tfBold)
+            20 -> fitTextSize(availW - pad * 2f, capPx, Typeface.MONOSPACE) * 0.66f
+            else -> fitTextSize(availW - pad * 2f, capPx)
+        }
 
         // Grid-glyph styles (dots, seven-seg LED, square matrix) are sized by
-        // the view height directly; the font-drawn styles need font metrics.
-        val height = when (style()) {
+        // the view height directly; the font-drawn styles need font metrics;
+        // the iPhone faces stack extra rows (arc/map/UTC) under the time.
+        val height = when (st) {
             2, 4, 9 -> textSize
+            15 -> stackedHeight(textSize)
+            16 -> min(availW, capPx * 2.2f).coerceAtLeast(dp(120f))
+            18 -> textHeight(textSize) + availW * 0.30f + textSize * 0.62f + dp(8f)
+            19 -> availW * 0.5f + textHeight(textSize) + textSize * 0.60f + dp(8f)
             else -> textHeight(textSize) + dp(6f)
         }
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
@@ -266,6 +395,12 @@ class ClockView @JvmOverloads constructor(
             12 -> drawPlain(canvas, w, h, Typeface.MONOSPACE)
             13 -> drawSoftRounded(canvas, w, h)
             14 -> drawPremium(canvas, w, h)
+            15 -> drawStacked(canvas, w, h)
+            16 -> drawAnalog(canvas, w, h)
+            17 -> drawFloat(canvas, w, h)
+            18 -> drawSolar(canvas, w, h)
+            19 -> drawWorld(canvas, w, h)
+            20 -> drawMinimalMono(canvas, w, h)
             else -> drawNormal(canvas, w, h)
         }
     }
@@ -279,7 +414,7 @@ class ClockView @JvmOverloads constructor(
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tf
-        paint.color = Color.WHITE
+        paint.color = ink()
         paint.style = Paint.Style.FILL
         drawCenteredText(canvas, timeText, w, h, paint)
     }
@@ -292,7 +427,7 @@ class ClockView @JvmOverloads constructor(
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tfBold
-        paint.color = Color.WHITE
+        paint.color = ink()
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = thicknessPx()
         paint.strokeJoin = Paint.Join.ROUND
@@ -309,7 +444,7 @@ class ClockView @JvmOverloads constructor(
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tf
-        paint.color = Color.WHITE
+        paint.color = ink()
         paint.style = Paint.Style.FILL
         // draw the string centred on the view's middle x
         paint.textAlign = Paint.Align.CENTER
@@ -365,7 +500,7 @@ class ClockView @JvmOverloads constructor(
 
         paint.reset()
         paint.isAntiAlias = true
-        paint.color = Color.WHITE
+        paint.color = ink()
         paint.style = Paint.Style.FILL
 
         // draw centred, generous vertical space so dots sit within the view
@@ -469,7 +604,7 @@ class ClockView @JvmOverloads constructor(
 
         val seg = segPaint
         seg.style = Paint.Style.STROKE
-        seg.color = Color.WHITE
+        seg.color = ink()
 
         val xStart = (w - totalW(digitH)) / 2f
         var x = xStart
@@ -582,7 +717,10 @@ class ClockView @JvmOverloads constructor(
             val f = i / (layers - 1f) // 0 = outermost, 1 = core
             paint.textSize = core * (1.18f - 0.18f * f)
             val alpha = (8 + (255 - 8) * f * f).toInt().coerceIn(0, 255)
-            paint.color = Color.argb(alpha, 255, 255, 255)
+            val ic = ink()
+            paint.color = Color.argb(
+                alpha, Color.red(ic), Color.green(ic), Color.blue(ic)
+            )
             val fm = paint.fontMetrics
             val baseline = h / 2f - (fm.ascent + fm.descent) / 2f
             canvas.drawText(timeText, w / 2f, baseline, paint)
@@ -622,7 +760,7 @@ class ClockView @JvmOverloads constructor(
 
         var x = (w - total(size)) / 2f
         paint.textAlign = Paint.Align.CENTER
-        paint.color = Color.WHITE
+        paint.color = ink()
         for (ch in timeText) {
             val slot = slotW(size, ch)
             val cx = x + slot / 2f
@@ -650,7 +788,7 @@ class ClockView @JvmOverloads constructor(
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tf
-        paint.color = Color.WHITE
+        paint.color = ink()
         paint.style = Paint.Style.FILL
         drawCenteredText(canvas, timeText, w, h, paint)
     }
@@ -664,7 +802,7 @@ class ClockView @JvmOverloads constructor(
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tf
-        paint.color = Color.WHITE
+        paint.color = ink()
         paint.style = Paint.Style.FILL
         drawCenteredText(canvas, timeText, w, h, paint)
     }
@@ -680,7 +818,7 @@ class ClockView @JvmOverloads constructor(
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tf
-        paint.color = Color.WHITE
+        paint.color = ink()
         paint.style = Paint.Style.FILL
         drawCenteredText(canvas, timeText, w, h, paint)
     }
@@ -693,7 +831,7 @@ class ClockView @JvmOverloads constructor(
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tfSans
-        paint.color = Color.WHITE
+        paint.color = ink()
         // FILL_AND_STROKE with round joins/caps rounds the corners of the
         // glyphs into a soft, rounded look.
         paint.style = Paint.Style.FILL_AND_STROKE
@@ -718,7 +856,7 @@ class ClockView @JvmOverloads constructor(
         paint.typeface = tfSans
         paint.style = Paint.Style.FILL
         paint.textAlign = Paint.Align.LEFT
-        paint.color = 0xFFF5F7FA.toInt()
+        paint.color = ink()
 
         paint.textSize = size
         paint.letterSpacing = 0.025f
@@ -735,7 +873,7 @@ class ClockView @JvmOverloads constructor(
         val x = (w - total) / 2f
         paint.textSize = size
         paint.letterSpacing = 0.025f
-        paint.color = 0xFFF5F7FA.toInt()
+        paint.color = ink()
         val fm = paint.fontMetrics
         val baseline = h / 2f - (fm.ascent + fm.descent) / 2f
         canvas.drawText(main, x, baseline, paint)
@@ -746,6 +884,343 @@ class ClockView @JvmOverloads constructor(
             paint.color = 0xFF8B93A1.toInt()
             canvas.drawText(sec, x + bigW + gap, baseline, paint)
         }
+        paint.letterSpacing = 0f
+    }
+
+
+    // ---------- style 15: stacked iPhone digital (hours over minutes) ----------
+
+    /** Biggest line size for the STACKED face: each line holds 2 digits. */
+    private fun fitStackedSize(availW: Float, capPx: Float): Float {
+        paint.textSize = 1000f
+        paint.typeface = tfBlack
+        val w1000 = paint.measureText("88")
+        if (w1000 <= 0f) return capPx
+        return ((availW * 1000f / w1000) * 0.97f).coerceAtMost(capPx)
+    }
+
+    /** Measured height of the STACKED face for a fitted line size. */
+    private fun stackedHeight(size: Float): Float {
+        paint.textSize = size
+        paint.typeface = tfBlack
+        val fm = paint.fontMetrics
+        val line = fm.bottom - fm.top
+        val secs = if (textParts().third.isNotEmpty()) size * 0.34f else 0f
+        return line * 2f + size * 0.04f + secs + dp(4f)
+    }
+
+    private fun drawStacked(canvas: Canvas, w: Float, h: Float) {
+        val size = fitStackedSize(w, cap())
+        val (hh, mm, ss) = textParts()
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textSize = size
+        paint.typeface = tfBlack
+        paint.color = ink()
+        paint.style = Paint.Style.FILL
+        paint.textAlign = Paint.Align.CENTER
+        paint.letterSpacing = -0.02f
+        val fm = paint.fontMetrics
+        val line = fm.bottom - fm.top
+        val gap = size * 0.04f
+        val secsH = if (ss.isNotEmpty()) size * 0.34f else 0f
+        var baseline = (h - (line * 2f + gap + secsH)) / 2f - fm.top
+        canvas.drawText(hh, w / 2f, baseline, paint)
+        baseline += line + gap
+        canvas.drawText(mm, w / 2f, baseline, paint)
+        if (ss.isNotEmpty()) {
+            paint.textSize = size * 0.30f
+            paint.letterSpacing = 0.10f
+            paint.color = 0xFF8B93A1.toInt()
+            val secFm = paint.fontMetrics
+            baseline += fm.descent + size * 0.08f - secFm.ascent
+            canvas.drawText(ss, w / 2f, baseline, paint)
+        }
+        paint.letterSpacing = 0f
+    }
+
+    // ---------- style 16: analog iPhone dial ----------
+
+    /** [color] with its alpha scaled by [f] (for dim ticks/labels). */
+    private fun dimmed(color: Int, f: Float): Int {
+        val a = (Color.alpha(color) * f).toInt().coerceIn(0, 255)
+        return Color.argb(a, Color.red(color), Color.green(color), Color.blue(color))
+    }
+
+    /** Draws [text] centred horizontally at [x], vertically around [y]. */
+    private fun drawCenteredAt(canvas: Canvas, text: String, x: Float, y: Float, p: Paint) {
+        p.textAlign = Paint.Align.CENTER
+        val fm = p.fontMetrics
+        canvas.drawText(text, x, y - (fm.ascent + fm.descent) / 2f, p)
+    }
+
+    private fun drawHand(
+        canvas: Canvas, cx: Float, cy: Float, angle: Float,
+        len: Float, width: Float, color: Int
+    ) {
+        val p = strokePaint
+        p.strokeWidth = width.coerceAtLeast(1f)
+        p.color = color
+        val tail = len * 0.12f
+        canvas.drawLine(
+            cx - cos(angle) * tail, cy - sin(angle) * tail,
+            cx + cos(angle) * len, cy + sin(angle) * len, p
+        )
+    }
+
+    private fun drawAnalog(canvas: Canvas, w: Float, h: Float) {
+        val cx = w / 2f
+        val cy = h / 2f
+        val rout = min(w, h) / 2f * 0.96f
+        if (rout <= 2f) return
+        val (h24, m, s) = wallTime()
+        val main = ink()
+        // Minute ticks on a slightly squared circle (the StandBy dial reads
+        // as a squircle, not a perfect circle). k normalises the extent so
+        // the diagonal ticks exactly touch [rout].
+        val sq = 0.28f
+        val kmax = (1f - sq) + sq / 0.70710678f
+        val tick = strokePaint
+        for (i in 0 until 60) {
+            val a = (i / 60f * 2f * PI - PI / 2f).toFloat()
+            val dx = cos(a)
+            val dy = sin(a)
+            val hour = i % 5 == 0
+            val k = ((1f - sq) + sq / maxOf(abs(dx), abs(dy))) / kmax
+            val rO = rout * k
+            val len = if (hour) rout * 0.10f else rout * 0.05f
+            tick.strokeWidth = (if (hour) rout * 0.028f else rout * 0.014f)
+                .coerceAtLeast(1f)
+            tick.color = if (hour) main else dimmed(main, 0.45f)
+            canvas.drawLine(
+                cx + dx * (rO - len), cy + dy * (rO - len),
+                cx + dx * rO, cy + dy * rO, tick
+            )
+        }
+        // Quarter numerals only, like the iPhone widget.
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textSize = rout * 0.22f
+        paint.typeface = tfBold
+        paint.color = main
+        paint.style = Paint.Style.FILL
+        val nr = rout * 0.70f
+        drawCenteredAt(canvas, "12", cx, cy - nr, paint)
+        drawCenteredAt(canvas, "3", cx + nr, cy, paint)
+        drawCenteredAt(canvas, "6", cx, cy + nr, paint)
+        drawCenteredAt(canvas, "9", cx - nr, cy, paint)
+        // Hands: thick white hour/minute, thin iOS-orange second.
+        val minA = ((m + s / 60f) / 60f * 2f * PI - PI / 2f).toFloat()
+        val hrA = (((h24 % 12) + m / 60f) / 12f * 2f * PI - PI / 2f).toFloat()
+        val secA = (s / 60f * 2f * PI - PI / 2f).toFloat()
+        drawHand(canvas, cx, cy, minA, rout * 0.62f, rout * 0.055f, main)
+        drawHand(canvas, cx, cy, hrA, rout * 0.44f, rout * 0.075f, main)
+        drawHand(canvas, cx, cy, secA, rout * 0.70f, rout * 0.016f, 0xFFFF9F0A.toInt())
+        fillPaint.color = main
+        canvas.drawCircle(cx, cy, rout * 0.045f, fillPaint)
+        fillPaint.color = 0xFFFF9F0A.toInt()
+        canvas.drawCircle(cx, cy, rout * 0.020f, fillPaint)
+    }
+
+    // ---------- style 17: float iPhone bubble digits ----------
+
+    private fun drawFloat(canvas: Canvas, w: Float, h: Float) {
+        val size = fitTextSize(w - dp(4f), cap(), tfBlack)
+        // "Pop" scale on every minute change (350 ms ease-out).
+        val minute = textParts().second
+        val now = SystemClock.uptimeMillis()
+        if (minute != floatLastMinute) {
+            floatLastMinute = minute
+            floatAnimStart = now
+        }
+        var scale = 1f
+        val dt = now - floatAnimStart
+        if (floatAnimStart != 0L && dt < 350L) {
+            val k = dt / 350f
+            scale = 1f + 0.14f * (1f - k) * (1f - k)
+            postInvalidateDelayed(16)
+        }
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textSize = size
+        paint.typeface = tfBlack
+        paint.color = ink()
+        // A heavy round-join stroke over the fill inflates the glyphs into
+        // the soft bubble look.
+        paint.style = Paint.Style.FILL_AND_STROKE
+        paint.strokeWidth = (size * 0.14f).coerceIn(2f, dp(22f))
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.letterSpacing = -0.01f
+        canvas.save()
+        canvas.scale(scale, scale, w / 2f, h / 2f)
+        drawCenteredText(canvas, timeText, w, h, paint)
+        canvas.restore()
+        paint.letterSpacing = 0f
+    }
+
+    // ---------- style 18: solar iPhone (sun-path arc) ----------
+
+    /** Sunrise/sunset (ms) from the last-known forecast, refreshed at most
+     *  every 10 minutes (the repository itself is disk-cached). */
+    private fun sunTimes(): Pair<Long, Long>? {
+        val now = System.currentTimeMillis()
+        if (now - sunCacheTs < 10L * 60L * 1000L) return sunCache
+        sunCacheTs = now
+        sunCache = try {
+            WeatherRepository.sunTimes(context)
+        } catch (_: Exception) {
+            null
+        }
+        return sunCache
+    }
+
+    /** 06:00/18:00 of today, when no cached forecast has sun times yet. */
+    private fun fallbackSun(): Pair<Long, Long> {
+        val c = Calendar.getInstance()
+        c.set(Calendar.HOUR_OF_DAY, 6)
+        c.set(Calendar.MINUTE, 0)
+        c.set(Calendar.SECOND, 0)
+        c.set(Calendar.MILLISECOND, 0)
+        val rise = c.timeInMillis
+        c.set(Calendar.HOUR_OF_DAY, 18)
+        return rise to c.timeInMillis
+    }
+
+    private fun solarLabel(ms: Long): String {
+        val use24 = Prefs.force24h(context) ||
+            android.text.format.DateFormat.is24HourFormat(context)
+        return SimpleDateFormat(
+            if (use24) "HH:mm" else "h:mm", Locale.getDefault()
+        ).format(Date(ms))
+    }
+
+    private fun drawSolar(canvas: Canvas, w: Float, h: Float) {
+        val size = fitTextSize(w - dp(4f), cap(), tfBold)
+        val main = ink()
+        // Big time on top.
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textSize = size
+        paint.typeface = tfBold
+        paint.color = main
+        paint.style = Paint.Style.FILL
+        paint.textAlign = Paint.Align.CENTER
+        val fm = paint.fontMetrics
+        val timeBase = dp(2f) - fm.top
+        canvas.drawText(timeText, w / 2f, timeBase, paint)
+        // Sun-path arc: sunrise (left) to sunset (right) over a horizon.
+        val nowMs = System.currentTimeMillis()
+        val (riseMs, setMs) = sunTimes() ?: fallbackSun()
+        val arcTop = timeBase + fm.bottom + size * 0.10f
+        val arcH = w * 0.30f
+        val arcBase = arcTop + arcH
+        val arcL = w * 0.08f
+        val arcR = w - w * 0.08f
+        val arcW = arcR - arcL
+        val sp = strokePaint
+        sp.color = dimmed(main, 0.35f)
+        sp.strokeWidth = dp(1.5f).coerceAtLeast(1f)
+        canvas.drawLine(arcL - dp(8f), arcBase, arcR + dp(8f), arcBase, sp)
+        arcRect.set(arcL, arcBase - 2f * arcH, arcR, arcBase)
+        sp.color = dimmed(main, 0.55f)
+        sp.strokeWidth = dp(2.5f).coerceAtLeast(1f)
+        canvas.drawArc(arcRect, 180f, 180f, false, sp)
+        // The sun dot travels the arc by day and parks dimmed at night.
+        val span = (setMs - riseMs).coerceAtLeast(1L).toFloat()
+        val p = ((nowMs - riseMs).toFloat() / span).coerceIn(0f, 1f)
+        val day = nowMs in riseMs..setMs
+        val ang = (PI * (1.0 - p)).toFloat()
+        val sunX = (arcL + arcR) / 2f + cos(ang) * arcW / 2f
+        val sunY = arcBase - sin(ang) * arcH
+        fillPaint.color = if (day) 0xFFFBBF24.toInt() else dimmed(main, 0.4f)
+        canvas.drawCircle(sunX, sunY, dp(if (day) 7f else 5f), fillPaint)
+        // Sunrise/sunset labels under the horizon ends.
+        paint.textSize = size * 0.30f
+        paint.letterSpacing = 0.06f
+        paint.color = dimmed(main, 0.65f)
+        val labFm = paint.fontMetrics
+        val labBase = arcBase + size * 0.08f - labFm.ascent
+        paint.textAlign = Paint.Align.LEFT
+        canvas.drawText("\u2191 " + solarLabel(riseMs), arcL, labBase, paint)
+        paint.textAlign = Paint.Align.RIGHT
+        canvas.drawText("\u2193 " + solarLabel(setMs), arcR, labBase, paint)
+        paint.letterSpacing = 0f
+    }
+
+    // ---------- style 19: world iPhone (dotted map + UTC) ----------
+
+    private fun drawWorld(canvas: Canvas, w: Float, h: Float) {
+        val size = fitTextSize(w - dp(4f), cap(), tfBold)
+        val main = ink()
+        // Dotted continents, 2:1.
+        val cols = WORLD_MAP[0].length
+        val rows = WORLD_MAP.size
+        val mapH = w * 0.5f
+        val cell = w / cols
+        val dotR = (cell * 0.30f).coerceAtLeast(0.8f)
+        fillPaint.color = dimmed(main, 0.42f)
+        for (r in 0 until rows) {
+            val row = WORLD_MAP[r]
+            val cy = cell * (r + 0.5f)
+            for (c in 0 until cols) {
+                if (c < row.length && row[c] == '#') {
+                    canvas.drawCircle(cell * (c + 0.5f), cy, dotR, fillPaint)
+                }
+            }
+        }
+        // "You are here" dot from the weather location, when known.
+        try {
+            val loc = Prefs.weatherLocation(context)
+            if (loc != null) {
+                val px = ((loc.second + 180.0) / 360.0 * cols)
+                    .toFloat().coerceIn(0f, (cols - 1).toFloat())
+                val py = ((90.0 - loc.first) / 180.0 * rows)
+                    .toFloat().coerceIn(0f, (rows - 1).toFloat())
+                fillPaint.color = 0xFFFB923C.toInt()
+                canvas.drawCircle(
+                    cell * (px + 0.5f), cell * (py + 0.5f), dotR * 2.2f, fillPaint
+                )
+            }
+        } catch (_: Exception) {
+            // location is best-effort
+        }
+        // Local time + a small UTC clock under the map.
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textSize = size
+        paint.typeface = tfBold
+        paint.color = main
+        paint.style = Paint.Style.FILL
+        paint.textAlign = Paint.Align.CENTER
+        val fm = paint.fontMetrics
+        val tBase = mapH + size * 0.06f - fm.top
+        canvas.drawText(timeText, w / 2f, tBase, paint)
+        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        val utcStr = "UTC %02d:%02d".format(
+            utc.get(Calendar.HOUR_OF_DAY), utc.get(Calendar.MINUTE)
+        )
+        paint.textSize = size * 0.30f
+        paint.letterSpacing = 0.10f
+        paint.color = dimmed(main, 0.65f)
+        val ufm = paint.fontMetrics
+        val uBase = tBase + fm.bottom + size * 0.10f - ufm.ascent
+        canvas.drawText(utcStr, w / 2f, uBase, paint)
+        paint.letterSpacing = 0f
+    }
+
+    // ---------- style 20: minimal mono (small, calm, letterspaced) ----------
+
+    private fun drawMinimalMono(canvas: Canvas, w: Float, h: Float) {
+        val size = fitTextSize(w - dp(4f), cap(), Typeface.MONOSPACE) * 0.66f
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textSize = size
+        paint.typeface = Typeface.MONOSPACE
+        paint.color = dimmed(ink(), 0.88f)
+        paint.style = Paint.Style.FILL
+        paint.letterSpacing = 0.08f
+        drawCenteredText(canvas, timeText, w, h, paint)
         paint.letterSpacing = 0f
     }
 

@@ -50,11 +50,15 @@ class MainActivity : Activity() {
     private lateinit var permStatus: TextView
     private lateinit var btnGrantPerm: Button
     private lateinit var autoBrightSwitch: Switch
+    private lateinit var nightSwitch: Switch
     private lateinit var brightnessSeek: SeekBar
     private lateinit var brightnessValue: TextView
     private lateinit var clockPrev: Button
     private lateinit var clockNext: Button
     private lateinit var clockStyleName: TextView
+    private lateinit var colorPrev: Button
+    private lateinit var colorNext: Button
+    private lateinit var colorStyleName: TextView
     private lateinit var calPrev: Button
     private lateinit var calNext: Button
     private lateinit var calStyleName: TextView
@@ -105,6 +109,7 @@ class MainActivity : Activity() {
 
     // Style names for the "‹ ›" carousels (array index == style code).
     private lateinit var clockEntries: Array<String>
+    private lateinit var colorEntries: Array<String>
     private lateinit var calEntries: Array<String>
     private lateinit var weatherEntries: Array<String>
 
@@ -152,11 +157,15 @@ class MainActivity : Activity() {
         permStatus = findViewById(R.id.permStatus)
         btnGrantPerm = findViewById(R.id.btnGrantPerm)
         autoBrightSwitch = findViewById(R.id.autoBrightSwitch)
+        nightSwitch = findViewById(R.id.nightSwitch)
         brightnessSeek = findViewById(R.id.brightnessSeek)
         brightnessValue = findViewById(R.id.brightnessValue)
         clockPrev = findViewById(R.id.clockPrev)
         clockNext = findViewById(R.id.clockNext)
         clockStyleName = findViewById(R.id.clockStyleName)
+        colorPrev = findViewById(R.id.colorPrev)
+        colorNext = findViewById(R.id.colorNext)
+        colorStyleName = findViewById(R.id.colorStyleName)
         calPrev = findViewById(R.id.calPrev)
         calNext = findViewById(R.id.calNext)
         calStyleName = findViewById(R.id.calStyleName)
@@ -203,6 +212,11 @@ class MainActivity : Activity() {
             updateBrightnessEnabledState()
         }
 
+        nightSwitch.isChecked = Prefs.nightMode(this)
+        nightSwitch.setOnCheckedChangeListener { _, checked ->
+            Prefs.setNightMode(this, checked)
+        }
+
         // Load first-day-of-week choice. Value is Calendar.DAY_OF_WEEK (1=Sun,
         // 2=Mon, 7=Sat) or 0 to follow the locale/system default.
         val weekStart = Prefs.weekStart(this)
@@ -232,6 +246,14 @@ class MainActivity : Activity() {
             set = { applyClockStyle(it) }
         )
         attachClockSwipe()
+
+        // Clock accent color carousel (white by default = the old look).
+        colorEntries = resources.getStringArray(R.array.clock_color_entries)
+        bindCarousel(
+            colorPrev, colorNext, colorStyleName, colorEntries,
+            get = { Prefs.clockColor(this) },
+            set = { applyClockColor(it) }
+        )
 
         // Calendar style carousel; flipping it jumps the mini preview to the
         // calendar window, so the new style is visible at once.
@@ -886,6 +908,13 @@ class MainActivity : Activity() {
         clockStyleName.announceForAccessibility(clockStyleName.text)
         updateOutlineThicknessRow()
         previewClock.refresh() // a new face can need a new size
+    }
+
+    private fun applyClockColor(pos: Int) {
+        Prefs.setClockColor(this, pos)
+        updateCarouselLabel(colorStyleName, colorEntries, pos)
+        colorStyleName.announceForAccessibility(colorStyleName.text)
+        previewClock.invalidate() // same size, new ink: no re-measure
     }
 
     private fun applyCalendarStyle(pos: Int) {

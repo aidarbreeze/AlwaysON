@@ -39,6 +39,10 @@ object Prefs {
     private const val KEY_CLOCK_STYLE = "clock_style"
     // Line/outline thickness in dp used by the outline style.
     private const val KEY_CLOCK_THICKNESS = "clock_thickness"
+    // Clock accent color preset index (0 = white, see clockColorValue).
+    private const val KEY_CLOCK_COLOR = "clock_color"
+    // iPhone-style Night Mode: red tint of the standby screen in the dark.
+    private const val KEY_NIGHT_MODE = "night_mode"
     // Calendar <-> stock chart alternation mode.
     private const val KEY_STOCKS_ENABLED = "stocks_enabled"
     private const val KEY_STOCK_TICKER = "stock_ticker"
@@ -311,14 +315,37 @@ object Prefs {
 
     /** Clock face style: 0 normal, 1 outline, 2 dots, 3 flip, 4 LED, 5 neon,
      *  6 chips, 7 serif, 8 italic, 9 LED-matrix, 10 classic digital,
-     *  11 bold digital, 12 monospaced, 13 soft rounded, 14 premium AMOLED.
+     *  11 bold digital, 12 monospaced, 13 soft rounded, 14 premium AMOLED,
+     *  15 stacked iPhone, 16 analog iPhone, 17 float iPhone, 18 solar iPhone,
+     *  19 world iPhone, 20 minimal mono.
      *  Default: premium (the new default look). */
-    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 14)
-    fun setClockStyle(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_STYLE, v.coerceIn(0, 14))
+    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 20)
+    fun setClockStyle(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_STYLE, v.coerceIn(0, 20))
 
     /** Line thickness (dp) for the outline clock, 1..30. */
     fun clockThickness(ctx: Context): Int = i(ctx, KEY_CLOCK_THICKNESS, 6).coerceIn(1, 30)
     fun setClockThickness(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_THICKNESS, v.coerceIn(1, 30))
+
+    /** Clock accent color preset index, 0..7 (see clock_color_entries). */
+    fun clockColor(ctx: Context): Int = i(ctx, KEY_CLOCK_COLOR, 0).coerceIn(0, 7)
+    fun setClockColor(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_COLOR, v.coerceIn(0, 7))
+
+    /** The ARGB accent color behind [clockColor]. Index 0 is plain white. */
+    fun clockColorValue(ctx: Context): Int = when (clockColor(ctx)) {
+        1 -> 0xFF3B82F6.toInt() // blue (Float-like)
+        2 -> 0xFF7DD3FC.toInt() // sky
+        3 -> 0xFF34D399.toInt() // green
+        4 -> 0xFFFBBF24.toInt() // amber
+        5 -> 0xFFFB923C.toInt() // orange
+        6 -> 0xFFF87171.toInt() // red
+        7 -> 0xFFA78BFA.toInt() // purple
+        else -> 0xFFFFFFFF.toInt() // white
+    }
+
+    /** iPhone-style Night Mode: red tint of the standby screen in the dark.
+     *  On by default, like on the iPhone. */
+    fun nightMode(ctx: Context): Boolean = b(ctx, KEY_NIGHT_MODE, true)
+    fun setNightMode(ctx: Context, on: Boolean) = setB(ctx, KEY_NIGHT_MODE, on)
 
     /** Calendar <-> stock chart alternation mode. */
     fun stocksEnabled(ctx: Context): Boolean = b(ctx, KEY_STOCKS_ENABLED, false)
@@ -347,10 +374,10 @@ object Prefs {
     /**
      * Calendar style: 0 classic, 1 minimal, 2 filled today, 3 outlined today,
      * 4 weekend accent, 5 monochrome OLED, 6 compact, 7 large numbers,
-     * 8 premium card (default).
+     * 8 premium card (default), 9 iPhone style (red title, red today disc).
      */
-    fun calendarStyle(ctx: Context): Int = i(ctx, KEY_CALENDAR_STYLE, 8).coerceIn(0, 8)
-    fun setCalendarStyle(ctx: Context, v: Int) = setI(ctx, KEY_CALENDAR_STYLE, v.coerceIn(0, 8))
+    fun calendarStyle(ctx: Context): Int = i(ctx, KEY_CALENDAR_STYLE, 8).coerceIn(0, 9)
+    fun setCalendarStyle(ctx: Context, v: Int) = setI(ctx, KEY_CALENDAR_STYLE, v.coerceIn(0, 9))
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = b(ctx, KEY_AUTO_STANDBY, false)

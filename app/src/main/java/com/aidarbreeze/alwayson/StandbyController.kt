@@ -3,6 +3,9 @@ package com.aidarbreeze.alwayson
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -151,6 +154,27 @@ class StandbyController(context: Context, root: View) {
     private var lightSensor: Sensor? = null
     private var lightListener: SensorEventListener? = null
     private var autoBrightness = false
+    // iPhone-style Night Mode: red tint in the dark (see setNightActive).
+    // Written on the main thread, read from the sensor callback thread.
+    @Volatile
+    private var nightMode = false
+    @Volatile
+    private var nightActive = false
+    // Luminance-preserving red tint: every lit pixel becomes red scaled by
+    // its brightness (a plain red MULTIPLY would turn blue/green content
+    // black instead). Applied as the content layer's paint.
+    private val nightPaint = Paint().apply {
+        colorFilter = ColorMatrixColorFilter(
+            ColorMatrix(
+                floatArrayOf(
+                    0.35f, 0.55f, 0.10f, 0f, 0f,
+                    0f, 0f, 0f, 0f, 0f,
+                    0f, 0f, 0f, 0f, 0f,
+                    0f, 0f, 0f, 1f, 0f
+                )
+            )
+        )
+    }
     // Smoothed current alpha so the light sensor does not cause flicker.
     private var currentAlpha = -1f
     private var manualAlpha = 1f
@@ -217,9 +241,13 @@ class StandbyController(context: Context, root: View) {
         // Dim the clock content only; the root background stays pure black.
         manualAlpha = (Prefs.brightness(appContext) / 100f).coerceIn(0f, 1f)
         autoBrightness = Prefs.autoBrightness(appContext)
-        if (!autoBrightness) {
+        nightMode = Prefs.nightMode(appContext)
+        // The light sensor feeds both the auto brightness and the Night
+        // Mode tint; with both off there is nothing to listen for.
+        if (!autoBrightness && !nightMode) {
             // Fixed manual level (kept at least slightly visible).
             refreshContentAlpha()
+            setNightActive(false) // no sensor running: no night tint either
             stopLightSensor()
         } else {
             startLightSensor()
@@ -557,9 +585,26 @@ class StandbyController(context: Context, root: View) {
     // ---------- auto brightness (ambient light) ----------
 
     /**
+     * Toggles the iPhone-style red night tint. Implemented as a hardware
+     * layer with a luminance-preserving red ColorMatrix on the whole
+     * content block: every lit pixel turns red, the black background stays
+     * black, and no custom view needs to know about it.
+     */
+    private fun setNightActive(active: Boolean) {
+        if (active == nightActive) return
+        nightActive = active
+        content.setLayerType(
+            if (active) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE,
+            if (active) nightPaint else null
+        )
+        content.invalidate()
+    }
+
+    /**
      * Registers the ambient light sensor. On every reading we map lux to an
      * alpha target (dark room -> barely visible, bright/sun -> full manual
-     * brightness) and ease the actual alpha toward it to avoid flicker.
+     * brightness), ease the actual alpha toward it to avoid flicker, and
+     * evaluate the Night Mode red tint.
      */
     private fun startLightSensor() {
         if (lightListener != null) return // already listening
@@ -574,13 +619,19 @@ class StandbyController(context: Context, root: View) {
             override fun onSensorChanged(event: SensorEvent) {
                 if (event.sensor.type != Sensor.TYPE_LIGHT) return
                 val lux = event.values[0]
+                // Night Mode wants red below ~8 lux and releases above ~30
+                // (hysteresis so a flickering doorway does not strobe it).
+                val wantNight = nightMode && (lux < 8f || (nightActive && lux < 30f))
                 // Target between min (dark) and manualAlpha (bright).
                 val target = targetAlpha(lux)
                 // Ease toward it on the main thread (a few % per reading).
                 sensorHandler.post {
-                    currentAlpha = if (currentAlpha < 0f) target
-                    else currentAlpha + (target - currentAlpha) * 0.25f
-                    refreshContentAlpha()
+                    if (autoBrightness) {
+                        currentAlpha = if (currentAlpha < 0f) target
+                        else currentAlpha + (target - currentAlpha) * 0.25f
+                        refreshContentAlpha()
+                    }
+                    setNightActive(wantNight)
                 }
             }
 

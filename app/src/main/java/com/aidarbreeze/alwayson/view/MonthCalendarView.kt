@@ -31,6 +31,8 @@ import kotlin.math.min
  *  8 PREMIUM      — "Premium Card": the month in a translucent dark card with
  *                   a rounded border, month title (year dimmed), small-caps
  *                   weekday labels, today in an accent ring, weekends dimmed.
+ *  9 IPHONE       — iPhone StandBy calendar: red month title, today as a
+ *                   filled red disc with a white number.
  */
 class MonthCalendarView @JvmOverloads constructor(
     context: Context,
@@ -160,6 +162,13 @@ class MonthCalendarView @JvmOverloads constructor(
             drawPremium(canvas, w, h, now)
             return
         }
+        // iPhone style: red month title, today as a filled red disc with a
+        // white number. The paints are fields reused across draws, so both
+        // branches assign explicitly and no state leaks between styles.
+        val ios = st == 9
+        titlePaint.color = if (ios) 0xFFFF3B30.toInt() else Color.WHITE
+        todayCirclePaint.color = if (ios) 0xFFFF3B30.toInt() else Color.WHITE
+        todayNumPaint.color = if (ios) Color.WHITE else Color.BLACK
 
         val compact = compact(st)
         val padX = min(w * 0.05f, if (compact) 14f else 20f)
@@ -175,7 +184,9 @@ class MonthCalendarView @JvmOverloads constructor(
             // Month title, centred over the whole calendar, first letter upper.
             titlePaint.textSize = titleFont
             val monthName = monthHeading(month)
-            val monthTitle = "$monthName $year"
+            // The iPhone widget shouts the month in red caps ("OCTOBER").
+            val monthTitle = if (ios) "$monthName $year".uppercase(Locale.getDefault())
+            else "$monthName $year"
             canvas.drawText(
                 monthTitle,
                 (w - titlePaint.measureText(monthTitle)) / 2f,
@@ -251,9 +262,8 @@ class MonthCalendarView @JvmOverloads constructor(
                     year == todayYear && month == todayMonth && day == todayDay
                 if (cellIsToday) {
                     when (marker) {
-                        0 -> { // filled disc
+                        0 -> { // filled disc (colors assigned above per style)
                             canvas.drawCircle(cx, cy, circleR, todayCirclePaint)
-                            todayNumPaint.color = Color.BLACK
                             canvas.drawText(
                                 num,
                                 cx - todayNumPaint.measureText(num) / 2f,

@@ -156,6 +156,18 @@ object WeatherRepository {
         }
     }
 
+    /**
+     * Sunrise/sunset (ms) from the last-known forecast, or null when no
+     * cached forecast exists yet. Cheap: memory + a single disk load max,
+     * no network — safe to call from a view (which throttles it anyway).
+     */
+    fun sunTimes(ctx: Context): Pair<Long, Long>? {
+        ensureLoaded(ctx.applicationContext)
+        val info = synchronized(lock) { lastGood } ?: return null
+        if (info.sunriseMs <= 0L || info.sunsetMs <= 0L) return null
+        return info.sunriseMs to info.sunsetMs
+    }
+
     private fun ensureLoaded(c: Context) {
         if (diskLoaded) return
         synchronized(lock) {
