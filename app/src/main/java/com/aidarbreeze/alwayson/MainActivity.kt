@@ -704,6 +704,8 @@ class MainActivity : Activity() {
     private var miniSeq: List<MiniPanel> = emptyList()
     private var miniStep = 0
     private val miniStockCached = HashMap<String, List<Candle>>()
+    // Interval the cached candles REALLY are (fallback may be coarser).
+    private val miniStockActual = HashMap<String, Int>()
     private val miniStockAttempt = HashMap<String, Long>()
     private val miniStockFreshMs = 60_000L
     private var miniWeatherCached: WeatherInfo? = null
@@ -783,11 +785,11 @@ class MainActivity : Activity() {
             0 -> miniMonth.invalidate() // draws the current month itself
             1 -> {
                 val ref = Prefs.stockReference(this)
-                val label = miniIntervalLabel(p.interval)
                 val key = "${p.symbol}-${p.interval}"
                 val cached = miniStockCached[key]
                 if (cached != null && cached.size >= 2) {
-                    miniStock.setData(p.symbol, ref, label, cached, p.interval * 60)
+                    val useCode = miniStockActual[key] ?: p.interval
+                    miniStock.setData(p.symbol, ref, miniIntervalLabel(useCode), cached, useCode * 60)
                 } else {
                     miniStock.setStatus("Загрузка…")
                 }
@@ -809,29 +811,50 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Honest one-line status for a failed mini stock fetch (null = stay
+     *  silent, keep showing "Загрузка…" — the retry comes by itself). */
+    private fun miniStockErrorText(res: StockApi.FetchResult): String? = when (res.error) {
+        null, StockApi.FetchError.RATE_LIMITED -> null
+        StockApi.FetchError.BAD_TICKER, StockApi.FetchError.NOT_FOUND -> "тикер не найден"
+        StockApi.FetchError.CLOSED_EMPTY -> "торги закрыты"
+        StockApi.FetchError.NETWORK ->
+            if (res.httpCode > 0) "нет сети (HTTP ${res.httpCode})" else "нет сети"
+    }
+
     private fun fetchMiniStock(symbol: String, code: Int) {
         if (symbol.isEmpty()) return
         val key = "$symbol-$code"
         val attempt = System.currentTimeMillis()
         miniStockAttempt[key] = attempt
         Thread {
-            val data = StockApi.fetchCandles(symbol, code)
+            val res = StockApi.fetch(symbol, code)
             previewHandler.post {
                 if (miniStockAttempt[key] != attempt) return@post
                 val p = miniSeq.getOrNull(miniStep)
+                val data = res.candles
                 if (data != null && data.size >= 2) {
                     miniStockCached[key] = data
+                    miniStockActual[key] = res.actualCode
+                    Prefs.setLastStockUpdateMs(this, System.currentTimeMillis())
+                    Prefs.setLastStockError(this, "")
                     if (p != null && p.kind == 1 && p.symbol == symbol && p.interval == code) {
+                        // A fallback may have served a coarser interval:
+                        // label the chart with what it really shows.
+                        val useCode = res.actualCode
                         miniStock.setData(
                             symbol, Prefs.stockReference(this),
-                            miniIntervalLabel(code), data, code * 60
+                            miniIntervalLabel(useCode), data, useCode * 60
                         )
                     }
                 } else if (p != null && p.kind == 1 && p.symbol == symbol &&
                     p.interval == code && miniStockCached[key] == null
                 ) {
                     // Only show the error when we have nothing to show at all.
-                    miniStock.setStatus("нет данных / нет сети")
+                    val msg = miniStockErrorText(res)
+                    if (msg != null) {
+                        miniStock.setStatus(msg)
+                        Prefs.setLastStockError(this, msg)
+                    }
                 }
             }
         }.start()

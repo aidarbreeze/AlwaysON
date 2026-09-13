@@ -167,7 +167,13 @@ class MonthCalendarView @JvmOverloads constructor(
         // branches assign explicitly and no state leaks between styles.
         val ios = st == 9
         titlePaint.color = if (ios) 0xFFFF3B30.toInt() else Color.WHITE
-        todayCirclePaint.color = if (ios) 0xFFFF3B30.toInt() else Color.WHITE
+        // Style 2 ("Filled Today") used to render pixel-identical to style 0
+        // (both: a white filled disc) — it now fills the disc in accent sky.
+        todayCirclePaint.color = when {
+            ios -> 0xFFFF3B30.toInt()
+            st == 2 -> 0xFF7DD3FC.toInt()
+            else -> Color.WHITE
+        }
         todayNumPaint.color = if (ios) Color.WHITE else Color.BLACK
 
         val compact = compact(st)

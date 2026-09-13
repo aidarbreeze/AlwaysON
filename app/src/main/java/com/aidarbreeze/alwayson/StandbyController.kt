@@ -82,6 +82,9 @@ class StandbyController(context: Context, root: View) {
     // Stock data, keyed by "SYMBOL-INTERVAL" so the watchlist (up to 3
     // tickers) does not clobber each other's cache.
     private val stockCached = HashMap<String, List<Candle>>()
+    // Interval the cached candles REALLY are (a fallback may have served a
+    // coarser one than the requested key says).
+    private val stockActualCode = HashMap<String, Int>()
     // When each key was last attempted, so the panel cycle does not hit the
     // network again for data we just received (or a bad ticker that keeps
     // returning nothing). The timestamp doubles as the fetch-generation:
@@ -483,7 +486,6 @@ class StandbyController(context: Context, root: View) {
         currentStock = symbol to code
 
         val ref = Prefs.stockReference(appContext)
-        val label = intervalLabel(code)
         if (symbol.isEmpty()) {
             stockView.setStatus("—")
             return
@@ -493,40 +495,59 @@ class StandbyController(context: Context, root: View) {
         if (cached != null && cached.size >= 2) {
             // Show what we have immediately (may be minutes old) and refresh
             // in the background only when the cache is stale.
-            stockView.setData(symbol, ref, label, cached, code * 60)
+            val useCode = stockActualCode[key] ?: code
+            stockView.setData(symbol, ref, intervalLabel(useCode), cached, useCode * 60)
         } else {
             stockView.setStatus("Загрузка…")
         }
         val age = System.currentTimeMillis() - (stockAttemptAt[key] ?: 0L)
         if (age >= stockFreshMs) {
-            fetchStock(symbol, code, ref, label)
+            fetchStock(symbol, code, ref)
         }
+    }
+
+    /** Honest one-line status for a failed stock fetch (null = stay silent,
+     *  keep showing "Загрузка…" — the retry comes with the next cycle). */
+    private fun stockErrorText(res: StockApi.FetchResult): String? = when (res.error) {
+        null, StockApi.FetchError.RATE_LIMITED -> null
+        StockApi.FetchError.BAD_TICKER, StockApi.FetchError.NOT_FOUND -> "тикер не найден"
+        StockApi.FetchError.CLOSED_EMPTY -> "торги закрыты"
+        StockApi.FetchError.NETWORK ->
+            if (res.httpCode > 0) "нет сети (HTTP ${res.httpCode})" else "нет сети"
     }
 
     /** Fetch candles for a ticker+interval; apply the result only when it is
      *  still the freshest attempt for that key AND the chart still shows it. */
-    private fun fetchStock(symbol: String, code: Int, ref: Double, label: String) {
+    private fun fetchStock(symbol: String, code: Int, ref: Double) {
         val key = stockKey(symbol, code)
         val attempt = System.currentTimeMillis()
         stockAttemptAt[key] = attempt
         Thread {
-            val data = StockApi.fetchCandles(symbol, code)
+            val res = StockApi.fetch(symbol, code)
             handler.post {
                 if (stockAttemptAt[key] != attempt) return@post // superseded
+                val data = res.candles
                 if (data != null && data.size >= 2) {
                     stockCached[key] = data
+                    stockActualCode[key] = res.actualCode
                     Prefs.setLastStockUpdateMs(appContext, System.currentTimeMillis())
                     Prefs.setLastStockError(appContext, "")
                     if (currentStock == symbol to code) {
-                        stockView.setData(symbol, ref, label, data, code * 60)
+                        // A fallback may have served a coarser interval:
+                        // label the chart with what it really shows.
+                        val useCode = res.actualCode
+                        stockView.setData(symbol, ref, intervalLabel(useCode), data, useCode * 60)
                     }
                 } else if (currentStock == symbol to code &&
                     stockCached[key] == null
                 ) {
                     // Only show the error when we have nothing to show at all —
                     // a transient network hiccup must not wipe an older chart.
-                    stockView.setStatus("нет данных / нет сети")
-                    Prefs.setLastStockError(appContext, "нет данных / нет сети")
+                    val msg = stockErrorText(res)
+                    if (msg != null) {
+                        stockView.setStatus(msg)
+                        Prefs.setLastStockError(appContext, msg)
+                    }
                 }
             }
         }.start()

@@ -213,23 +213,24 @@ class StockChartView @JvmOverloads constructor(
         return (list.last().close - prevClose) / prevClose * 100.0
     }
 
-    /** True when the MOEX TQBR regular session is open right now. */
+    /** True when a MOEX TQBR session is open right now (morning 06:50
+     *  through evening 23:50 MSK on weekdays). */
     private fun marketOpenNow(): Boolean {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"))
         val dow = cal.get(Calendar.DAY_OF_WEEK)
         if (dow == Calendar.SATURDAY || dow == Calendar.SUNDAY) return false
         val mins = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        return mins in (10 * 60 + 30)..(18 * 60 + 45)
+        return mins in (6 * 60 + 50)..(23 * 60 + 50)
     }
 
     /**
-     * Short label of the NEXT TQBR regular-session open (weekdays 10:30 MSK,
-     * no holiday calendar — weekends only): "10:30" when it opens today,
-     * otherwise "пн 10:30" / "вт 10:30" / ...
+     * Short label of the NEXT TQBR session open (weekdays 06:50 MSK,
+     * no holiday calendar — weekends only): "06:50" when it opens today,
+     * otherwise "пн 06:50" / "вт 06:50" / ...
      */
     private fun nextOpenLabel(): String {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"))
-        val openMins = 10 * 60 + 30
+        val openMins = 6 * 60 + 50
         val nowMins = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
         val names = arrayOf("", "пн", "вт", "ср", "чт", "пт", "сб", "вс")
         for (ahead in 0..7) {
@@ -238,9 +239,9 @@ class StockChartView @JvmOverloads constructor(
             val d = c.get(Calendar.DAY_OF_WEEK)
             if (d == Calendar.SATURDAY || d == Calendar.SUNDAY) continue
             if (ahead == 0 && nowMins >= openMins) continue
-            return if (ahead == 0) "10:30" else "${names[d]} 10:30"
+            return if (ahead == 0) "06:50" else "${names[d]} 06:50"
         }
-        return "10:30"
+        return "06:50"
     }
 
     private fun shortDate(): String {

@@ -19,12 +19,15 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.round
+import kotlin.math.sin
 
 /**
- * Monochrome weather panel (white on black, OLED theme) with two selectable
- * styles:
+ * Monochrome weather panel (white on black, OLED theme) with ten selectable
+ * styles (0-9, see the companion constants):
  *
  * STYLE_CLASSIC — a single screen with three sections:
  *  1. Current weather — city, a large thin temperature, a condition glyph
@@ -227,6 +230,11 @@ class WeatherPanelView @JvmOverloads constructor(
         textSize = dpf(18f)
         textAlign = Paint.Align.CENTER
     }
+    private val sunDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFBBF24.toInt()
+        style = Paint.Style.FILL
+    }
+    private val sunArcRect = RectF()
     private val splitBig = Paint(Paint.ANTI_ALIAS_FLAG)
     private val splitCond = Paint(Paint.ANTI_ALIAS_FLAG)
     private val splitGlyph = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -254,6 +262,11 @@ class WeatherPanelView @JvmOverloads constructor(
         if (data.timezoneId.isNotBlank()) TimeZone.getTimeZone(data.timezoneId)
         else TimeZone.getDefault()
 
+    /** Russian UI strings when the device locale is Russian (the weather
+     *  panel historically hardcoded Russian everywhere). */
+    private fun isRu(): Boolean =
+        Locale.getDefault().language.equals("ru", ignoreCase = true)
+
     /** "↑ 06:12 ↓ 20:41" (empty when the API gave no sun times). Times are in
      *  the forecast city's zone, not the device zone. */
     private fun sunLine(data: WeatherInfo): String {
@@ -275,7 +288,7 @@ class WeatherPanelView @JvmOverloads constructor(
     private fun feelsText(data: WeatherInfo): String {
         val feels = data.feelsNowC ?: return ""
         if (feels == data.tempNowC) return ""
-        return "ощущ. ${t(feels)}"
+        return if (isRu()) "ощущ. ${t(feels)}" else "feels ${t(feels)}"
     }
 
     /** Small meta line: "ощущ. N°" + "↑ HH:MM ↓ HH:MM" (either may be empty). */
@@ -348,7 +361,8 @@ class WeatherPanelView @JvmOverloads constructor(
 
         // Last-known forecast shown after a failed refresh — a subtle note.
         if (stale) {
-            canvas.drawText("обновлено ранее", w - dpf(16f), h - dpf(6f), stalePaint)
+            val staleMsg = if (isRu()) "обновлено ранее" else "updated earlier"
+            canvas.drawText(staleMsg, w - dpf(16f), h - dpf(6f), stalePaint)
         }
     }
 
@@ -567,6 +581,7 @@ class WeatherPanelView @JvmOverloads constructor(
         val weekTop = h - dpf(4f) - weekH
         val curveTop = dpf(50f)
         val curveBottom = if (hasWeek) weekTop - dpf(26f) else h - dpf(10f)
+        val curveOk = curveBottom - curveTop >= dpf(30f)
         val timeBaseY = weekTop - dpf(16f)
         if (hasWeek) {
             canvas.drawRect(pad, weekTop - dpf(10f), w - pad, weekTop - dpf(9f), sepPaint)
@@ -579,7 +594,7 @@ class WeatherPanelView @JvmOverloads constructor(
         for (hh in data.hours) {
             if (hh.timeMs > nowMs && hh.timeMs <= nowMs + windowMs) pts.add(hh)
         }
-        if (pts.size >= 2) {
+        if (pts.size >= 2 && curveOk) {
             var tMin = Int.MAX_VALUE
             var tMax = Int.MIN_VALUE
             for (p in pts) {
@@ -692,7 +707,8 @@ class WeatherPanelView @JvmOverloads constructor(
         val city = data.city.trim()
         if (city.isNotEmpty()) {
             cityPaint.textAlign = Paint.Align.CENTER
-            canvas.drawText(city, w / 2f, h / 2f - dpf(54f), cityPaint)
+            val cityBase = (h / 2f - dpf(54f)).coerceAtLeast(dpf(14f))
+            canvas.drawText(city, w / 2f, cityBase, cityPaint)
         }
         bigPaint.textAlign = Paint.Align.LEFT
         glyphPaint.textAlign = Paint.Align.LEFT
@@ -746,6 +762,7 @@ class WeatherPanelView @JvmOverloads constructor(
 
         val top = dpf(42f)
         val ch = h - top - dpf(12f)
+        if (ch < dpf(48f)) return // header drawn; no room for the strip
         timePaint.textSize = ch * 0.16f
         timePaint.textAlign = Paint.Align.CENTER
         hourlyGlyphPaint.textSize = ch * 0.36f
@@ -778,7 +795,9 @@ class WeatherPanelView @JvmOverloads constructor(
             !isSameDay(days[start].timeMs, nowMs, zone(data))
         ) start++
         if (start >= days.size) start = maxOf(0, days.size - 1)
-        val count = maxOf(1, minOf(7, days.size - start))
+        // Never squeeze rows below 20dp: show fewer days instead of overlap.
+        val fitRows = ((h - dpf(28f)) / dpf(20f)).toInt().coerceAtLeast(1)
+        val count = maxOf(1, minOf(7, days.size - start, fitRows))
 
         var tLo = Int.MAX_VALUE
         var tHi = Int.MIN_VALUE
@@ -849,7 +868,8 @@ class WeatherPanelView @JvmOverloads constructor(
     }
 
     // ================================================================
-    // HERO — a large centred temperature with glyph, meta at the bottom.
+    // HERO — a giant temperature with today's range and an hourly
+    // mini-strip. (Minimal owns the quiet centred row; Hero goes big.)
     // ================================================================
 
     private fun drawHeroMode(canvas: Canvas, w: Float, h: Float, data: WeatherInfo) {
@@ -867,15 +887,24 @@ class WeatherPanelView @JvmOverloads constructor(
 
         val big = heroBig
         big.set(bigPaint)
-        big.textSize = min(w * 0.40f, h * 0.5f).coerceAtMost(dpf(96f))
+        big.textSize = min(w * 0.52f, h * 0.58f).coerceAtMost(dpf(120f))
         big.color = Color.WHITE
+        val tempStr = t(data.tempNowC)
+        // Shrink until the number fits the width (a few iterations max).
+        var guard = 0
+        while (guard++ < 12 && big.measureText(tempStr) > w - pad * 2f &&
+            big.textSize > dpf(24f)
+        ) {
+            big.textSize -= dpf(4f)
+        }
         val glyph = WeatherLabel.glyph(data.codeNow)
+        val midY = h * 0.44f
         if (glyph.isNotEmpty()) {
             val g = heroGlyph
             g.set(glyphPaint)
-            g.textSize = big.textSize * 0.40f
+            g.textSize = big.textSize * 0.36f
             val gap = dpf(14f)
-            val tempW = big.measureText("${t(data.tempNowC)}")
+            val tempW = big.measureText(tempStr)
             val glyphW = g.measureText(glyph)
             val total = glyphW + gap + tempW
             var x = (w - total) / 2f
@@ -883,24 +912,52 @@ class WeatherPanelView @JvmOverloads constructor(
             big.textAlign = Paint.Align.LEFT
             val gf = g.fontMetrics
             val bf = big.fontMetrics
-            val gBase = h / 2f - (gf.ascent + gf.descent) / 2f
-            val bBase = h / 2f - (bf.ascent + bf.descent) / 2f
-            canvas.drawText(glyph, x, gBase, g)
-            canvas.drawText("${t(data.tempNowC)}", x + glyphW + gap, bBase, big)
+            canvas.drawText(glyph, x, midY - (gf.ascent + gf.descent) / 2f, g)
+            canvas.drawText(tempStr, x + glyphW + gap, midY - (bf.ascent + bf.descent) / 2f, big)
         } else {
             big.textAlign = Paint.Align.CENTER
             val bf = big.fontMetrics
-            canvas.drawText("${t(data.tempNowC)}", w / 2f, h / 2f - (bf.ascent + bf.descent) / 2f, big)
+            canvas.drawText(tempStr, w / 2f, midY - (bf.ascent + bf.descent) / 2f, big)
         }
-        val meta = buildMetaLine(data)
-        if (meta.isNotEmpty()) {
-            metaPaint.textAlign = Paint.Align.CENTER
-            canvas.drawText(meta, w / 2f, h - dpf(14f), metaPaint)
+
+        // Today's range centred under the giant number.
+        val nowMs = System.currentTimeMillis()
+        val today = data.days.firstOrNull { isSameDay(it.timeMs, nowMs, zone(data)) }
+        if (today != null) {
+            dayRangePaint.textAlign = Paint.Align.CENTER
+            canvas.drawText(
+                "${t(today.tMin)}/${t(today.tMax)}", w / 2f,
+                midY + big.textSize * 0.42f, dayRangePaint
+            )
+        }
+
+        // Hourly mini-strip along the bottom: the next 6 temperatures.
+        val hours = data.hours
+        if (hours.isNotEmpty()) {
+            var start = 0
+            while (start < hours.size && hours[start].timeMs <= nowMs) start++
+            if (start >= hours.size) start = hours.size - 1
+            val n = minOf(6, hours.size - start)
+            if (n > 0) {
+                val usable = w - pad * 2f
+                hourlyTempPaint.textAlign = Paint.Align.CENTER
+                timePaint.textAlign = Paint.Align.CENTER
+                val cal = Calendar.getInstance(zone(data))
+                for (i in 0 until n) {
+                    val cx = pad + usable * (i + 0.5f) / n
+                    val hour = hours[start + i]
+                    cal.timeInMillis = hour.timeMs
+                    val hh = String.format(Locale.US, "%02d", cal.get(Calendar.HOUR_OF_DAY))
+                    canvas.drawText(hh, cx, h - dpf(30f), timePaint)
+                    canvas.drawText(t(hour.tempC), cx, h - dpf(12f), hourlyTempPaint)
+                }
+            }
         }
     }
 
     // ================================================================
-    // MONOCHROME — strict white/gray, numbers only (no words, no glyphs).
+    // MONOCHROME — a dense numbers-only dashboard: no words, no glyphs.
+    // A two-row hourly grid on top, compact day rows below.
     // ================================================================
 
     private fun drawMonoMode(canvas: Canvas, w: Float, h: Float, data: WeatherInfo) {
@@ -911,35 +968,39 @@ class WeatherPanelView @JvmOverloads constructor(
             canvas.drawText(city, pad, dpf(18f), cityPaint)
         }
         headerTempPaint.textAlign = Paint.Align.RIGHT
-        canvas.drawText("${t(data.tempNowC)}", w - pad, dpf(19f), headerTempPaint)
+        canvas.drawText(t(data.tempNowC), w - pad, dpf(19f), headerTempPaint)
         canvas.drawRect(pad, dpf(30f), w - pad, dpf(31f), sepPaint)
 
-        // Hourly: time over temperature, no glyphs.
+        // Hourly grid: up to 12 "HH temp" cells in rows of 6.
         val hours = data.hours
-        if (hours.isNotEmpty()) {
+        var gridBottom = dpf(40f)
+        if (hours.isNotEmpty() && h > dpf(120f)) {
             val nowMs = System.currentTimeMillis()
             var start = 0
             while (start < hours.size && hours[start].timeMs <= nowMs) start++
             if (start >= hours.size) start = hours.size - 1
-            val candidates = hours.subList(start, hours.size)
-            val usable = w - dpf(8f)
-            val maxCols = maxOf(4, (usable / dpf(38f)).toInt())
-            val n = minOf(candidates.size, maxCols)
-            val colW = usable / n
-            timePaint.textAlign = Paint.Align.CENTER
-            hourlyTempPaint.textAlign = Paint.Align.CENTER
-            val cal = Calendar.getInstance(zone(data))
-            for (i in 0 until n) {
-                val cx = dpf(4f) + colW * (i + 0.5f)
-                val hour = candidates[i]
-                cal.timeInMillis = hour.timeMs
-                val hh = String.format(Locale.US, "%02d", cal.get(Calendar.HOUR_OF_DAY))
-                canvas.drawText(hh, cx, dpf(52f), timePaint)
-                canvas.drawText("${t(hour.tempC)}", cx, dpf(70f), hourlyTempPaint)
+            val n = minOf(12, hours.size - start)
+            if (n > 0) {
+                val cols = minOf(6, n)
+                val usable = w - dpf(8f)
+                val colW = usable / cols
+                val rowH = dpf(20f)
+                val rows = (n + cols - 1) / cols
+                hourlyTempPaint.textAlign = Paint.Align.CENTER
+                val cal = Calendar.getInstance(zone(data))
+                for (i in 0 until n) {
+                    val cx = dpf(4f) + colW * (i % cols + 0.5f)
+                    val cy = dpf(46f) + rowH * (i / cols)
+                    val hour = hours[start + i]
+                    cal.timeInMillis = hour.timeMs
+                    val hh = String.format(Locale.US, "%02d", cal.get(Calendar.HOUR_OF_DAY))
+                    canvas.drawText("$hh ${t(hour.tempC)}", cx, cy, hourlyTempPaint)
+                }
+                gridBottom = dpf(46f) + rowH * (rows - 1) + dpf(14f)
             }
         }
 
-        // Daily: weekday + range bar + numbers, no glyphs.
+        // Compact day rows fill the rest (up to 7, shrinking to fit).
         val days = data.days
         if (days.isEmpty()) return
         val nowMs = System.currentTimeMillis()
@@ -948,7 +1009,9 @@ class WeatherPanelView @JvmOverloads constructor(
             !isSameDay(days[start].timeMs, nowMs, zone(data))
         ) start++
         if (start >= days.size) start = maxOf(0, days.size - 1)
-        val count = maxOf(1, minOf(5, days.size - start))
+        val top = gridBottom + dpf(8f)
+        val fitRows = ((h - dpf(8f) - top) / dpf(16f)).toInt().coerceAtLeast(1)
+        val count = maxOf(1, minOf(7, days.size - start, fitRows))
         var tLo = Int.MAX_VALUE
         var tHi = Int.MIN_VALUE
         for (i in start until start + count) {
@@ -962,21 +1025,25 @@ class WeatherPanelView @JvmOverloads constructor(
         val locale = Locale.getDefault()
         val wf = SimpleDateFormat("E", locale).apply { timeZone = zone(data) }
         val df = SimpleDateFormat("d", locale).apply { timeZone = zone(data) }
-        val top = dpf(92f)
-        val rowH = (h - dpf(12f) - top) / count
-        dayLabelPaint.textSize = dpf(13f)
-        dayRangePaint.textSize = dpf(12f)
+        val rowH = (h - dpf(8f) - top) / count
+        dayLabelPaint.textSize = (rowH * 0.52f).coerceIn(9f, 13f)
+        dayLabelBold.textSize = dayLabelPaint.textSize
+        dayRangePaint.textSize = (rowH * 0.48f).coerceIn(9f, 12f)
+        dayRangeBold.textSize = dayRangePaint.textSize
         for (i in 0 until count) {
             val d = days[start + i]
             val midY = top + rowH * i + rowH / 2f
+            val isToday = isSameDay(d.timeMs, nowMs, zone(data))
             val label = "${wf.format(Date(d.timeMs))} ${df.format(Date(d.timeMs))}"
             val range = "${t(d.tMin)}/${t(d.tMax)}"
-            dayLabelPaint.textAlign = Paint.Align.LEFT
-            dayRangePaint.textAlign = Paint.Align.RIGHT
-            canvas.drawText(label, pad, midY + dpf(4.5f), dayLabelPaint)
-            canvas.drawText(range, w - pad, midY + dpf(4f), dayRangePaint)
-            val barX0 = pad + dayLabelPaint.measureText(label) + dpf(12f)
-            val barX1 = w - pad - dayRangePaint.measureText(range) - dpf(12f)
+            val lp = if (isToday) dayLabelBold else dayLabelPaint
+            val rp = if (isToday) dayRangeBold else dayRangePaint
+            lp.textAlign = Paint.Align.LEFT
+            rp.textAlign = Paint.Align.RIGHT
+            canvas.drawText(label, pad, midY + rowH * 0.18f, lp)
+            canvas.drawText(range, w - pad, midY + rowH * 0.18f, rp)
+            val barX0 = pad + lp.measureText(label) + dpf(12f)
+            val barX1 = w - pad - rp.measureText(range) - dpf(12f)
             if (barX1 - barX0 >= dpf(24f)) {
                 val barY = midY - dpf(1f)
                 canvas.drawRoundRect(
@@ -999,7 +1066,9 @@ class WeatherPanelView @JvmOverloads constructor(
     }
 
     // ================================================================
-    // WEATHER + SUN CYCLE — temperature, feels-like and the sun times.
+    // WEATHER + SUN CYCLE — temperature plus a real sun-path arc with
+    // sunrise/sunset and day length (a plain summary when the forecast
+    // carries no sun times).
     // ================================================================
 
     private fun drawSunMode(canvas: Canvas, w: Float, h: Float, data: WeatherInfo) {
@@ -1009,32 +1078,81 @@ class WeatherPanelView @JvmOverloads constructor(
             cityPaint.textAlign = Paint.Align.LEFT
             canvas.drawText(city, pad, dpf(18f), cityPaint)
         }
-        bigPaint.textAlign = Paint.Align.CENTER
-        val tempStr = "${t(data.tempNowC)}"
-        val glyph = WeatherLabel.glyph(data.codeNow)
-        val gap = dpf(10f)
-        val tempW = bigPaint.measureText(tempStr)
-        val glyphW = if (glyph.isNotEmpty()) glyphPaint.measureText(glyph) else 0f
-        val total = tempW + glyphW + (if (glyph.isNotEmpty()) gap else 0f)
-        var x = (w - total) / 2f
-        val baseY = h * 0.36f
-        if (glyph.isNotEmpty()) {
-            glyphPaint.textAlign = Paint.Align.LEFT
-            canvas.drawText(glyph, x, baseY, glyphPaint)
-            x += glyphW + gap
-        }
-        bigPaint.textAlign = Paint.Align.LEFT
-        canvas.drawText(tempStr, x, baseY, bigPaint)
+        headerTempPaint.textAlign = Paint.Align.RIGHT
+        canvas.drawText(t(data.tempNowC), w - pad, dpf(19f), headerTempPaint)
 
-        val feels = feelsText(data)
-        if (feels.isNotEmpty()) {
-            condPaint.textAlign = Paint.Align.CENTER
-            canvas.drawText(feels, w / 2f, baseY + dpf(26f), condPaint)
+        val riseMs = data.sunriseMs
+        val setMs = data.sunsetMs
+        if (riseMs <= 0L || setMs <= riseMs || h < dpf(150f)) {
+            // No sun times (or no room for the arc): a plain centred
+            // summary instead.
+            bigPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText(t(data.tempNowC), w / 2f, h * 0.44f, bigPaint)
+            val cond = WeatherLabel.of(data.codeNow)
+            if (cond.isNotEmpty()) {
+                condPaint.textAlign = Paint.Align.CENTER
+                canvas.drawText(cond, w / 2f, h * 0.44f + dpf(26f), condPaint)
+            }
+            val feels = feelsText(data)
+            if (feels.isNotEmpty()) {
+                metaPaint.textAlign = Paint.Align.CENTER
+                canvas.drawText(feels, w / 2f, h * 0.44f + dpf(48f), metaPaint)
+            }
+            return
         }
-        // Sun cycle, emphasised.
-        val sun = sunLine(data)
-        if (sun.isNotEmpty()) {
-            canvas.drawText(sun, w / 2f, baseY + dpf(58f), sunBig)
+
+        // Sun-path arc: sunrise (left) to sunset (right) over a horizon.
+        val top = dpf(34f)
+        val arcH = h - top - dpf(64f)
+        val arcBase = top + arcH
+        val arcL = pad
+        val arcR = w - pad
+        val arcW = arcR - arcL
+        canvas.drawLine(arcL, arcBase, arcR, arcBase, sepPaint)
+        sunArcRect.set(arcL, arcBase - arcH, arcR, arcBase + arcH)
+        canvas.drawArc(sunArcRect, 180f, 180f, false, curvePaint)
+        // The travelling sun dot (dimmed and parked at night).
+        val nowMs = System.currentTimeMillis()
+        val p = ((nowMs - riseMs).toFloat() / (setMs - riseMs).toFloat())
+            .coerceIn(0f, 1f)
+        val day = nowMs in riseMs..setMs
+        val ang = (PI * (1.0 - p)).toFloat()
+        val sunX = (arcL + arcR) / 2f + cos(ang) * arcW / 2f
+        val sunY = arcBase - sin(ang) * arcH
+        sunDotPaint.alpha = if (day) 255 else 90
+        canvas.drawCircle(sunX, sunY, dpf(if (day) 6f else 4.5f), sunDotPaint)
+        sunDotPaint.alpha = 255
+        // Sunrise/sunset under the horizon ends, day length centred below.
+        val tf = SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
+            timeZone = zone(data)
+        }
+        metaPaint.textAlign = Paint.Align.LEFT
+        canvas.drawText("↑ " + tf.format(Date(riseMs)), arcL, arcBase + dpf(18f), metaPaint)
+        metaPaint.textAlign = Paint.Align.RIGHT
+        canvas.drawText("↓ " + tf.format(Date(setMs)), arcR, arcBase + dpf(18f), metaPaint)
+        val dayLen = setMs - riseMs
+        val dlStr = String.format(
+            Locale.US, "%d:%02d",
+            (dayLen / 3600_000L).toInt(), ((dayLen % 3600_000L) / 60_000L).toInt()
+        )
+        metaPaint.textAlign = Paint.Align.CENTER
+        canvas.drawText(
+            (if (isRu()) "день " else "day ") + dlStr,
+            w / 2f, arcBase + dpf(36f), metaPaint
+        )
+        // Condition + feels-like along the bottom.
+        val bottom = buildString {
+            val cond = WeatherLabel.of(data.codeNow)
+            if (cond.isNotEmpty()) append(cond)
+            val feels = feelsText(data)
+            if (feels.isNotEmpty()) {
+                if (isNotEmpty()) append("  ·  ")
+                append(feels)
+            }
+        }
+        if (bottom.isNotEmpty()) {
+            condPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText(bottom, w / 2f, h - dpf(10f), condPaint)
         }
     }
 
@@ -1076,7 +1194,11 @@ class WeatherPanelView @JvmOverloads constructor(
         }
         if (cond.isNotEmpty()) {
             cond2.textAlign = Paint.Align.LEFT
-            canvas.drawText(cond, tx, y - dpf(2f), cond2)
+            // The left half is narrow: skip a condition word that would run
+            // past the middle divider into the hours column.
+            if (tx + cond2.measureText(cond) <= midX - dpf(4f)) {
+                canvas.drawText(cond, tx, y - dpf(2f), cond2)
+            }
         }
         val meta = buildMetaLine(data)
         if (meta.isNotEmpty()) {
@@ -1092,7 +1214,8 @@ class WeatherPanelView @JvmOverloads constructor(
         while (start < hours.size && hours[start].timeMs <= nowMs) start++
         if (start >= hours.size) start = hours.size - 1
         val candidates = hours.subList(start, hours.size)
-        val n = minOf(4, candidates.size)
+        val fitRows = ((h - dpf(28f)) / dpf(20f)).toInt().coerceIn(0, 4)
+        val n = minOf(fitRows, candidates.size)
         if (n == 0) return
         val rightX = midX + dpf(12f)
         val rowH = (h - dpf(24f)) / 4f
@@ -1187,7 +1310,9 @@ class WeatherPanelView @JvmOverloads constructor(
         // "Feels like" is shown whenever the API provided it (even when equal
         // to the real temperature); absence is null, never 0.
         val tempStr = t(data.tempNowC)
-        val feels = data.feelsNowC?.let { "ощущается как ${t(it)}" } ?: ""
+        val feels = data.feelsNowC?.let {
+            if (isRu()) "ощущается как ${t(it)}" else "feels like ${t(it)}"
+        } ?: ""
         premTempPaint.textAlign = Paint.Align.LEFT
         val gap = dpf(4f)
         val tempH = premTempFontExtent()

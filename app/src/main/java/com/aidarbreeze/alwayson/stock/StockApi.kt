@@ -38,8 +38,9 @@ data class Candle(
  */
 object StockApi {
 
-    private const val BASE =
-        "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/"
+    private const val ISS = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/"
+    // Boards to try in order: TQBR (stocks) first, then TQTF (ETFs/funds).
+    private val BOARDS = arrayOf("TQBR", "TQTF")
     private const val TZ = "Europe/Moscow"
     
     // Rate limiting: minimum interval between stock API calls for the SAME
@@ -68,68 +69,139 @@ object StockApi {
     private fun windowMs(code: Int): Long = when (code) {
         1 -> 150L * 60_000L      // 1-min: last 2.5 h keeps it < 500 rows
         10 -> 2L * 24L * 60L * 60_000L
-        else -> 5L * 24L * 60L * 60_000L // 60-min: last 5 days
+        else -> 21L * 24L * 60L * 60_000L // 60-min: last 21 days (long holidays)
     }
+
+    /** Why a fetch produced no candles (null = success). */
+    enum class FetchError {
+        BAD_TICKER,   // rejected by the ticker format check
+        RATE_LIMITED, // same key fetched <60 s ago: keep old UI, retry later
+        NETWORK,      // transport failed or no HTTP success at all (see httpCode)
+        NOT_FOUND,    // ISS knows no such security on any tried board
+        CLOSED_EMPTY  // HTTP OK but zero candles anywhere (closed market / holiday)
+    }
+
+    /** One logical fetch: candles (possibly via fallback) or a reason. */
+    class FetchResult(
+        val candles: List<Candle>?,
+        /** Interval the candles really are — a fallback may differ. */
+        val actualCode: Int,
+        val error: FetchError?,
+        /** Last HTTP status seen (0 = none, -1 = transport failure). */
+        val httpCode: Int = 0
+    )
 
     /**
      * Fetch candles (OHLC + time) for [symbol] at MOEX interval [code]
-     * (1, 10 or 60), chronological oldest -> newest. Returns null on failure
-     * or when there is no data in the chosen window.
+     * (1, 10 or 60), chronological oldest -> newest.
+     *
+     * A bare fetch fails whenever the market is closed (the 1-min window is
+     * empty all night and all weekend), so on an empty window this falls
+     * back to coarser intervals (1 -> 10 -> 60) and to the TQTF board
+     * (ETFs), returning the interval that actually served ([actualCode]).
+     * A transport failure aborts at once (retrying 5 more URLs on a dead
+     * network only burns time); HTTP-level empties keep falling back.
+     *
+     * Never throws: every failure mode is a [FetchResult.error].
      */
-    fun fetchCandles(symbol: String, code: Int): List<Candle>? {
+    fun fetch(symbolRaw: String, code: Int): FetchResult {
         // Security: Validate input
-        if (!isValidTicker(symbol)) {
-            return null
+        val symbol = symbolRaw.uppercase(Locale.US)
+        if (!isValidTicker(symbol)) return FetchResult(null, code, FetchError.BAD_TICKER)
+
+        // Requested interval first, then coarser ones.
+        val codes = when (code) {
+            1 -> intArrayOf(1, 10, 60)
+            10 -> intArrayOf(10, 60)
+            else -> intArrayOf(60)
         }
-        
-        // Rate limiting check (per ticker+interval).
-        val key = "${symbol.uppercase(Locale.US)}|$code"
+        // One limiter key per LOGICAL fetch: the fallback attempts are part
+        // of it, and only a non-empty success arms the limiter, so an empty
+        // window never blocks its own retry (callers space attempts anyway).
+        val key = "$symbol|$code"
         val now = System.currentTimeMillis()
         synchronized(rateLock) {
             val last = lastFetchByKey[key] ?: 0L
-            if (now - last < RATE_LIMIT_MS) return null // Rate limited
+            if (now - last < RATE_LIMIT_MS) {
+                return FetchResult(null, code, FetchError.RATE_LIMITED)
+            }
         }
 
-        return try {
-            val from = Date(System.currentTimeMillis() - windowMs(code))
-            val url = buildUrl(symbol, code, from)
-            val body = httpGet(url) ?: return null
-            // Only successful HTTP hits arm the limiter, so a failed fetch
-            // for one window does not block its own retry (callers already
-            // space attempts by 60 s per key on top of this).
-            synchronized(rateLock) { lastFetchByKey[key] = now }
-            parse(body)
-        } catch (_: Exception) {
-            null
+        var attempts = 0
+        var notFounds = 0
+        var sawOk = false
+        var lastHttp = 0
+        for (c in codes) {
+            for (board in BOARDS) {
+                attempts++
+                val resp = try {
+                    httpGet(buildUrl(symbol, c, board))
+                } catch (_: Exception) {
+                    // Dead network (DNS/timeout/...): further attempts would
+                    // fail the same way, so stop immediately.
+                    return FetchResult(null, code, FetchError.NETWORK, -1)
+                }
+                lastHttp = resp.code
+                if (resp.code == 404) {
+                    notFounds++
+                    continue
+                }
+                if (resp.code !in 200..299) continue
+                sawOk = true
+                if (resp.body.isNullOrBlank()) continue
+                val candles = try {
+                    parse(resp.body)
+                } catch (_: Exception) {
+                    null
+                }
+                if (candles != null && candles.size >= 2) {
+                    synchronized(rateLock) { lastFetchByKey[key] = now }
+                    return FetchResult(candles, c, null, resp.code)
+                }
+                // HTTP OK but empty: fall through to the next fallback.
+            }
         }
+        if (attempts > 0 && notFounds == attempts) {
+            return FetchResult(null, code, FetchError.NOT_FOUND, 404)
+        }
+        if (!sawOk) return FetchResult(null, code, FetchError.NETWORK, lastHttp)
+        // Some endpoint answered HTTP OK yet nobody had candles: the market
+        // is closed (night/weekend/holiday) for every tried window.
+        return FetchResult(null, code, FetchError.CLOSED_EMPTY, lastHttp)
     }
 
-    private fun buildUrl(symbol: String, code: Int, from: Date): String {
-        val sym = URLEncoder.encode(symbol.uppercase(Locale.US), "UTF-8")
+    private fun buildUrl(symbol: String, code: Int, board: String): String {
         val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
             timeZone = TimeZone.getTimeZone(TZ)
         }
-        val fromStr = URLEncoder.encode(fmt.format(from), "UTF-8")
+        val fromStr = URLEncoder.encode(
+            fmt.format(Date(System.currentTimeMillis() - windowMs(code))), "UTF-8"
+        )
         val tillStr = URLEncoder.encode(
             fmt.format(Calendar.getInstance(TimeZone.getTimeZone(TZ)).time),
             "UTF-8"
         )
-        return BASE + sym + "/candles.json?interval=" + code +
+        val sym = URLEncoder.encode(symbol, "UTF-8") // already uppercased
+        return ISS + board + "/securities/" + sym +
+            "/candles.json?interval=" + code +
             "&from=" + fromStr + "&till=" + tillStr +
             "&iss.meta=off&iss.only=candles"
     }
 
-    private fun httpGet(url: String): String? {
+    /** One HTTP attempt. Returns the status + body, or throws on transport
+     *  failure (DNS, timeout, ...). Non-2xx is a VALUE, not an exception. */
+    private class Resp(val code: Int, val body: String?)
+
+    private fun httpGet(url: String): Resp {
         val c = (URL(url).openConnection() as HttpURLConnection)
-        return try {
+        try {
             c.requestMethod = "GET"
             c.connectTimeout = 9000
             c.readTimeout = 9000
             c.setRequestProperty("Accept", "application/json")
-            if (c.responseCode !in 200..299) null
-            else c.inputStream.bufferedReader().use { it.readText() }
-        } catch (_: Exception) {
-            null
+            val code = c.responseCode
+            if (code !in 200..299) return Resp(code, null)
+            return Resp(code, c.inputStream.bufferedReader().use { it.readText() })
         } finally {
             c.disconnect()
         }
