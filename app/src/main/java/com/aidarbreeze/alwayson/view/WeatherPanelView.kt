@@ -1329,19 +1329,28 @@ class WeatherPanelView @JvmOverloads constructor(
         }
 
         // ---------- right group: city + condition (right-aligned) ----------
+        // Long names ("Petropavlovsk-Kamchatsky, Russia") would run left past
+        // the temperature block, so both lines are ellipsized to the free
+        // width between the temp block and the card edge (the temperature
+        // always wins; on an absurdly narrow card the city is skipped).
         val city = data.city.trim()
         val cond = WeatherLabel.of(data.codeNow)
+        val tempW = premTempPaint.measureText(tempStr)
+        val feelsW = if (feels.isNotEmpty()) metaPaint.measureText(feels) else 0f
+        val maxRightW = cx1 - contentX - maxOf(tempW, feelsW) - dpf(12f)
+        val cityFit = ellipsizeEnd(premCityPaint, city, maxRightW)
+        val condFit = ellipsizeEnd(premCondPaint, cond, maxRightW)
         val lineHeights = floatArrayOf(dpf(15f), dpf(14f))
         var rightH = 0f
-        if (city.isNotEmpty()) rightH += lineHeights[0]
-        if (cond.isNotEmpty()) rightH += lineHeights[1]
+        if (cityFit.isNotEmpty()) rightH += lineHeights[0]
+        if (condFit.isNotEmpty()) rightH += lineHeights[1]
         var y = mainMid - rightH / 2f
-        if (city.isNotEmpty()) {
-            canvas.drawText(city, cx1, y + lineHeights[0] * 0.82f, premCityPaint)
+        if (cityFit.isNotEmpty()) {
+            canvas.drawText(cityFit, cx1, y + lineHeights[0] * 0.82f, premCityPaint)
             y += lineHeights[0]
         }
-        if (cond.isNotEmpty()) {
-            canvas.drawText(cond, cx1, y + lineHeights[1] * 0.82f, premCondPaint)
+        if (condFit.isNotEmpty()) {
+            canvas.drawText(condFit, cx1, y + lineHeights[1] * 0.82f, premCondPaint)
         }
 
         // ---------- bottom details line (real values only) ----------
@@ -1355,6 +1364,27 @@ class WeatherPanelView @JvmOverloads constructor(
             if (x < cx0) x = cx0
             canvas.drawText(details, x, baseY, premDetailPaint)
         }
+    }
+
+    /** Truncate [text] with "…" so it fits [maxW] ("" when not even one
+     *  char fits). Binary search over short-lived prefixes; only runs while
+     *  truncating, so the common case costs a single measureText. */
+    private fun ellipsizeEnd(p: Paint, text: String, maxW: Float): String {
+        if (maxW <= 0f || text.isEmpty()) return ""
+        if (p.measureText(text) <= maxW) return text
+        val ell = "…"
+        if (p.measureText(ell) > maxW) return ""
+        var lo = 0
+        var hi = text.length
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (p.measureText(text.substring(0, mid) + ell) <= maxW) lo = mid
+            else hi = mid - 1
+        }
+        // Never split a surrogate pair (emoji/city names in astral planes).
+        var cut = lo
+        while (cut > 0 && text[cut - 1].isLowSurrogate()) cut--
+        return if (cut == 0) "" else text.substring(0, cut) + ell
     }
 
     private fun premTempFontExtent(): Float {
