@@ -1,6 +1,7 @@
 package com.aidarbreeze.alwayson.view
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -50,11 +51,61 @@ class ClockView @JvmOverloads constructor(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val dimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    fun setTime(text: String) {
-        if (text != timeText) {
-            timeText = text
-            invalidate()
+    // Reused across draws so onDraw never allocates (allocation in onDraw =
+    // GC pauses = scroll/draw jank).
+    private val segPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        color = Color.WHITE
+    }
+    private val chipBg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = 0x26FFFFFF
+    }
+
+    // Neon style: the 16-layer bloom is rendered once into a bitmap and only
+    // re-rendered when the text or the size changes (otherwise every frame
+    // would overdraw the huge glyphs 16 times).
+    private var neonBmp: Bitmap? = null
+    private var neonKey = ""
+
+    companion object {
+        // Typeface.create() hits the font system every call; cache one per
+        // family so measure/draw never pay for it. `by lazy` is synchronized.
+        private val tfLight: Typeface by lazy {
+            Typeface.create("sans-serif-light", Typeface.NORMAL)
         }
+        private val tfSans: Typeface by lazy {
+            Typeface.create("sans-serif", Typeface.NORMAL)
+        }
+        private val tfBold: Typeface by lazy {
+            Typeface.create("sans-serif", Typeface.BOLD)
+        }
+        private val tfBoldItalic: Typeface by lazy {
+            Typeface.create("sans-serif", Typeface.BOLD_ITALIC)
+        }
+        private val tfSerif: Typeface by lazy {
+            Typeface.create("serif", Typeface.NORMAL)
+        }
+    }
+
+    fun setTime(text: String) {
+        if (text == timeText) return
+        // "9:59" -> "10:00" changes the fitted size and needs a re-measure;
+        // same-length ticks ("10:00" -> "10:01") only need a redraw. Calling
+        // requestLayout() every second would re-layout the whole settings
+        // ScrollView every second and visibly stutter scrolling.
+        val relayout = text.length != timeText.length
+        timeText = text
+        if (relayout) requestLayout()
+        invalidate()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        neonBmp?.recycle()
+        neonBmp = null
+        neonKey = ""
     }
 
     /** Re-measure AND redraw: a style/size/thickness change can change the
@@ -74,13 +125,13 @@ class ClockView @JvmOverloads constructor(
 
     /** The typeface the current style is drawn with. Used for MEASUREMENT too,
      *  so onMeasure() and onDraw() always agree on size/width per style. */
-    private fun typefaceForStyle(): Typeface = when (style()) {
-        0 -> Typeface.create("sans-serif-light", Typeface.NORMAL)
-        7 -> Typeface.create("serif", Typeface.NORMAL)
-        8 -> Typeface.create("sans-serif", Typeface.BOLD_ITALIC)
-        10, 13, 14 -> Typeface.create("sans-serif", Typeface.NORMAL)
+    private fun typefaceForStyle(s: Int = style()): Typeface = when (s) {
+        0 -> tfLight
+        7 -> tfSerif
+        8 -> tfBoldItalic
+        10, 13, 14 -> tfSans
         12 -> Typeface.MONOSPACE
-        else -> Typeface.create("sans-serif", Typeface.BOLD)
+        else -> tfBold
     }
 
     /** Biggest digit text size (px) for one line that fits [availW], capped.
@@ -115,31 +166,30 @@ class ClockView @JvmOverloads constructor(
     }
 
     /** Biggest size for the PREMIUM style: the large "h:mm" part plus a
-     *  small dimmed seconds suffix must fit [availW] together. Measured in
-     *  the real (letter-spaced) typeface, so fit == draw. */
+     *  small dimmed seconds suffix must fit [availW] together. Measured once
+     *  at a reference size in the real (letter-spaced) typeface and scaled
+     *  analytically, so fit == draw with exactly two measureText calls
+     *  instead of a ~50-iteration shrink loop on every measure/draw. */
     private fun fitPremiumSize(availW: Float, capPx: Float): Float {
         val (main, sec) = premiumParts()
-        val tf = Typeface.create("sans-serif", Typeface.NORMAL)
-        var size = capPx
-        while (size > 8f) {
-            paint.reset()
-            paint.isAntiAlias = true
-            paint.typeface = tf
-            paint.letterSpacing = 0.025f
-            paint.textSize = size
-            val bigW = paint.measureText(main)
-            var smallW = 0f
-            if (sec.isNotEmpty()) {
-                paint.textSize = size * 0.42f
-                paint.letterSpacing = 0.08f
-                smallW = paint.measureText(sec)
-            }
-            paint.letterSpacing = 0f
-            val gap = if (sec.isNotEmpty()) size * 0.14f else 0f
-            if (bigW + gap + smallW <= availW) break
-            size -= 2f
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfSans
+        paint.letterSpacing = 0.025f
+        paint.textSize = 100f
+        val big100 = paint.measureText(main)
+        var small100 = 0f
+        if (sec.isNotEmpty()) {
+            paint.textSize = 42f // 0.42 * 100: the suffix scales with the size
+            paint.letterSpacing = 0.08f
+            small100 = paint.measureText(sec)
         }
-        return size
+        paint.letterSpacing = 0f
+        // Total width at size S: big100/100*S + 0.14*S + small100/100*S.
+        val perUnit = big100 / 100f +
+            (if (sec.isNotEmpty()) 0.14f else 0f) + small100 / 100f
+        if (perUnit <= 0f) return capPx
+        return (availW / perUnit).coerceIn(8f, capPx)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -194,7 +244,14 @@ class ClockView @JvmOverloads constructor(
         val h = height.toFloat()
         if (w <= 1f || h <= 1f) return
 
-        when (style()) {
+        val s = style()
+        if (s != 5 && neonBmp != null) {
+            // Left the neon style: drop its cached bitmap at once.
+            neonBmp?.recycle()
+            neonBmp = null
+            neonKey = ""
+        }
+        when (s) {
             1 -> drawOutline(canvas, w, h)
             2 -> drawDotGrid(canvas, w, h, square = false)
             3 -> drawFlip(canvas, w, h)
@@ -204,8 +261,8 @@ class ClockView @JvmOverloads constructor(
             7 -> drawSerif(canvas, w, h)
             8 -> drawItalic(canvas, w, h)
             9 -> drawDotGrid(canvas, w, h, square = true)
-            10 -> drawPlain(canvas, w, h, Typeface.create("sans-serif", Typeface.NORMAL))
-            11 -> drawPlain(canvas, w, h, Typeface.create("sans-serif", Typeface.BOLD))
+            10 -> drawPlain(canvas, w, h, tfSans)
+            11 -> drawPlain(canvas, w, h, tfBold)
             12 -> drawPlain(canvas, w, h, Typeface.MONOSPACE)
             13 -> drawSoftRounded(canvas, w, h)
             14 -> drawPremium(canvas, w, h)
@@ -217,7 +274,7 @@ class ClockView @JvmOverloads constructor(
 
     private fun drawNormal(canvas: Canvas, w: Float, h: Float) {
         val size = fitTextSize(w, cap())
-        val tf = Typeface.create("sans-serif-light", Typeface.NORMAL)
+        val tf = tfLight
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
@@ -234,7 +291,7 @@ class ClockView @JvmOverloads constructor(
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
-        paint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        paint.typeface = tfBold
         paint.color = Color.WHITE
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = thicknessPx()
@@ -247,7 +304,7 @@ class ClockView @JvmOverloads constructor(
 
     private fun drawFlip(canvas: Canvas, w: Float, h: Float) {
         val size = fitTextSize(w, cap())
-        val tf = Typeface.create("sans-serif", Typeface.BOLD)
+        val tf = tfBold
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
@@ -410,9 +467,8 @@ class ClockView @JvmOverloads constructor(
         while (digitH > 2f && totalW(digitH) > w) digitH -= 2f
         if (digitH > capPx) digitH = capPx
 
-        val seg = Paint(Paint.ANTI_ALIAS_FLAG)
+        val seg = segPaint
         seg.style = Paint.Style.STROKE
-        seg.strokeCap = Paint.Cap.ROUND
         seg.color = Color.WHITE
 
         val xStart = (w - totalW(digitH)) / 2f
@@ -485,13 +541,42 @@ class ClockView @JvmOverloads constructor(
 
     private fun drawNeon(canvas: Canvas, w: Float, h: Float) {
         val core = fitTextSize(w, cap())
+        val key = "$timeText|${w.toInt()}|${h.toInt()}|${core.toInt()}"
+        var bmp = if (key == neonKey) neonBmp else null
+        if (bmp == null) {
+            neonBmp?.recycle()
+            neonBmp = null
+            bmp = try {
+                Bitmap.createBitmap(
+                    w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1),
+                    Bitmap.Config.ARGB_8888
+                )
+            } catch (_: Exception) {
+                null
+            }
+            if (bmp != null) {
+                renderNeonInto(Canvas(bmp), bmp.width.toFloat(), bmp.height.toFloat(), core)
+                neonBmp = bmp
+                neonKey = key
+            }
+        }
+        if (bmp != null) {
+            canvas.drawBitmap(bmp, 0f, 0f, null)
+        } else {
+            // Bitmap alloc failed (low memory): fall back to a direct draw.
+            renderNeonInto(canvas, w, h, core)
+        }
+    }
+
+    /** The neon bloom itself: translucent copies shrinking from a wide faint
+     *  halo down to a crisp bright core. Only called when the cached bitmap
+     *  is stale, never every frame. */
+    private fun renderNeonInto(canvas: Canvas, w: Float, h: Float, core: Float) {
         paint.reset()
         paint.isAntiAlias = true
         paint.style = Paint.Style.FILL
-        paint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        paint.typeface = tfBold
         paint.textAlign = Paint.Align.CENTER
-        // Bloom: draw several translucent copies shrinking from a wide faint
-        // halo down to a crisp bright core.
         val layers = 16
         for (i in 0 until layers) {
             val f = i / (layers - 1f) // 0 = outermost, 1 = core
@@ -509,7 +594,7 @@ class ClockView @JvmOverloads constructor(
     private fun drawBlocks(canvas: Canvas, w: Float, h: Float) {
         val capPx = cap()
         val digitPad = dp(11f)
-        val tf = Typeface.create("sans-serif", Typeface.BOLD)
+        val tf = tfBold
         paint.reset()
         paint.isAntiAlias = true
         paint.style = Paint.Style.FILL
@@ -533,10 +618,7 @@ class ClockView @JvmOverloads constructor(
         val yTop = h / 2f - chipH / 2f
         val baseline = yTop + chipH / 2f - (fm.ascent + fm.descent) / 2f
         val radius = dp(10f)
-
-        val bg = Paint(Paint.ANTI_ALIAS_FLAG)
-        bg.style = Paint.Style.FILL
-        bg.color = 0x26FFFFFF
+        val bg = chipBg
 
         var x = (w - total(size)) / 2f
         paint.textAlign = Paint.Align.CENTER
@@ -563,7 +645,7 @@ class ClockView @JvmOverloads constructor(
 
     private fun drawSerif(canvas: Canvas, w: Float, h: Float) {
         val size = fitTextSize(w, cap())
-        val tf = Typeface.create("serif", Typeface.NORMAL)
+        val tf = tfSerif
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
@@ -577,7 +659,7 @@ class ClockView @JvmOverloads constructor(
 
     private fun drawItalic(canvas: Canvas, w: Float, h: Float) {
         val size = fitTextSize(w, cap())
-        val tf = Typeface.create("sans-serif", Typeface.BOLD_ITALIC)
+        val tf = tfBoldItalic
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
@@ -610,7 +692,7 @@ class ClockView @JvmOverloads constructor(
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
-        paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        paint.typeface = tfSans
         paint.color = Color.WHITE
         // FILL_AND_STROKE with round joins/caps rounds the corners of the
         // glyphs into a soft, rounded look.
@@ -633,7 +715,7 @@ class ClockView @JvmOverloads constructor(
 
         paint.reset()
         paint.isAntiAlias = true
-        paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        paint.typeface = tfSans
         paint.style = Paint.Style.FILL
         paint.textAlign = Paint.Align.LEFT
         paint.color = 0xFFF5F7FA.toInt()

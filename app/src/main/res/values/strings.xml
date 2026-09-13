@@ -30,6 +30,11 @@
     <string name="brightness_label">Clock brightness</string>
 
     <string name="clock_style_title">Clock style</string>
+    <string name="preview_gesture_hint">Swipe the clock to change its style • swipe the panel for its style • tap the panel for the next window</string>
+    <string name="carousel_prev">Previous style</string>
+    <string name="carousel_next">Next style</string>
+    <string name="pin_on">Window pinned — long-press again to resume rotation</string>
+    <string name="pin_off">Window rotation resumed</string>
     <string-array name="clock_style_entries">
         <item>Normal</item>
         <item>Outline (hollow digits)</item>

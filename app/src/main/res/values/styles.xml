@@ -44,6 +44,19 @@
         <item name="android:stateListAnimator">@null</item>
     </style>
 
+    <!-- Chevron button of a style carousel ("‹" / "›"): borderless, big tap
+         target, no Button minimums so it stays compact in a settings row. -->
+    <style name="CarouselButton">
+        <item name="android:layout_width">52dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+        <item name="android:textSize">26sp</item>
+        <item name="android:textColor">@color/settings_text</item>
+        <item name="android:gravity">center</item>
+    </style>
+
     <!-- Dark application theme for the settings screen (matches the OLED
          standby look). Uses the built-in dark Material action bar. -->
     <style name="AppTheme" parent="@android:style/Theme.Material">

@@ -214,13 +214,35 @@ class WeatherPanelView @JvmOverloads constructor(
         textAlign = Paint.Align.LEFT
     }
 
+    // Temperature unit resolved once per frame (see onDraw); the old code
+    // queried Prefs for EVERY temperature string of EVERY draw.
+    private var unitF = false
+
+    // Reused scratch paints so the hero / sun / split modes never allocate
+    // Paint objects inside onDraw (GC churn = jank).
+    private val heroBig = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val heroGlyph = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val sunBig = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = dpf(18f)
+        textAlign = Paint.Align.CENTER
+    }
+    private val splitBig = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val splitCond = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val splitGlyph = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    // Premium-mode weather icon, reloaded only when the condition changes
+    // (resources.getDrawable on every frame is needlessly expensive).
+    private var premIconCode = -1
+    private var premIcon: android.graphics.drawable.Drawable? = null
+
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
 
     /** Display a temperature with the user's unit (C default, F optional).
      *  Conversion is display-only; the stored data stays Celsius. Rounded to
      *  the nearest degree (truncation would be off by 1° in some cases). */
     private fun t(c: Int): String {
-        if (Prefs.tempUnit(context) != 1) return "$c°"
+        if (!unitF) return "$c°"
         val fahrenheit = round(c * 9f / 5f + 32f).toInt()
         return "${fahrenheit}°"
     }
@@ -296,6 +318,20 @@ class WeatherPanelView @JvmOverloads constructor(
             canvas.drawText(msg, w / 2f, h / 2f, statusPaint)
             return
         }
+
+        unitF = Prefs.tempUnit(context) == 1
+        // The forecast / daily / mono modes resize the SHARED paints below;
+        // restore the defaults on every frame so switching styles never
+        // inherits another mode's text sizes (previously e.g. daily -> classic
+        // left the classic panel with the wrong sizes).
+        timePaint.textSize = dpf(10.5f)
+        hourlyGlyphPaint.textSize = dpf(16f)
+        hourlyTempPaint.textSize = dpf(12f)
+        dayLabelPaint.textSize = dpf(13f)
+        dayLabelBold.textSize = dpf(13f)
+        dayRangePaint.textSize = dpf(12f)
+        dayRangeBold.textSize = dpf(12f)
+        weekGlyphPaint.textSize = dpf(12f)
 
         when (style) {
             STYLE_CURVE -> drawCurveMode(canvas, w, h, data)
@@ -829,12 +865,14 @@ class WeatherPanelView @JvmOverloads constructor(
             canvas.drawText(cond, w - pad, dpf(18f), condPaint)
         }
 
-        val big = Paint(bigPaint)
+        val big = heroBig
+        big.set(bigPaint)
         big.textSize = min(w * 0.40f, h * 0.5f).coerceAtMost(dpf(96f))
         big.color = Color.WHITE
         val glyph = WeatherLabel.glyph(data.codeNow)
         if (glyph.isNotEmpty()) {
-            val g = Paint(glyphPaint)
+            val g = heroGlyph
+            g.set(glyphPaint)
             g.textSize = big.textSize * 0.40f
             val gap = dpf(14f)
             val tempW = big.measureText("${t(data.tempNowC)}")
@@ -996,12 +1034,7 @@ class WeatherPanelView @JvmOverloads constructor(
         // Sun cycle, emphasised.
         val sun = sunLine(data)
         if (sun.isNotEmpty()) {
-            val sunPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                textSize = dpf(18f)
-                textAlign = Paint.Align.CENTER
-            }
-            canvas.drawText(sun, w / 2f, baseY + dpf(58f), sunPaint)
+            canvas.drawText(sun, w / 2f, baseY + dpf(58f), sunBig)
         }
     }
 
@@ -1016,23 +1049,28 @@ class WeatherPanelView @JvmOverloads constructor(
         canvas.drawLine(midX, pad, midX, h - pad, sepPaint)
 
         // ---- left: current ----
-        val leftW = midX - dpf(8f)
         val city = data.city.trim()
         if (city.isNotEmpty()) {
             cityPaint.textAlign = Paint.Align.LEFT
             canvas.drawText(city, pad, dpf(20f), cityPaint)
         }
-        val big2 = Paint(bigPaint)
+        val big2 = splitBig
+        big2.set(bigPaint)
         big2.textSize = dpf(30f)
         big2.textAlign = Paint.Align.LEFT
         val glyph = WeatherLabel.glyph(data.codeNow)
         val cond = WeatherLabel.of(data.codeNow)
-        val cond2 = Paint(condPaint).apply { textSize = dpf(13f) }
+        val cond2 = splitCond
+        cond2.set(condPaint)
+        cond2.textSize = dpf(13f)
         var y = h / 2f - dpf(4f)
         canvas.drawText("${t(data.tempNowC)}", pad, y, big2)
         var tx = pad + big2.measureText("${t(data.tempNowC)}") + dpf(8f)
         if (glyph.isNotEmpty()) {
-            val g2 = Paint(glyphPaint).apply { textSize = dpf(20f); textAlign = Paint.Align.LEFT }
+            val g2 = splitGlyph
+            g2.set(glyphPaint)
+            g2.textSize = dpf(20f)
+            g2.textAlign = Paint.Align.LEFT
             canvas.drawText(glyph, tx, y, g2)
             tx += g2.measureText(glyph) + dpf(8f)
         }
@@ -1073,7 +1111,7 @@ class WeatherPanelView @JvmOverloads constructor(
                 cy + dpf(5f),
                 weekGlyphPaint
             )
-            canvas.drawText("${t(hour.tempC)}", midX - dpf(12f), cy + dpf(4.5f), hourlyTempPaint)
+            canvas.drawText("${t(hour.tempC)}", w - pad, cy + dpf(4.5f), hourlyTempPaint)
         }
     }
 
@@ -1125,14 +1163,25 @@ class WeatherPanelView @JvmOverloads constructor(
         val iconRes = weatherIconRes(data.codeNow)
         var contentX = cx0
         if (iconRes != null) {
-            val d = resources.getDrawable(iconRes, context.theme)
-            val top = mainMid - iconSize / 2f
-            d.setBounds(
-                cx0.toInt(), top.toInt(),
-                (cx0 + iconSize).toInt(), (top + iconSize).toInt()
-            )
-            d.draw(canvas)
-            contentX = cx0 + iconSize + dpf(14f)
+            var d = if (data.codeNow == premIconCode) premIcon else null
+            if (d == null) {
+                d = try {
+                    resources.getDrawable(iconRes, context.theme)
+                } catch (_: Exception) {
+                    null
+                }
+                premIcon = d
+                premIconCode = data.codeNow
+            }
+            if (d != null) {
+                val top = mainMid - iconSize / 2f
+                d.setBounds(
+                    cx0.toInt(), top.toInt(),
+                    (cx0 + iconSize).toInt(), (top + iconSize).toInt()
+                )
+                d.draw(canvas)
+                contentX = cx0 + iconSize + dpf(14f)
+            }
         }
 
         // "Feels like" is shown whenever the API provided it (even when equal

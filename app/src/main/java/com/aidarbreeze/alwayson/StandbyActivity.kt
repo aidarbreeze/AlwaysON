@@ -35,8 +35,7 @@ class StandbyActivity : Activity() {
             val isPinned = controller?.togglePinned() ?: false
             Toast.makeText(
                 this,
-                if (isPinned) "Окно закреплено — ещё раз, чтобы вернуться к смене"
-                else "Смена окон включена",
+                if (isPinned) getString(R.string.pin_on) else getString(R.string.pin_off),
                 Toast.LENGTH_SHORT
             ).show()
             true

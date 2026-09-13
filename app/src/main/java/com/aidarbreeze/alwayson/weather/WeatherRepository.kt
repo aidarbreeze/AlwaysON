@@ -57,7 +57,9 @@ object WeatherRepository {
     private var lastGood: WeatherInfo? = null
     private var lastGoodKey: String? = null
     private var lastGoodTs: Long = 0L
-    private var lastFetchTime: Long = 0L  // For rate limiting
+    // For rate limiting, per location key (a global timestamp would block a
+    // fetch for a DIFFERENT city for 15 min after any successful fetch).
+    private val lastFetchByKey = HashMap<String, Long>()
     private var diskLoaded = false
 
     private fun keyOf(lat: Double, lon: Double): String = "$lat|$lon"
@@ -111,12 +113,13 @@ object WeatherRepository {
             return
         }
 
-        // Rate limiting: check if enough time has passed since last fetch
+        // Rate limiting: check if enough time has passed since the last fetch
+        // for THIS location.
         val now = System.currentTimeMillis()
         val shouldFetch = synchronized(lock) {
             if (inFlightKey == key) {
                 false
-            } else if (now - lastFetchTime < RATE_LIMIT_MS && !force) {
+            } else if (now - (lastFetchByKey[key] ?: 0L) < RATE_LIMIT_MS && !force) {
                 // Rate limit enforced - not enough time since last fetch
                 false
             } else {
@@ -139,7 +142,7 @@ object WeatherRepository {
                     lastGood = data
                     lastGoodKey = key
                     lastGoodTs = System.currentTimeMillis()
-                    lastFetchTime = System.currentTimeMillis()
+                    lastFetchByKey[key] = System.currentTimeMillis()
                 }
                 persistFull(c, data, lat, lon)
                 WeatherSharedCache.save(c, data) // snapshot for the widget

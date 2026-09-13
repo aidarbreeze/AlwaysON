@@ -32,6 +32,14 @@ object NowPlayingCache {
     @Volatile
     var updatedAt: Long = 0L
 
+    // The standby ticker polls the art every second; without a memo the same
+    // large cover would be re-scaled (a fresh bitmap + a full resample) every
+    // second. Guarded by [memoLock]: downscale() is called both from the UI
+    // thread and from the notification-listener thread.
+    private val memoLock = Any()
+    private var memoSrc: Bitmap? = null
+    private var memoScaled: Bitmap? = null
+
     /**
      * Downscale arbitrary album art to a small thumbnail (max [maxPx] on the
      * long side) so the StandBy card never holds a large bitmap in memory.
@@ -39,7 +47,10 @@ object NowPlayingCache {
      */
     fun downscale(src: Bitmap?, maxPx: Int = 96): Bitmap? {
         if (src == null) return null
-        return try {
+        synchronized(memoLock) {
+            if (src === memoSrc && memoScaled != null) return memoScaled
+        }
+        val out = try {
             val side = maxOf(src.width, src.height)
             if (side <= maxPx) src
             else {
@@ -54,6 +65,11 @@ object NowPlayingCache {
         } catch (_: Exception) {
             null
         }
+        synchronized(memoLock) {
+            memoSrc = src
+            memoScaled = out
+        }
+        return out
     }
 }
 

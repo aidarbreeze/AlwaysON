@@ -12,6 +12,8 @@ import android.os.Looper
 import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
@@ -50,8 +52,12 @@ class MainActivity : Activity() {
     private lateinit var autoBrightSwitch: Switch
     private lateinit var brightnessSeek: SeekBar
     private lateinit var brightnessValue: TextView
-    private lateinit var clockStyleSpinner: Spinner
-    private lateinit var calendarStyleSpinner: Spinner
+    private lateinit var clockPrev: Button
+    private lateinit var clockNext: Button
+    private lateinit var clockStyleName: TextView
+    private lateinit var calPrev: Button
+    private lateinit var calNext: Button
+    private lateinit var calStyleName: TextView
     private lateinit var thicknessSeek: SeekBar
     private lateinit var thicknessValue: TextView
     private lateinit var outlineThicknessRow: View
@@ -79,7 +85,9 @@ class MainActivity : Activity() {
     private lateinit var weatherStatus: TextView
     private lateinit var weatherGeobtn: Button
     private lateinit var weatherLocBlock: View
-    private lateinit var weatherStyleSpinner: Spinner
+    private lateinit var weatherPrev: Button
+    private lateinit var weatherNext: Button
+    private lateinit var weatherStyleName: TextView
     private lateinit var scheduleRow: View
     private lateinit var schedGroup: RadioGroup
     private lateinit var schedHoursRow: View
@@ -90,9 +98,15 @@ class MainActivity : Activity() {
     private lateinit var durWeatherSpinner: Spinner
 
     // Full-StandBy mini preview (calendar / chart / weather windows).
+    private lateinit var miniRoot: View
     private lateinit var miniMonth: MonthCalendarView
     private lateinit var miniStock: StockChartView
     private lateinit var miniWeather: WeatherPanelView
+
+    // Style names for the "‹ ›" carousels (array index == style code).
+    private lateinit var clockEntries: Array<String>
+    private lateinit var calEntries: Array<String>
+    private lateinit var weatherEntries: Array<String>
 
     // Live clock preview (top of the settings screen).
     private lateinit var previewClock: ClockView
@@ -121,6 +135,7 @@ class MainActivity : Activity() {
         previewClock = findViewById(R.id.previewClock)
         previewDate = findViewById(R.id.previewDate)
         brightnessRow = findViewById(R.id.brightnessRow)
+        miniRoot = findViewById(R.id.miniRoot)
         miniMonth = findViewById(R.id.miniMonth)
         miniStock = findViewById(R.id.miniStock)
         miniWeather = findViewById(R.id.miniWeather)
@@ -139,8 +154,12 @@ class MainActivity : Activity() {
         autoBrightSwitch = findViewById(R.id.autoBrightSwitch)
         brightnessSeek = findViewById(R.id.brightnessSeek)
         brightnessValue = findViewById(R.id.brightnessValue)
-        clockStyleSpinner = findViewById(R.id.clockStyleSpinner)
-        calendarStyleSpinner = findViewById(R.id.calendarStyleSpinner)
+        clockPrev = findViewById(R.id.clockPrev)
+        clockNext = findViewById(R.id.clockNext)
+        clockStyleName = findViewById(R.id.clockStyleName)
+        calPrev = findViewById(R.id.calPrev)
+        calNext = findViewById(R.id.calNext)
+        calStyleName = findViewById(R.id.calStyleName)
         thicknessSeek = findViewById(R.id.thicknessSeek)
         thicknessValue = findViewById(R.id.thicknessValue)
         outlineThicknessRow = findViewById(R.id.outlineThicknessRow)
@@ -168,7 +187,9 @@ class MainActivity : Activity() {
         weatherStatus = findViewById(R.id.weatherStatus)
         weatherGeobtn = findViewById(R.id.weatherGeobtn)
         weatherLocBlock = findViewById(R.id.weatherLocBlock)
-        weatherStyleSpinner = findViewById(R.id.weatherStyleSpinner)
+        weatherPrev = findViewById(R.id.weatherPrev)
+        weatherNext = findViewById(R.id.weatherNext)
+        weatherStyleName = findViewById(R.id.weatherStyleName)
 
         // Load persisted appearance.
         autoBrightSwitch.isChecked = Prefs.autoBrightness(this)
@@ -201,53 +222,25 @@ class MainActivity : Activity() {
             Prefs.setWeekStart(this, v)
         }
 
-        // Load clock style as a dropdown. The array index equals the style code.
-        val styleEntries = resources.getStringArray(R.array.clock_style_entries)
-        clockStyleSpinner.adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_item,
-                styleEntries
-            ).also {
-                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            }
-        val style = Prefs.clockStyle(this).coerceIn(0, styleEntries.size - 1)
-        clockStyleSpinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
-                ) {
-                    Prefs.setClockStyle(this@MainActivity, position)
-                    updateOutlineThicknessRow()
-                    updatePreview()
-                }
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-            }
-        clockStyleSpinner.setSelection(style)
+        // Clock style carousel ("‹ name ›"); the same faces can be flipped
+        // through with a swipe right on the live preview. The array index
+        // equals the style code.
+        clockEntries = resources.getStringArray(R.array.clock_style_entries)
+        bindCarousel(
+            clockPrev, clockNext, clockStyleName, clockEntries,
+            get = { Prefs.clockStyle(this) },
+            set = { applyClockStyle(it) }
+        )
+        attachClockSwipe()
 
-        // Calendar style dropdown; the array index equals the style code and
-        // the mini calendar (and the full preview) redraw live.
-        val calEntries = resources.getStringArray(R.array.calendar_style_entries)
-        calendarStyleSpinner.adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_item,
-                calEntries
-            ).also {
-                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            }
-        val calStyle = Prefs.calendarStyle(this).coerceIn(0, calEntries.size - 1)
-        calendarStyleSpinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
-                ) {
-                    Prefs.setCalendarStyle(this@MainActivity, position)
-                    miniMonth.invalidate()
-                }
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-            }
-        calendarStyleSpinner.setSelection(calStyle)
+        // Calendar style carousel; flipping it jumps the mini preview to the
+        // calendar window, so the new style is visible at once.
+        calEntries = resources.getStringArray(R.array.calendar_style_entries)
+        bindCarousel(
+            calPrev, calNext, calStyleName, calEntries,
+            get = { Prefs.calendarStyle(this) },
+            set = { applyCalendarStyle(it) }
+        )
 
         val thickness = Prefs.clockThickness(this)
         thicknessSeek.progress = thickness - 1
@@ -260,6 +253,7 @@ class MainActivity : Activity() {
                 thicknessValue.text = "$v dp"
                 if (fromUser) {
                     Prefs.setClockThickness(this@MainActivity, v)
+                    previewClock.refresh() // the outline grows outward: re-fit
                     updatePreview()
                 }
             }
@@ -321,6 +315,9 @@ class MainActivity : Activity() {
                 this,
                 if (checkedId == R.id.stockTypeCandles) 1 else 0
             )
+            // Redraw the visible chart at once (otherwise the new type only
+            // appears on the next rotation step).
+            miniStock.invalidate()
         }
         stockPeriodGroup.setOnCheckedChangeListener { _, checkedId ->
             val p = when (checkedId) {
@@ -346,6 +343,7 @@ class MainActivity : Activity() {
         }
         bindIntSpinner(clockSizeSpinner, R.array.clock_size_entries, Prefs.clockSize(this)) {
             Prefs.setClockSize(this, it)
+            previewClock.refresh() // a new size needs a new fit
             updatePreview()
         }
         bindIntSpinner(dateFormatSpinner, R.array.date_format_entries, Prefs.dateFormat(this)) {
@@ -387,27 +385,15 @@ class MainActivity : Activity() {
             startMiniPreview()
         }
 
-        val weatherEntries = resources.getStringArray(R.array.weather_style_entries)
-        weatherStyleSpinner.adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_item,
-                weatherEntries
-            ).also {
-                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            }
-        val weatherStyle = Prefs.weatherStyle(this).coerceIn(0, weatherEntries.size - 1)
-        weatherStyleSpinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?, view: View?, position: Int, id: Long
-                ) {
-                    Prefs.setWeatherStyle(this@MainActivity, position)
-                    startMiniPreview()
-                }
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-            }
-        weatherStyleSpinner.setSelection(weatherStyle)
+        // Weather style carousel (jumps the mini preview to the weather
+        // window) + swipe/tap gestures on the mini panel itself.
+        weatherEntries = resources.getStringArray(R.array.weather_style_entries)
+        bindCarousel(
+            weatherPrev, weatherNext, weatherStyleName, weatherEntries,
+            get = { Prefs.weatherStyle(this) },
+            set = { applyWeatherStyle(it) }
+        )
+        attachMiniGestures()
 
         weatherGeobtn.setOnClickListener { requestLocation() }
 
@@ -610,7 +596,15 @@ class MainActivity : Activity() {
     override fun onPause() {
         super.onPause()
         previewHandler.removeCallbacks(previewTicker)
+        previewHandler.removeCallbacks(tickerDebounce)
+        // A typed-but-not-yet-debounced watchlist must not be lost.
+        Prefs.setStockTickers(this, tickerInput.text?.toString() ?: "")
         stopMiniPreview()
+    }
+
+    override fun onDestroy() {
+        previewHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     private fun updateBrightnessLabel() {
@@ -630,18 +624,19 @@ class MainActivity : Activity() {
         if (!this::previewClock.isInitialized) return
         val now = Calendar.getInstance()
         val millis = now.timeInMillis
-        val use24 = if (Prefs.force24h(this)) true
-        else android.text.format.DateFormat.is24HourFormat(this)
+        val use24 = Prefs.force24h(this) || android.text.format.DateFormat.is24HourFormat(this)
         // The preview shows seconds in modes "always" and "preview only".
-        val secs = Prefs.secondsMode(this) == 1 || Prefs.secondsMode(this) == 2
+        val secs = Prefs.secondsMode(this) != 0
         val pattern = when {
             use24 && secs -> "HH:mm:ss"
             use24 -> "HH:mm"
             secs -> "h:mm:ss"
             else -> "h:mm"
         }
+        // setTime() alone: it re-measures only when the text length changes
+        // ("9:59" -> "10:00"). A refresh() here would re-layout the whole
+        // settings ScrollView every second and stutter scrolling.
         previewClock.setTime(SimpleDateFormat(pattern, Locale.getDefault()).format(millis))
-        previewClock.refresh()
 
         val locale = Locale.getDefault()
         val ru = locale.language.equals("ru", ignoreCase = true)
@@ -712,6 +707,12 @@ class MainActivity : Activity() {
         else -> Prefs.panelDurationCal(this).toLong() * 1000L
     }
 
+    /** Short chart label: "60М" in Russian, "60m" in English. */
+    private fun miniIntervalLabel(code: Int): String {
+        val m = if (Locale.getDefault().language.equals("ru", ignoreCase = true)) "М" else "m"
+        return "$code$m"
+    }
+
     /** Rebuild the window list and restart the rotation from the calendar.
      *  Called on resume and after any setting that changes the rotation. */
     private fun startMiniPreview() {
@@ -760,7 +761,7 @@ class MainActivity : Activity() {
             0 -> miniMonth.invalidate() // draws the current month itself
             1 -> {
                 val ref = Prefs.stockReference(this)
-                val label = "${p.interval}М"
+                val label = miniIntervalLabel(p.interval)
                 val key = "${p.symbol}-${p.interval}"
                 val cached = miniStockCached[key]
                 if (cached != null && cached.size >= 2) {
@@ -801,7 +802,7 @@ class MainActivity : Activity() {
                     if (p != null && p.kind == 1 && p.symbol == symbol && p.interval == code) {
                         miniStock.setData(
                             symbol, Prefs.stockReference(this),
-                            "${code}М", data, code * 60
+                            miniIntervalLabel(code), data, code * 60
                         )
                     }
                 } else if (p != null && p.kind == 1 && p.symbol == symbol &&
@@ -837,6 +838,178 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------- style carousels + preview gestures ----------
+    //
+    // The clock / calendar / weather styles are flipped through with "‹ ›"
+    // carousels (and with swipes right on the live preview), never picked
+    // from a dropdown: every flip applies instantly and is visible at once.
+
+    /** Wire "‹ name ›" buttons to a style setting. */
+    private fun bindCarousel(
+        prev: Button,
+        next: Button,
+        label: TextView,
+        entries: Array<String>,
+        get: () -> Int,
+        set: (Int) -> Unit
+    ) {
+        prev.setOnClickListener { cycleCarousel(entries, get, set, -1) }
+        next.setOnClickListener { cycleCarousel(entries, get, set, +1) }
+        updateCarouselLabel(label, entries, get())
+    }
+
+    /** Step a style forward/back with wrap-around. */
+    private fun cycleCarousel(
+        entries: Array<String>,
+        get: () -> Int,
+        set: (Int) -> Unit,
+        delta: Int
+    ) {
+        if (entries.isEmpty()) return
+        val cur = get().coerceIn(0, entries.size - 1)
+        set((cur + delta).mod(entries.size))
+    }
+
+    /** "Name • i/n" label of a carousel. */
+    private fun updateCarouselLabel(label: TextView, entries: Array<String>, pos: Int) {
+        if (entries.isEmpty()) {
+            label.text = ""
+            return
+        }
+        val p = pos.coerceIn(0, entries.size - 1)
+        label.text = "${entries[p]} • ${p + 1}/${entries.size}"
+    }
+
+    private fun applyClockStyle(pos: Int) {
+        Prefs.setClockStyle(this, pos)
+        updateCarouselLabel(clockStyleName, clockEntries, pos)
+        clockStyleName.announceForAccessibility(clockStyleName.text)
+        updateOutlineThicknessRow()
+        previewClock.refresh() // a new face can need a new size
+    }
+
+    private fun applyCalendarStyle(pos: Int) {
+        Prefs.setCalendarStyle(this, pos)
+        updateCarouselLabel(calStyleName, calEntries, pos)
+        calStyleName.announceForAccessibility(calStyleName.text)
+        miniJumpTo(0) // show the calendar window at once
+    }
+
+    private fun applyWeatherStyle(pos: Int) {
+        Prefs.setWeatherStyle(this, pos)
+        updateCarouselLabel(weatherStyleName, weatherEntries, pos)
+        weatherStyleName.announceForAccessibility(weatherStyleName.text)
+        miniJumpTo(2) // show the weather window at once (when present)
+    }
+
+    /** Swipe left/right on the live clock flips through the clock faces. */
+    private fun attachClockSwipe() {
+        val det = GestureDetector(
+            this,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean = true
+                override fun onFling(
+                    e1: MotionEvent?, e2: MotionEvent?,
+                    velocityX: Float, velocityY: Float
+                ): Boolean {
+                    if (e1 == null || e2 == null) return false
+                    if (!isHorizontalFling(e1, e2, velocityX, velocityY)) return false
+                    cycleCarousel(
+                        clockEntries,
+                        get = { Prefs.clockStyle(this@MainActivity) },
+                        set = { applyClockStyle(it) },
+                        delta = if (e2.x < e1.x) +1 else -1
+                    )
+                    return true
+                }
+            }
+        )
+        previewClock.setOnTouchListener { _, ev -> det.onTouchEvent(ev) }
+    }
+
+    /**
+     * The mini panel: a horizontal swipe flips the style of the window on
+     * screen (calendar / weather face, line <-> candles for a chart), a tap
+     * steps to the next window. Vertical moves are left to the ScrollView.
+     */
+    private fun attachMiniGestures() {
+        val det = GestureDetector(
+            this,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean = true
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    miniManualAdvance()
+                    return true
+                }
+                override fun onFling(
+                    e1: MotionEvent?, e2: MotionEvent?,
+                    velocityX: Float, velocityY: Float
+                ): Boolean {
+                    if (e1 == null || e2 == null) return false
+                    if (!isHorizontalFling(e1, e2, velocityX, velocityY)) return false
+                    val delta = if (e2.x < e1.x) +1 else -1
+                    when (miniSeq.getOrNull(miniStep)?.kind) {
+                        0 -> cycleCarousel(
+                            calEntries,
+                            get = { Prefs.calendarStyle(this@MainActivity) },
+                            set = { applyCalendarStyle(it) },
+                            delta = delta
+                        )
+                        2 -> cycleCarousel(
+                            weatherEntries,
+                            get = { Prefs.weatherStyle(this@MainActivity) },
+                            set = { applyWeatherStyle(it) },
+                            delta = delta
+                        )
+                        1 -> toggleChartType()
+                        else -> miniManualAdvance()
+                    }
+                    return true
+                }
+            }
+        )
+        miniRoot.setOnTouchListener { _, ev -> det.onTouchEvent(ev) }
+    }
+
+    /** A deliberate horizontal swipe (not a vertical scroll, not a tap). */
+    private fun isHorizontalFling(
+        e1: MotionEvent, e2: MotionEvent, velocityX: Float, velocityY: Float
+    ): Boolean {
+        val dx = e2.x - e1.x
+        val dy = e2.y - e1.y
+        return kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f &&
+            kotlin.math.abs(dx) > 48f &&
+            kotlin.math.abs(velocityX) > kotlin.math.abs(velocityY) &&
+            kotlin.math.abs(velocityX) > 200f
+    }
+
+    /** Flip the chart between a line and candlesticks (chart window swipe). */
+    private fun toggleChartType() {
+        val next = if (Prefs.stockType(this) == 1) 0 else 1
+        Prefs.setStockType(this, next)
+        stockTypeGroup.check(if (next == 1) R.id.stockTypeCandles else R.id.stockTypeLine)
+        miniStock.invalidate() // redraw the visible chart with the new type
+    }
+
+    /** Show the first window of [kind] now and restart its rotation timer. */
+    private fun miniJumpTo(kind: Int) {
+        val idx = miniSeq.indexOfFirst { it.kind == kind }
+        if (idx < 0) return
+        miniStep = idx
+        renderMini()
+        previewHandler.removeCallbacks(miniTicker)
+        if (miniSeq.size > 1) {
+            previewHandler.postDelayed(miniTicker, miniDurationMs(miniSeq[miniStep]))
+        }
+    }
+
+    /** Tap on the mini panel: step to the next window now. */
+    private fun miniManualAdvance() {
+        if (miniSeq.size <= 1) return
+        previewHandler.removeCallbacks(miniTicker)
+        miniAdvance()
+    }
+
     /** Spinner bound to the shared 5/10/20/30/60-second duration options. */
     private fun bindDurationSpinner(spinner: Spinner, current: Int, onSet: (Int) -> Unit) {
         val values = intArrayOf(5, 10, 20, 30, 60)
@@ -846,9 +1019,16 @@ class MainActivity : Activity() {
             android.R.layout.simple_spinner_item,
             entries
         ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        // The first callback is the initial layout selection, not the user:
+        // ignore it so setup does not re-save + rebuild the rotation.
+        var first = true
         spinner.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    if (first) {
+                        first = false
+                        return
+                    }
                     if (pos in values.indices) onSet(values[pos])
                 }
                 override fun onNothingSelected(p: AdapterView<*>?) {}
@@ -870,9 +1050,16 @@ class MainActivity : Activity() {
             android.R.layout.simple_spinner_item,
             entries
         ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        // The first callback is the initial layout selection, not the user:
+        // ignore it so setup does not re-save + rebuild + re-fetch.
+        var first = true
         spinner.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    if (first) {
+                        first = false
+                        return
+                    }
                     onSet(pos)
                 }
                 override fun onNothingSelected(p: AdapterView<*>?) {}

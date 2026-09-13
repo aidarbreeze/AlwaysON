@@ -83,22 +83,22 @@ class MonthCalendarView @JvmOverloads constructor(
         color = 0xFF7DD3FC.toInt(); style = Paint.Style.STROKE
     }
 
-    /** Current style code (0..7, see class doc). */
+    /** Current style code (0..8, see class doc). */
     private fun style(): Int = Prefs.calendarStyle(context)
 
     /** True when the month heading is drawn (not in the minimal variants). */
-    private fun showHeading(): Boolean = style() != 1 && style() != 5
+    private fun showHeading(st: Int): Boolean = st != 1 && st != 5
 
     /** Today marker: 0 = filled disc, 1 = ring, 2 = none (brighter number). */
-    private fun todayMarker(): Int = when (style()) {
-        1, 5 -> if (style() == 5) 1 else 2
+    private fun todayMarker(st: Int): Int = when (st) {
+        1, 5 -> if (st == 5) 1 else 2
         3 -> 1
         else -> 0
     }
 
-    private fun weekendDim(): Boolean = style() == 4
-    private fun compact(): Boolean = style() == 6
-    private fun largeNumbers(): Boolean = style() == 7
+    private fun weekendDim(st: Int): Boolean = st == 4
+    private fun compact(st: Int): Boolean = st == 6
+    private fun largeNumbers(st: Int): Boolean = st == 7
 
     private var cachedYear = -1
     private var cachedMonth = -1
@@ -153,12 +153,15 @@ class MonthCalendarView @JvmOverloads constructor(
 
         // The premium card has its own layout (a bordered card, two-tone
         // title, small-caps weekdays) and reuses the same month structure.
-        if (style() == 8) {
+        // The style is read once per frame and passed down, not queried from
+        // Prefs by every helper.
+        val st = style()
+        if (st == 8) {
             drawPremium(canvas, w, h, now)
             return
         }
 
-        val compact = compact()
+        val compact = compact(st)
         val padX = min(w * 0.05f, if (compact) 14f else 20f)
         val padTop = min(h * 0.07f, if (compact) 14f else 22f)
         val padBottom = min(h * 0.04f, if (compact) 8f else 12f)
@@ -167,7 +170,7 @@ class MonthCalendarView @JvmOverloads constructor(
         val titleFont = (min(w, h) * 0.14f).coerceIn(28f, 64f)
         val weekdayFont = (min(w, h) * 0.075f).coerceIn(16f, 30f)
 
-        val showHead = showHeading()
+        val showHead = showHeading(st)
         if (showHead) {
             // Month title, centred over the whole calendar, first letter upper.
             titlePaint.textSize = titleFont
@@ -223,7 +226,7 @@ class MonthCalendarView @JvmOverloads constructor(
         // Day digits as big as both the row height and the column width allow.
         val rowH = availRows / weeks
         var gridFont = min(rowH * 0.68f, dayWidth * 0.72f)
-        if (largeNumbers()) gridFont *= 1.22f
+        if (largeNumbers(st)) gridFont *= 1.22f
         if (compact) gridFont *= 0.86f
         gridFont = gridFont.coerceIn(16f, 56f)
         val circleR = min(rowH * 0.44f, dayWidth * 0.44f)
@@ -234,7 +237,7 @@ class MonthCalendarView @JvmOverloads constructor(
         todayNumBright.textSize = gridFont
         weekendPaint.textSize = gridFont
 
-        val marker = todayMarker()
+        val marker = todayMarker(st)
         var day = 1
         var row = 0
         while (day <= daysInMonth) {
@@ -278,7 +281,7 @@ class MonthCalendarView @JvmOverloads constructor(
                     }
                 } else {
                     // Weekend accent: draw the day number dimmer.
-                    val p = if (weekendDim() && isWeekend(day, firstCell, firstDow)) weekendPaint
+                    val p = if (weekendDim(st) && isWeekend(day, firstCell, firstDow)) weekendPaint
                     else dayPaint
                     canvas.drawText(
                         num,

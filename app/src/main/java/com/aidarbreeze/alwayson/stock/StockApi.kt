@@ -42,9 +42,13 @@ object StockApi {
         "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/"
     private const val TZ = "Europe/Moscow"
     
-    // Rate limiting: minimum interval between stock API calls (1 minute)
+    // Rate limiting: minimum interval between stock API calls for the SAME
+    // ticker+interval (1 minute). Per-key: the old single global timestamp
+    // blocked every OTHER ticker/interval for a minute, so a rotation with
+    // several windows showed "no data" for all but the first one.
     private const val RATE_LIMIT_MS = 60L * 1000L
-    private var lastFetchTime: Long = 0L
+    private val lastFetchByKey = HashMap<String, Long>()
+    private val rateLock = Any()
     
     // Valid ticker pattern: only letters, numbers, dots and underscores
     private val TICKER_PATTERN = Regex("^[A-Z0-9._-]+$")
@@ -78,17 +82,22 @@ object StockApi {
             return null
         }
         
-        // Rate limiting check
+        // Rate limiting check (per ticker+interval).
+        val key = "${symbol.uppercase(Locale.US)}|$code"
         val now = System.currentTimeMillis()
-        if (now - lastFetchTime < RATE_LIMIT_MS) {
-            return null  // Rate limited
+        synchronized(rateLock) {
+            val last = lastFetchByKey[key] ?: 0L
+            if (now - last < RATE_LIMIT_MS) return null // Rate limited
         }
-        
+
         return try {
             val from = Date(System.currentTimeMillis() - windowMs(code))
             val url = buildUrl(symbol, code, from)
             val body = httpGet(url) ?: return null
-            lastFetchTime = now
+            // Only successful HTTP hits arm the limiter, so a failed fetch
+            // for one window does not block its own retry (callers already
+            // space attempts by 60 s per key on top of this).
+            synchronized(rateLock) { lastFetchByKey[key] = now }
             parse(body)
         } catch (_: Exception) {
             null

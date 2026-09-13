@@ -70,6 +70,16 @@
                     android:layout_height="match_parent"
                     android:visibility="gone" />
             </FrameLayout>
+
+            <!-- The live preview itself is swipeable: a swipe flips styles. -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:textSize="12sp"
+                android:textColor="@color/preview_text_secondary"
+                android:text="@string/preview_gesture_hint" />
         </LinearLayout>
 
         <!-- ================= StandBy ================= -->
@@ -401,28 +411,47 @@
             android:layout_marginEnd="16dp"
             android:background="@drawable/bg_card">
 
+            <TextView
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:text="@string/clock_style_title" />
+
+            <!-- Style carousel: the same styles can also be flipped through
+                 with a swipe on the live clock preview above. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:minHeight="52dp"
-                android:paddingStart="16dp"
-                android:paddingEnd="12dp">
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp">
+
+                <Button
+                    android:id="@+id/clockPrev"
+                    style="@style/CarouselButton"
+                    android:text="‹"
+                    android:contentDescription="@string/carousel_prev" />
 
                 <TextView
-                    style="@style/PrefTitle"
+                    android:id="@+id/clockStyleName"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/clock_style_title" />
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text"
+                    android:text="" />
 
-                <Spinner
-                    android:id="@+id/clockStyleSpinner"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:textColor="@color/settings_text" />
+                <Button
+                    android:id="@+id/clockNext"
+                    style="@style/CarouselButton"
+                    android:text="›"
+                    android:contentDescription="@string/carousel_next" />
             </LinearLayout>
 
             <LinearLayout
@@ -823,13 +852,39 @@
                 android:paddingBottom="2dp"
                 android:text="@string/calendar_style_label" />
 
-            <Spinner
-                android:id="@+id/calendarStyleSpinner"
+            <!-- Style carousel: flipping it jumps the mini preview to the
+                 calendar window, so the new style is visible at once. -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:layout_marginBottom="12dp" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp">
+
+                <Button
+                    android:id="@+id/calPrev"
+                    style="@style/CarouselButton"
+                    android:text="‹"
+                    android:contentDescription="@string/carousel_prev" />
+
+                <TextView
+                    android:id="@+id/calStyleName"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text"
+                    android:text="" />
+
+                <Button
+                    android:id="@+id/calNext"
+                    style="@style/CarouselButton"
+                    android:text="›"
+                    android:contentDescription="@string/carousel_next" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- ================= Stocks ================= -->
@@ -1099,13 +1154,39 @@
                     android:paddingTop="10dp"
                     android:text="@string/weather_style_label" />
 
-                <Spinner
-                    android:id="@+id/weatherStyleSpinner"
+                <!-- Style carousel: flipping it jumps the mini preview to the
+                     weather window, so the new style is visible at once. -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
-                    android:layout_marginEnd="16dp"
-                    android:layout_marginBottom="4dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="4dp">
+
+                    <Button
+                        android:id="@+id/weatherPrev"
+                        style="@style/CarouselButton"
+                        android:text="‹"
+                        android:contentDescription="@string/carousel_prev" />
+
+                    <TextView
+                        android:id="@+id/weatherStyleName"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text"
+                        android:text="" />
+
+                    <Button
+                        android:id="@+id/weatherNext"
+                        style="@style/CarouselButton"
+                        android:text="›"
+                        android:contentDescription="@string/carousel_next" />
+                </LinearLayout>
 
                 <TextView
                     style="@style/PrefTitle"

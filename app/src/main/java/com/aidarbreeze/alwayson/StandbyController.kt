@@ -141,11 +141,9 @@ class StandbyController(context: Context, root: View) {
     }
 
     /** Short label for an ISS interval code, shown at the bottom of the chart. */
-    private fun intervalLabel(code: Int): String = when (code) {
-        1 -> "1М"
-        10 -> "10М"
-        60 -> "60М"
-        else -> "${code}М"
+    private fun intervalLabel(code: Int): String {
+        val m = if (Locale.getDefault().language.equals("ru", ignoreCase = true)) "М" else "m"
+        return "$code$m"
     }
 
     // --- auto brightness (ambient light sensor) ---

@@ -5,7 +5,21 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
-/** Thin wrapper around the app SharedPreferences with encryption support. */
+/**
+ * Thin wrapper around the app SharedPreferences with encryption support.
+ *
+ * PERFORMANCE: this object is read from every custom view's onDraw (clock /
+ * calendar / weather / chart) and from 1-second UI tickers, i.e. dozens of
+ * times per second on the main thread. Creating EncryptedSharedPreferences
+ * (MasterKey + keystore + disk + per-value decrypt) on every access visibly
+ * janked scrolling, so:
+ *  - the SharedPreferences INSTANCE is created once and cached, and
+ *  - every value goes through an in-memory write-through cache ([mem]), so a
+ *    hot read is a single map lookup and never touches crypto or disk.
+ *
+ * The whole app runs in one process (no android:process in the manifest), so
+ * the cache cannot go stale behind our back: every write goes through here.
+ */
 object Prefs {
     private const val FILE = "alwayson_prefs"
 
@@ -83,183 +97,272 @@ object Prefs {
     private const val KEY_LAST_STOCK_MS = "last_stock_ms"
     private const val KEY_LAST_STOCK_ERR = "last_stock_err"
 
-    private val SENSITIVE_KEYS = setOf(
-        KEY_WEATHER_LAT,
-        KEY_WEATHER_LON,
-        KEY_WEATHER_CITY
-    )
+    // ---------- cached storage access ----------
 
-    private fun getMasterKey(ctx: Context): MasterKey {
-        return MasterKey.Builder(ctx)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-    }
+    @Volatile
+    private var cached: SharedPreferences? = null
+    private val spLock = Any()
 
-    private fun sp(ctx: Context): SharedPreferences {
-        return try {
-            EncryptedSharedPreferences.create(
-                ctx.applicationContext,
-                FILE,
-                getMasterKey(ctx),
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        } catch (e: Exception) {
-            // Fallback to regular SharedPreferences if encryption fails
-            ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    /** In-memory write-through cache of every value (see class doc). */
+    private val mem = java.util.concurrent.ConcurrentHashMap<String, Any?>()
+
+    /** The single SharedPreferences instance (encrypted, plain on failure). */
+    private fun prefs(ctx: Context): SharedPreferences {
+        cached?.let { return it }
+        synchronized(spLock) {
+            cached?.let { return it }
+            val app = ctx.applicationContext
+            val created = try {
+                EncryptedSharedPreferences.create(
+                    app,
+                    FILE,
+                    MasterKey.Builder(app)
+                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                        .build(),
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (_: Exception) {
+                // Fallback to regular SharedPreferences if encryption fails.
+                // Decided once and cached, so we never mix formats per call.
+                app.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            }
+            cached = created
+            return created
         }
     }
 
-    fun force24h(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_USE_24H, false)
-    fun setForce24h(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean(KEY_USE_24H, v).apply()
+    private fun has(ctx: Context, key: String): Boolean {
+        if (mem.containsKey(key)) return true
+        return try {
+            prefs(ctx).contains(key)
+        } catch (_: Exception) {
+            false
+        }
+    }
 
-    fun showSeconds(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_SHOW_SECONDS, false)
-    fun setShowSeconds(ctx: Context, v: Boolean) =
-        sp(ctx).edit().putBoolean(KEY_SHOW_SECONDS, v).apply()
+    private fun b(ctx: Context, key: String, def: Boolean): Boolean {
+        (mem[key] as? Boolean)?.let { return it }
+        val v = try {
+            prefs(ctx).getBoolean(key, def)
+        } catch (_: Exception) {
+            def
+        }
+        mem[key] = v
+        return v
+    }
 
-    fun showBattery(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_SHOW_BATTERY, false)
-    fun setShowBattery(ctx: Context, v: Boolean) =
-        sp(ctx).edit().putBoolean(KEY_SHOW_BATTERY, v).apply()
+    private fun setB(ctx: Context, key: String, v: Boolean) {
+        mem[key] = v
+        try {
+            prefs(ctx).edit().putBoolean(key, v).apply()
+        } catch (_: Exception) {
+            // best effort
+        }
+    }
+
+    private fun i(ctx: Context, key: String, def: Int): Int {
+        (mem[key] as? Int)?.let { return it }
+        val v = try {
+            prefs(ctx).getInt(key, def)
+        } catch (_: Exception) {
+            def
+        }
+        mem[key] = v
+        return v
+    }
+
+    private fun setI(ctx: Context, key: String, v: Int) {
+        mem[key] = v
+        try {
+            prefs(ctx).edit().putInt(key, v).apply()
+        } catch (_: Exception) {
+            // best effort
+        }
+    }
+
+    private fun l(ctx: Context, key: String, def: Long): Long {
+        (mem[key] as? Long)?.let { return it }
+        val v = try {
+            prefs(ctx).getLong(key, def)
+        } catch (_: Exception) {
+            def
+        }
+        mem[key] = v
+        return v
+    }
+
+    private fun setL(ctx: Context, key: String, v: Long) {
+        mem[key] = v
+        try {
+            prefs(ctx).edit().putLong(key, v).apply()
+        } catch (_: Exception) {
+            // best effort
+        }
+    }
+
+    private fun f(ctx: Context, key: String, def: Float): Float {
+        (mem[key] as? Float)?.let { return it }
+        val v = try {
+            prefs(ctx).getFloat(key, def)
+        } catch (_: Exception) {
+            def
+        }
+        mem[key] = v
+        return v
+    }
+
+    private fun setF(ctx: Context, key: String, v: Float) {
+        mem[key] = v
+        try {
+            prefs(ctx).edit().putFloat(key, v).apply()
+        } catch (_: Exception) {
+            // best effort
+        }
+    }
+
+    private fun s(ctx: Context, key: String, def: String): String {
+        (mem[key] as? String)?.let { return it }
+        val v = try {
+            prefs(ctx).getString(key, def)
+        } catch (_: Exception) {
+            null
+        } ?: def
+        mem[key] = v
+        return v
+    }
+
+    private fun setS(ctx: Context, key: String, v: String) {
+        mem[key] = v
+        try {
+            prefs(ctx).edit().putString(key, v).apply()
+        } catch (_: Exception) {
+            // best effort
+        }
+    }
+
+    fun force24h(ctx: Context): Boolean = b(ctx, KEY_USE_24H, false)
+    fun setForce24h(ctx: Context, v: Boolean) = setB(ctx, KEY_USE_24H, v)
+
+    fun showSeconds(ctx: Context): Boolean = b(ctx, KEY_SHOW_SECONDS, false)
+    fun setShowSeconds(ctx: Context, v: Boolean) = setB(ctx, KEY_SHOW_SECONDS, v)
+
+    fun showBattery(ctx: Context): Boolean = b(ctx, KEY_SHOW_BATTERY, false)
+    fun setShowBattery(ctx: Context, v: Boolean) = setB(ctx, KEY_SHOW_BATTERY, v)
 
     /**
      * Seconds display: 0 never, 1 always, 2 preview only. Migrated from the
      * legacy binary switch (on -> always, off -> never).
      */
     fun secondsMode(ctx: Context): Int {
-        val s = sp(ctx)
-        return if (s.contains(KEY_SECONDS_MODE)) s.getInt(KEY_SECONDS_MODE, 0).coerceIn(0, 2)
-        else if (s.getBoolean(KEY_SHOW_SECONDS, false)) 1 else 0
+        return if (has(ctx, KEY_SECONDS_MODE)) i(ctx, KEY_SECONDS_MODE, 0).coerceIn(0, 2)
+        else if (b(ctx, KEY_SHOW_SECONDS, false)) 1 else 0
     }
-    fun setSecondsMode(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_SECONDS_MODE, v.coerceIn(0, 2)).apply()
+    fun setSecondsMode(ctx: Context, v: Int) = setI(ctx, KEY_SECONDS_MODE, v.coerceIn(0, 2))
 
     /**
      * Battery display: 0 hidden, 1 percent, 2 percent + current, 3 percent +
      * charging indicator. Migrated from the legacy switch (on -> current).
      */
     fun batteryMode(ctx: Context): Int {
-        val s = sp(ctx)
-        return if (s.contains(KEY_BATTERY_MODE)) s.getInt(KEY_BATTERY_MODE, 0).coerceIn(0, 3)
-        else if (s.getBoolean(KEY_SHOW_BATTERY, false)) 2 else 0
+        return if (has(ctx, KEY_BATTERY_MODE)) i(ctx, KEY_BATTERY_MODE, 0).coerceIn(0, 3)
+        else if (b(ctx, KEY_SHOW_BATTERY, false)) 2 else 0
     }
-    fun setBatteryMode(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_BATTERY_MODE, v.coerceIn(0, 3)).apply()
+    fun setBatteryMode(ctx: Context, v: Int) = setI(ctx, KEY_BATTERY_MODE, v.coerceIn(0, 3))
 
     /** Clock size: 0 small, 1 normal, 2 large. */
-    fun clockSize(ctx: Context): Int = sp(ctx).getInt(KEY_CLOCK_SIZE, 1).coerceIn(0, 2)
-    fun setClockSize(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_CLOCK_SIZE, v.coerceIn(0, 2)).apply()
+    fun clockSize(ctx: Context): Int = i(ctx, KEY_CLOCK_SIZE, 1).coerceIn(0, 2)
+    fun setClockSize(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_SIZE, v.coerceIn(0, 2))
 
     /** Date line: 0 weekday + day + month, 1 short (dd.MM), 2 full. */
-    fun dateFormat(ctx: Context): Int = sp(ctx).getInt(KEY_DATE_FORMAT, 0).coerceIn(0, 2)
-    fun setDateFormat(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_DATE_FORMAT, v.coerceIn(0, 2)).apply()
+    fun dateFormat(ctx: Context): Int = i(ctx, KEY_DATE_FORMAT, 0).coerceIn(0, 2)
+    fun setDateFormat(ctx: Context, v: Int) = setI(ctx, KEY_DATE_FORMAT, v.coerceIn(0, 2))
 
     /** Temperature unit: 0 Celsius, 1 Fahrenheit (display only). */
-    fun tempUnit(ctx: Context): Int = sp(ctx).getInt(KEY_TEMP_UNIT, 0).coerceIn(0, 1)
-    fun setTempUnit(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_TEMP_UNIT, v.coerceIn(0, 1)).apply()
+    fun tempUnit(ctx: Context): Int = i(ctx, KEY_TEMP_UNIT, 0).coerceIn(0, 1)
+    fun setTempUnit(ctx: Context, v: Int) = setI(ctx, KEY_TEMP_UNIT, v.coerceIn(0, 1))
 
-    fun lastWeatherUpdateMs(ctx: Context): Long = sp(ctx).getLong(KEY_LAST_WEATHER_MS, 0L)
-    fun setLastWeatherUpdateMs(ctx: Context, v: Long) =
-        sp(ctx).edit().putLong(KEY_LAST_WEATHER_MS, v).apply()
-    fun lastWeatherError(ctx: Context): String = sp(ctx).getString(KEY_LAST_WEATHER_ERR, "") ?: ""
-    fun setLastWeatherError(ctx: Context, v: String) =
-        sp(ctx).edit().putString(KEY_LAST_WEATHER_ERR, v).apply()
-    fun lastStockUpdateMs(ctx: Context): Long = sp(ctx).getLong(KEY_LAST_STOCK_MS, 0L)
-    fun setLastStockUpdateMs(ctx: Context, v: Long) =
-        sp(ctx).edit().putLong(KEY_LAST_STOCK_MS, v).apply()
-    fun lastStockError(ctx: Context): String = sp(ctx).getString(KEY_LAST_STOCK_ERR, "") ?: ""
-    fun setLastStockError(ctx: Context, v: String) =
-        sp(ctx).edit().putString(KEY_LAST_STOCK_ERR, v).apply()
+    fun lastWeatherUpdateMs(ctx: Context): Long = l(ctx, KEY_LAST_WEATHER_MS, 0L)
+    fun setLastWeatherUpdateMs(ctx: Context, v: Long) = setL(ctx, KEY_LAST_WEATHER_MS, v)
+    fun lastWeatherError(ctx: Context): String = s(ctx, KEY_LAST_WEATHER_ERR, "")
+    fun setLastWeatherError(ctx: Context, v: String) = setS(ctx, KEY_LAST_WEATHER_ERR, v)
+    fun lastStockUpdateMs(ctx: Context): Long = l(ctx, KEY_LAST_STOCK_MS, 0L)
+    fun setLastStockUpdateMs(ctx: Context, v: Long) = setL(ctx, KEY_LAST_STOCK_MS, v)
+    fun lastStockError(ctx: Context): String = s(ctx, KEY_LAST_STOCK_ERR, "")
+    fun setLastStockError(ctx: Context, v: String) = setS(ctx, KEY_LAST_STOCK_ERR, v)
 
     /** Factory-reset every preference (the "reset settings" button). */
     fun reset(ctx: Context) {
-        sp(ctx).edit().clear().apply()
+        mem.clear()
+        try {
+            prefs(ctx).edit().clear().apply()
+        } catch (_: Exception) {
+            // best effort
+        }
     }
 
     /** Clock brightness, 0..100. Default 100 (full). */
-    fun brightness(ctx: Context): Int =
-        sp(ctx).getInt(KEY_BRIGHTNESS, 100).coerceIn(0, 100)
-    fun setBrightness(ctx: Context, value: Int) =
-        sp(ctx).edit().putInt(KEY_BRIGHTNESS, value.coerceIn(0, 100)).apply()
+    fun brightness(ctx: Context): Int = i(ctx, KEY_BRIGHTNESS, 100).coerceIn(0, 100)
+    fun setBrightness(ctx: Context, value: Int) = setI(ctx, KEY_BRIGHTNESS, value.coerceIn(0, 100))
 
     /** Auto-tune brightness to the ambient light sensor. Default on. */
-    fun autoBrightness(ctx: Context): Boolean =
-        sp(ctx).getBoolean(KEY_AUTO_BRIGHTNESS, true)
-    fun setAutoBrightness(ctx: Context, on: Boolean) =
-        sp(ctx).edit().putBoolean(KEY_AUTO_BRIGHTNESS, on).apply()
+    fun autoBrightness(ctx: Context): Boolean = b(ctx, KEY_AUTO_BRIGHTNESS, true)
+    fun setAutoBrightness(ctx: Context, on: Boolean) = setB(ctx, KEY_AUTO_BRIGHTNESS, on)
 
     /** Clock face style: 0 normal, 1 outline, 2 dots, 3 flip, 4 LED, 5 neon,
      *  6 chips, 7 serif, 8 italic, 9 LED-matrix, 10 classic digital,
      *  11 bold digital, 12 monospaced, 13 soft rounded, 14 premium AMOLED.
      *  Default: premium (the new default look). */
-    fun clockStyle(ctx: Context): Int = sp(ctx).getInt(KEY_CLOCK_STYLE, 14)
-    fun setClockStyle(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_CLOCK_STYLE, v).apply()
+    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 14)
+    fun setClockStyle(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_STYLE, v.coerceIn(0, 14))
 
     /** Line thickness (dp) for the outline clock, 1..30. */
-    fun clockThickness(ctx: Context): Int =
-        sp(ctx).getInt(KEY_CLOCK_THICKNESS, 6).coerceIn(1, 30)
-    fun setClockThickness(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_CLOCK_THICKNESS, v.coerceIn(1, 30)).apply()
+    fun clockThickness(ctx: Context): Int = i(ctx, KEY_CLOCK_THICKNESS, 6).coerceIn(1, 30)
+    fun setClockThickness(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_THICKNESS, v.coerceIn(1, 30))
 
     /** Calendar <-> stock chart alternation mode. */
-    fun stocksEnabled(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_STOCKS_ENABLED, false)
-    fun setStocksEnabled(ctx: Context, on: Boolean) =
-        sp(ctx).edit().putBoolean(KEY_STOCKS_ENABLED, on).apply()
+    fun stocksEnabled(ctx: Context): Boolean = b(ctx, KEY_STOCKS_ENABLED, false)
+    fun setStocksEnabled(ctx: Context, on: Boolean) = setB(ctx, KEY_STOCKS_ENABLED, on)
 
     /** Stock ticker symbol, e.g. "AAPL" or "SBER.ME". */
-    fun stockTicker(ctx: Context): String =
-        (sp(ctx).getString(KEY_STOCK_TICKER, null) ?: "").trim().uppercase()
-    fun setStockTicker(ctx: Context, v: String) =
-        sp(ctx).edit().putString(KEY_STOCK_TICKER, v.trim().uppercase()).apply()
+    fun stockTicker(ctx: Context): String = s(ctx, KEY_STOCK_TICKER, "").trim().uppercase()
+    fun setStockTicker(ctx: Context, v: String) = setS(ctx, KEY_STOCK_TICKER, v.trim().uppercase())
 
     /** User-entered reference price the change percentage is computed from. */
-    fun stockReference(ctx: Context): Double =
-        sp(ctx).getFloat(KEY_STOCK_REF, 0f).toDouble()
-    fun setStockReference(ctx: Context, v: Double) =
-        sp(ctx).edit().putFloat(KEY_STOCK_REF, v.toFloat()).apply()
+    fun stockReference(ctx: Context): Double = f(ctx, KEY_STOCK_REF, 0f).toDouble()
+    fun setStockReference(ctx: Context, v: Double) = setF(ctx, KEY_STOCK_REF, v.toFloat())
 
     /** Stock chart style: 0 = line, 1 = candles. Default line. */
-    fun stockType(ctx: Context): Int = sp(ctx).getInt(KEY_STOCK_TYPE, 0)
-    fun setStockType(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_STOCK_TYPE, v.coerceIn(0, 1)).apply()
+    fun stockType(ctx: Context): Int = i(ctx, KEY_STOCK_TYPE, 0).coerceIn(0, 1)
+    fun setStockType(ctx: Context, v: Int) = setI(ctx, KEY_STOCK_TYPE, v.coerceIn(0, 1))
 
     /** Chart period: 0 = auto-cycle (default); else a MOEX interval code. */
-    fun stockPeriod(ctx: Context): Int = sp(ctx).getInt(KEY_STOCK_PERIOD, 0)
-    fun setStockPeriod(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_STOCK_PERIOD, v).apply()
+    fun stockPeriod(ctx: Context): Int = i(ctx, KEY_STOCK_PERIOD, 0)
+    fun setStockPeriod(ctx: Context, v: Int) = setI(ctx, KEY_STOCK_PERIOD, v)
 
     /** First day of calendar week. 0 = locale/system, else Calendar.DAY_OF_WEEK. */
-    fun weekStart(ctx: Context): Int = sp(ctx).getInt(KEY_WEEK_START, 0)
-    fun setWeekStart(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_WEEK_START, v).apply()
+    fun weekStart(ctx: Context): Int = i(ctx, KEY_WEEK_START, 0)
+    fun setWeekStart(ctx: Context, v: Int) = setI(ctx, KEY_WEEK_START, v)
 
     /**
      * Calendar style: 0 classic, 1 minimal, 2 filled today, 3 outlined today,
      * 4 weekend accent, 5 monochrome OLED, 6 compact, 7 large numbers,
      * 8 premium card (default).
      */
-    fun calendarStyle(ctx: Context): Int =
-        sp(ctx).getInt(KEY_CALENDAR_STYLE, 8).coerceIn(0, 8)
-    fun setCalendarStyle(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_CALENDAR_STYLE, v.coerceIn(0, 8)).apply()
+    fun calendarStyle(ctx: Context): Int = i(ctx, KEY_CALENDAR_STYLE, 8).coerceIn(0, 8)
+    fun setCalendarStyle(ctx: Context, v: Int) = setI(ctx, KEY_CALENDAR_STYLE, v.coerceIn(0, 8))
 
     /** User asked to auto-show StandBy while charging in landscape. */
-    fun autoStandby(ctx: Context): Boolean = sp(ctx).getBoolean(KEY_AUTO_STANDBY, false)
-    fun setAutoStandby(ctx: Context, on: Boolean) =
-        sp(ctx).edit().putBoolean(KEY_AUTO_STANDBY, on).apply()
+    fun autoStandby(ctx: Context): Boolean = b(ctx, KEY_AUTO_STANDBY, false)
+    fun setAutoStandby(ctx: Context, on: Boolean) = setB(ctx, KEY_AUTO_STANDBY, on)
 
     /** Weather panel on/off. */
-    fun weatherEnabled(ctx: Context): Boolean =
-        sp(ctx).getBoolean(KEY_WEATHER_ENABLED, false)
-    fun setWeatherEnabled(ctx: Context, on: Boolean) =
-        sp(ctx).edit().putBoolean(KEY_WEATHER_ENABLED, on).apply()
+    fun weatherEnabled(ctx: Context): Boolean = b(ctx, KEY_WEATHER_ENABLED, false)
+    fun setWeatherEnabled(ctx: Context, on: Boolean) = setB(ctx, KEY_WEATHER_ENABLED, on)
 
     private fun latLon(ctx: Context): Pair<Double, Double>? {
-        val lat = sp(ctx).getFloat(KEY_WEATHER_LAT, Float.NaN).toDouble()
-        val lon = sp(ctx).getFloat(KEY_WEATHER_LON, Float.NaN).toDouble()
+        val lat = f(ctx, KEY_WEATHER_LAT, Float.NaN).toDouble()
+        val lon = f(ctx, KEY_WEATHER_LON, Float.NaN).toDouble()
         if (lat.isNaN() || lon.isNaN()) return null
         if (lat == 0.0 && lon == 0.0) return null // (0,0) is a bogus "no fix"
         return lat to lon
@@ -272,62 +375,44 @@ object Prefs {
     fun hasWeatherLocation(ctx: Context): Boolean = latLon(ctx) != null
 
     fun setWeatherLocation(ctx: Context, lat: Double, lon: Double) {
-        sp(ctx).edit()
-            .putFloat(KEY_WEATHER_LAT, lat.toFloat())
-            .putFloat(KEY_WEATHER_LON, lon.toFloat())
-            .apply()
+        // Two puts, one editor would be nicer, but the helpers keep the cache
+        // consistent; location saves are rare (user action only).
+        setF(ctx, KEY_WEATHER_LAT, lat.toFloat())
+        setF(ctx, KEY_WEATHER_LON, lon.toFloat())
     }
 
     /** Display name of the forecast location (empty when it came from GPS). */
-    fun weatherCity(ctx: Context): String =
-        sp(ctx).getString(KEY_WEATHER_CITY, null) ?: ""
-    fun setWeatherCity(ctx: Context, name: String) =
-        sp(ctx).edit().putString(KEY_WEATHER_CITY, name.trim()).apply()
+    fun weatherCity(ctx: Context): String = s(ctx, KEY_WEATHER_CITY, "")
+    fun setWeatherCity(ctx: Context, name: String) = setS(ctx, KEY_WEATHER_CITY, name.trim())
 
     /** Weather panel style: 0 classic, 1 curve, 2 minimal, 3 forecast strip,
      *  4 daily, 5 hero temperature, 6 monochrome, 7 weather+sun, 8 split,
      *  9 premium card (default). */
-    fun weatherStyle(ctx: Context): Int =
-        sp(ctx).getInt(KEY_WEATHER_STYLE, 9).coerceIn(0, 9)
-    fun setWeatherStyle(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_WEATHER_STYLE, v.coerceIn(0, 9)).apply()
+    fun weatherStyle(ctx: Context): Int = i(ctx, KEY_WEATHER_STYLE, 9).coerceIn(0, 9)
+    fun setWeatherStyle(ctx: Context, v: Int) = setI(ctx, KEY_WEATHER_STYLE, v.coerceIn(0, 9))
 
     /** How long (seconds) each window type stays on screen. Default 10. */
-    fun panelDurationCal(ctx: Context): Int =
-        sp(ctx).getInt(KEY_DUR_CAL, 10).coerceIn(5, 120)
-    fun setPanelDurationCal(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_DUR_CAL, v.coerceIn(5, 120)).apply()
+    fun panelDurationCal(ctx: Context): Int = i(ctx, KEY_DUR_CAL, 10).coerceIn(5, 120)
+    fun setPanelDurationCal(ctx: Context, v: Int) = setI(ctx, KEY_DUR_CAL, v.coerceIn(5, 120))
 
-    fun panelDurationStock(ctx: Context): Int =
-        sp(ctx).getInt(KEY_DUR_STOCK, 10).coerceIn(5, 120)
-    fun setPanelDurationStock(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_DUR_STOCK, v.coerceIn(5, 120)).apply()
+    fun panelDurationStock(ctx: Context): Int = i(ctx, KEY_DUR_STOCK, 10).coerceIn(5, 120)
+    fun setPanelDurationStock(ctx: Context, v: Int) = setI(ctx, KEY_DUR_STOCK, v.coerceIn(5, 120))
 
-    fun panelDurationWeather(ctx: Context): Int =
-        sp(ctx).getInt(KEY_DUR_WEATHER, 10).coerceIn(5, 120)
-    fun setPanelDurationWeather(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_DUR_WEATHER, v.coerceIn(5, 120)).apply()
+    fun panelDurationWeather(ctx: Context): Int = i(ctx, KEY_DUR_WEATHER, 10).coerceIn(5, 120)
+    fun setPanelDurationWeather(ctx: Context, v: Int) = setI(ctx, KEY_DUR_WEATHER, v.coerceIn(5, 120))
 
     /**
      * MOEX watchlist, up to 3 tickers (uppercased, de-duplicated). Falls back
      * to the legacy single-ticker field so existing installs keep working.
      */
     fun stockTickers(ctx: Context): List<String> {
-        val raw = sp(ctx).getString(KEY_STOCK_TICKERS, null)
-            ?.ifBlank { sp(ctx).getString(KEY_STOCK_TICKER, null) }
-            ?: ""
-        val seen = LinkedHashSet<String>()
-        for (part in raw.split(',', ' ', ';')) {
-            val t = part.trim().uppercase()
-            if (t.isNotEmpty()) seen.add(t)
-            if (seen.size >= 3) break
-        }
-        return seen.toList()
+        val raw = s(ctx, KEY_STOCK_TICKERS, "").ifBlank { s(ctx, KEY_STOCK_TICKER, "") }
+        return stockTickersFromRaw(raw)
     }
 
     fun setStockTickers(ctx: Context, raw: String) {
         val cleaned = stockTickersFromRaw(raw).joinToString(",")
-        sp(ctx).edit().putString(KEY_STOCK_TICKERS, cleaned).apply()
+        setS(ctx, KEY_STOCK_TICKERS, cleaned)
     }
 
     private fun stockTickersFromRaw(raw: String): List<String> {
@@ -341,19 +426,14 @@ object Prefs {
     }
 
     /** Auto-standby schedule: 0 = always, 1 = custom hours. */
-    fun standbySchedule(ctx: Context): Int = sp(ctx).getInt(KEY_STANDBY_SCHEDULE, 0)
-    fun setStandbySchedule(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_STANDBY_SCHEDULE, v.coerceIn(0, 1)).apply()
+    fun standbySchedule(ctx: Context): Int = i(ctx, KEY_STANDBY_SCHEDULE, 0).coerceIn(0, 1)
+    fun setStandbySchedule(ctx: Context, v: Int) = setI(ctx, KEY_STANDBY_SCHEDULE, v.coerceIn(0, 1))
 
-    fun standbyFromHour(ctx: Context): Int =
-        sp(ctx).getInt(KEY_STANDBY_FROM_HOUR, 22).coerceIn(0, 23)
-    fun setStandbyFromHour(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_STANDBY_FROM_HOUR, v.coerceIn(0, 23)).apply()
+    fun standbyFromHour(ctx: Context): Int = i(ctx, KEY_STANDBY_FROM_HOUR, 22).coerceIn(0, 23)
+    fun setStandbyFromHour(ctx: Context, v: Int) = setI(ctx, KEY_STANDBY_FROM_HOUR, v.coerceIn(0, 23))
 
-    fun standbyToHour(ctx: Context): Int =
-        sp(ctx).getInt(KEY_STANDBY_TO_HOUR, 8).coerceIn(0, 23)
-    fun setStandbyToHour(ctx: Context, v: Int) =
-        sp(ctx).edit().putInt(KEY_STANDBY_TO_HOUR, v.coerceIn(0, 23)).apply()
+    fun standbyToHour(ctx: Context): Int = i(ctx, KEY_STANDBY_TO_HOUR, 8).coerceIn(0, 23)
+    fun setStandbyToHour(ctx: Context, v: Int) = setI(ctx, KEY_STANDBY_TO_HOUR, v.coerceIn(0, 23))
 
     /**
      * Whether the auto-standby is allowed to show right now, per schedule.
@@ -369,14 +449,11 @@ object Prefs {
         return if (from < to) h in from until to else h >= from || h < to
     }
 
-
     /**
      * OLED protection: the desk clock can sit on a stand for hours, so cap
      * the white level at ~85% (0.85 content alpha over the pure-black
      * background) instead of burning full-bright pixels.
      */
-    fun dimMode(ctx: Context): Boolean =
-        sp(ctx).getBoolean(KEY_DIM_MODE, true)
-    fun setDimMode(ctx: Context, v: Boolean) =
-        sp(ctx).edit().putBoolean(KEY_DIM_MODE, v).apply()
+    fun dimMode(ctx: Context): Boolean = b(ctx, KEY_DIM_MODE, true)
+    fun setDimMode(ctx: Context, v: Boolean) = setB(ctx, KEY_DIM_MODE, v)
 }

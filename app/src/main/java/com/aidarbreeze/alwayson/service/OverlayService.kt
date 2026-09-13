@@ -593,15 +593,17 @@ class OverlayService : Service(), SensorEventListener {
             true
         }
 
-        // Security: Add FLAG_NOT_TOUCHABLE to prevent clickjacking attacks
-        // when overlay is used for display-only purposes
+        // The overlay intentionally CONSUMES touches while it is shown: a tap
+        // anywhere exits back to the normal screen (the touch listener set
+        // above), and the player prev/next buttons need touches too. (An
+        // earlier FLAG_NOT_TOUCHABLE here silently broke BOTH: the listener
+        // never fired and taps fell through to whatever was underneath.)
         val flags =
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,

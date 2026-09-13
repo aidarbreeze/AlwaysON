@@ -30,6 +30,11 @@
     <string name="brightness_label">Яркость часов</string>
 
     <string name="clock_style_title">Стиль часов</string>
+    <string name="preview_gesture_hint">Свайп по часам меняет их стиль • свайп по окну — его стиль • тап по окну — следующее окно</string>
+    <string name="carousel_prev">Предыдущий стиль</string>
+    <string name="carousel_next">Следующий стиль</string>
+    <string name="pin_on">Окно закреплено — ещё раз, чтобы вернуться к смене</string>
+    <string name="pin_off">Смена окон включена</string>
     <string-array name="clock_style_entries">
         <item>Обычный</item>
         <item>Контур (полые цифры)</item>
