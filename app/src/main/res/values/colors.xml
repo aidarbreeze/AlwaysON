@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launcher_background">#0D1117</color>
-    <color name="aod_background">#050608</color>
+    <color name="aod_background">#000000</color>
     <color name="aod_clock_text">#F5F7FA</color>
     <color name="aod_secondary_text">#8B93A1</color>
     <color name="aod_divider">#26FFFFFF</color>
