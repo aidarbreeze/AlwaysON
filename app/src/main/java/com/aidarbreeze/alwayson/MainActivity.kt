@@ -909,9 +909,13 @@ class MainActivity : Activity() {
             object : GestureDetector.SimpleOnGestureListener() {
                 override fun onDown(e: MotionEvent): Boolean = true
                 override fun onFling(
-                    e1: MotionEvent, e2: MotionEvent,
+                    e1: MotionEvent?, e2: MotionEvent,
                     velocityX: Float, velocityY: Float
                 ): Boolean {
+                    // The SDK declares e1 as @Nullable (it can be null on an
+                    // incomplete event stream) and e2 as @NonNull; only this
+                    // mixed signature matches the supertype (SDK 33+).
+                    if (e1 == null) return false
                     if (!isHorizontalFling(e1, e2, velocityX, velocityY)) return false
                     cycleCarousel(
                         clockEntries,
@@ -941,9 +945,13 @@ class MainActivity : Activity() {
                     return true
                 }
                 override fun onFling(
-                    e1: MotionEvent, e2: MotionEvent,
+                    e1: MotionEvent?, e2: MotionEvent,
                     velocityX: Float, velocityY: Float
                 ): Boolean {
+                    // The SDK declares e1 as @Nullable (it can be null on an
+                    // incomplete event stream) and e2 as @NonNull; only this
+                    // mixed signature matches the supertype (SDK 33+).
+                    if (e1 == null) return false
                     if (!isHorizontalFling(e1, e2, velocityX, velocityY)) return false
                     val delta = if (e2.x < e1.x) +1 else -1
                     when (miniSeq.getOrNull(miniStep)?.kind) {
