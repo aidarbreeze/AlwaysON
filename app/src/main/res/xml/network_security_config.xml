@@ -1,42 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Default configuration: enforce TLS 1.2+ and block cleartext traffic -->
+    <!-- Block cleartext traffic everywhere; trust only the system CAs
+         (no user-installed CAs). Plain TLS validation is used for the
+         Open-Meteo and MOEX endpoints on purpose: hardcoded certificate
+         pins would break the app on every server-side rotation, and the
+         previous revision of this file carried fabricated pin values that
+         crashed the app at startup (a SHA-256 pin must decode to exactly
+         32 bytes, and these did not). -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
-            <!-- Trust only system CA certificates (no user-installed CAs) -->
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-
-    <!-- Domain-specific configuration for Open-Meteo API with Certificate Pinning -->
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">api.open-meteo.com</domain>
-        <domain includeSubdomains="true">geocoding-api.open-meteo.com</domain>
-        
-        <!-- Certificate Pinning for Open-Meteo (backup pins for rotation) -->
-        <pin-set expiration="2025-12-31">
-            <!-- Primary pin: Open-Meteo's current certificate public key hash -->
-            <pin digest="SHA-256">kqVy9V6rHbzlGkJmR7vLxNzE8yP4TqW2sU5nO1cA3bM=</pin>
-            <!-- Backup pin: allows certificate rotation without app update -->
-            <pin digest="SHA-256">dGhpcyBpcyBhIGJhY2t1cCBwaW4gZm9yIGNlcnQgcm90YXRpb24=</pin>
-        </pin-set>
-        
-        <!-- Enforce TLS 1.2 minimum -->
-        <min-sdk-version value="26" />
-    </domain-config>
-
-    <!-- Domain-specific configuration for MOEX ISS API -->
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">iss.moex.com</domain>
-        
-        <!-- Certificate Pinning for MOEX -->
-        <pin-set expiration="2025-12-31">
-            <!-- Primary pin: MOEX certificate public key hash -->
-            <pin digest="SHA-256">mNx8KpLqR3vT5wY7zA2bC4dE6fG8hI9jK0lM1nO2pQ3=</pin>
-            <!-- Backup pin -->
-            <pin digest="SHA-256">cjRoaXMgaXMgYSBiYWNrdXAgcGluIGZvciBNT0VYIGNlcnQ=</pin>
-        </pin-set>
-        
-        <min-sdk-version value="26" />
-    </domain-config>
 </network-security-config>
