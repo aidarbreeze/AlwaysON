@@ -43,6 +43,11 @@ android {
 dependencies {
     // AndroidX Security library for EncryptedSharedPreferences
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Render-verification screenshots (RenderScreenshotsTest, CI only).
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:core:1.5.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
     
     // The app intentionally uses only the Android framework (no external
     // AndroidX / Material dependencies) so the project builds straight out of
