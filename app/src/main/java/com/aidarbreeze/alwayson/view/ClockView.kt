@@ -120,6 +120,10 @@ class ClockView @JvmOverloads constructor(
     private var sunCache: Pair<Long, Long>? = null
     private var sunCacheTz: String? = null
     private var sunCacheTs = 0L
+    // Weather-freshness stamp at the moment the cache was filled: if a NEWER
+    // forecast has arrived since (city change, first fix), the cache refreshes
+    // on the next tick instead of waiting out the full 10-minute cap.
+    private var sunCacheFetchedAt = 0L
 
     // Solar face: scratch rect for the sun-path arc (no per-frame alloc).
     private val arcRect = android.graphics.RectF()
@@ -1155,14 +1159,22 @@ class ClockView @JvmOverloads constructor(
 
     // ---------- style 18: solar iPhone (sun-path arc) ----------
 
-    /** Sunrise/sunset (ms) from the last-known forecast, refreshed at most
-     *  every 10 minutes (the repository itself is disk-cached). The forecast
+    /** Sunrise/sunset (ms) from the last-known forecast. Refreshed at most
+     *  every 10 minutes, or immediately when a NEWER forecast has landed
+     *  since the cache was filled (city change, first fix). The forecast
      *  point's zone is remembered too, so the labels format the instants in
      *  the CITY's time, not the device's. */
     private fun sunTimes(): Pair<Long, Long>? {
         val now = System.currentTimeMillis()
-        if (now - sunCacheTs < 10L * 60L * 1000L) return sunCache
+        // Refresh when the 10-minute age cap is hit, but ALSO whenever a
+        // newer forecast has landed since the cache was filled (city change,
+        // first fix): otherwise a city switch would keep drawing the old
+        // city's sunrise/sunset for up to the full 10 minutes.
+        if (now - sunCacheTs < 10L * 60L * 1000L &&
+            Prefs.lastWeatherUpdateMs(context) <= sunCacheFetchedAt
+        ) return sunCache
         sunCacheTs = now
+        sunCacheFetchedAt = Prefs.lastWeatherUpdateMs(context)
         val full = try {
             WeatherRepository.sunTimesFull(context)
         } catch (_: Exception) {
