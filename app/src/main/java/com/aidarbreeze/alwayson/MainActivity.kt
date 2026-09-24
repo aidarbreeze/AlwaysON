@@ -1265,6 +1265,15 @@ class MainActivity : Activity() {
             val place = WeatherApi.geocode(q)
             runOnUiThread {
                 geocodeInFlightFor = null
+                // Persist the result even when the screen is already gone:
+                // the app-context write is safe, and dropping it would LOSE
+                // the city the user confirmed with "Done" right before
+                // leaving (the onPause path skips an identical in-flight
+                // geocode on purpose).
+                if (place != null) {
+                    Prefs.setWeatherLocation(applicationContext, place.lat, place.lon)
+                    Prefs.setWeatherCity(applicationContext, place.name)
+                }
                 // The fetch outlives the screen when the user leaves fast:
                 // never touch the views of a dead activity.
                 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -1272,8 +1281,6 @@ class MainActivity : Activity() {
                     weatherStatus.text = getString(R.string.weather_city_not_found)
                     return@runOnUiThread
                 }
-                Prefs.setWeatherLocation(this, place.lat, place.lon)
-                Prefs.setWeatherCity(this, place.name)
                 weatherCityInput.setText(place.name)
                 updateWeatherStatus()
                 startMiniPreview()
