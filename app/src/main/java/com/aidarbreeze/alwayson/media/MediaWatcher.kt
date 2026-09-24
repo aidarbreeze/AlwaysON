@@ -32,8 +32,14 @@ class MediaWatcher(private val context: Context) {
         return try {
             val manager =
                 context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
-            val receiver = ComponentName(context, MediaButtonReceiver::class.java)
-            val controllers = manager.getActiveSessions(receiver)
+            // getActiveSessions() must receive the component of the app's
+            // NOTIFICATION LISTENER — that registration is what grants the
+            // access. The media-button receiver component used here before
+            // made the system throw SecurityException on every build, so
+            // this fallback never actually worked.
+            val listenerComponent =
+                ComponentName(context, NowPlayingListenerService::class.java)
+            val controllers = manager.getActiveSessions(listenerComponent)
 
             var best: MediaController? = null
             for (c in controllers) {

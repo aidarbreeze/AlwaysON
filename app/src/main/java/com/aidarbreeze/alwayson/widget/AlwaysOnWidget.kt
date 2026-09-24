@@ -37,6 +37,11 @@ class AlwaysOnWidget : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
+        // Re-arm the per-minute tick here too, not only in onEnabled (first
+        // add): the alarm does not survive a reboot, and onUpdate is what the
+        // system delivers after one. The PendingIntent is FLAG_UPDATE_CURRENT,
+        // so this just replaces the same alarm.
+        startTicks(context)
         for (id in ids) update(context, mgr, id)
     }
 
@@ -87,7 +92,9 @@ class AlwaysOnWidget : AppWidgetProvider() {
 
         val now = Calendar.getInstance()
         val millis = now.timeInMillis
-        val use24 = DateFormat.is24HourFormat(context)
+        // Same 12/24h rule as everywhere in the app: the user's explicit
+        // override wins over the system setting.
+        val use24 = Prefs.force24h(context) || DateFormat.is24HourFormat(context)
         val pattern = if (use24) "HH:mm" else "h:mm"
         views.setTextViewText(
             R.id.widgetTime,

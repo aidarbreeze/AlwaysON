@@ -78,7 +78,6 @@
                 <action android:name="android.intent.action.POWER_CONNECTED" />
                 <action android:name="android.intent.action.POWER_DISCONNECTED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
 
@@ -109,7 +108,9 @@
             </intent-filter>
         </service>
 
-        <!-- Declared so the app may list currently-playing media sessions. -->
+        <!-- Media-button target: registering it lets a hardware/media-button
+             press be routed here; the active-sessions listing itself is
+             granted by the notification listener above, not by this. -->
         <receiver
             android:name=".media.MediaButtonReceiver"
             android:exported="true">

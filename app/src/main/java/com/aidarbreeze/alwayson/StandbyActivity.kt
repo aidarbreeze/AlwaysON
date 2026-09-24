@@ -19,6 +19,9 @@ import com.aidarbreeze.alwayson.ui.StandbyUiState
 class StandbyActivity : Activity() {
 
     private var controller: StandbyController? = null
+    // False only for the very first resume right after onCreate, where
+    // onCreate has just started a fresh controller.
+    private var resumedOnce = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,6 +48,11 @@ class StandbyActivity : Activity() {
     override fun onResume() {
         super.onResume()
         StandbyUiState.previewVisible = true
+        // Coming back from the settings (Home -> app -> back): re-read every
+        // changed style/panel setting, or this preview keeps showing the old
+        // configuration until it is restarted.
+        if (resumedOnce) controller?.reapplySettings()
+        resumedOnce = true
         // Ask the auto-overlay service to back off while this screen is shown,
         // so we never stack two StandBy windows.
         OverlayService.requestReevaluate(this)

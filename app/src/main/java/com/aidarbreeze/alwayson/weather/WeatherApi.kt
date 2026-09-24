@@ -102,8 +102,17 @@ object WeatherApi {
             c.readTimeout = 9000
             c.setRequestProperty("Accept", "application/json")
             c.setRequestProperty("User-Agent", "AlwaysON/1.0")
-            if (c.responseCode !in 200..299) null
-            else c.inputStream.bufferedReader().use { it.readText() }
+            if (c.responseCode !in 200..299) {
+                // Drain the error stream so the platform can reuse the
+                // connection instead of dropping it after every failure.
+                try {
+                    c.errorStream?.use { it.readBytes() }
+                } catch (_: Exception) {
+                }
+                null
+            } else {
+                c.inputStream.bufferedReader().use { it.readText() }
+            }
         } catch (_: Exception) {
             null
         } finally {
@@ -136,7 +145,11 @@ object WeatherApi {
             val hourly = root.getJSONObject("hourly")
             val hTimes = hourly.getJSONArray("time")
             val hTemp = hourly.getJSONArray("temperature_2m")
-            val hCode = hourly.optJSONArray("weather_code") ?: hourly.getJSONArray("weather_code")
+            // Nullable on purpose: a response without weather_code must not
+            // kill the whole parse (the old `?: getJSONArray(...)` re-threw
+            // right here and discarded temperatures that were already
+            // fetched) — such hours fall back to the current condition.
+            val hCode = hourly.optJSONArray("weather_code")
             val hFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).apply { timeZone = zone }
             val hours = ArrayList<WeatherHour>()
             for (i in 0 until hTimes.length()) {
@@ -147,7 +160,7 @@ object WeatherApi {
                     WeatherHour(
                         timeMs = timeMs,
                         tempC = Math.round(hTemp.getDouble(i)).toInt(),
-                        code = if (!hCode.isNull(i)) hCode.getInt(i) else codeNow
+                        code = if (hCode != null && !hCode.isNull(i)) hCode.getInt(i) else codeNow
                     )
                 )
             }
@@ -155,7 +168,9 @@ object WeatherApi {
             // ---- daily ----
             val daily = root.getJSONObject("daily")
             val dTimes = daily.getJSONArray("time")
-            val dCode = daily.optJSONArray("weather_code") ?: daily.getJSONArray("weather_code")
+            // Same nullable treatment as the hourly array above: a missing
+            // daily weather_code array must not discard the whole forecast.
+            val dCode = daily.optJSONArray("weather_code")
             val dMax = daily.getJSONArray("temperature_2m_max")
             val dMin = daily.getJSONArray("temperature_2m_min")
             val dFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = zone }
@@ -167,10 +182,12 @@ object WeatherApi {
                 val sun = daily.optJSONArray("sunrise")
                 val suns = daily.optJSONArray("sunset")
                 if (sun != null && !sun.isNull(0)) {
-                    sunriseMs = parseIso(isoFmt, sun.getString(0))
+                    // coerce: parseIso signals failure with -1; persist 0
+                    // (= "unknown") instead of a negative timestamp.
+                    sunriseMs = parseIso(isoFmt, sun.getString(0)).coerceAtLeast(0L)
                 }
                 if (suns != null && !suns.isNull(0)) {
-                    sunsetMs = parseIso(isoFmt, suns.getString(0))
+                    sunsetMs = parseIso(isoFmt, suns.getString(0)).coerceAtLeast(0L)
                 }
             }
             val days = ArrayList<WeatherDay>()

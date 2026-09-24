@@ -49,6 +49,12 @@ object StockApi {
     // several windows showed "no data" for all but the first one.
     private const val RATE_LIMIT_MS = 60L * 1000L
     private val lastFetchByKey = HashMap<String, Long>()
+    // The last SUCCESSFUL result per key. The limiter is process-global while
+    // every StandbyController / mini-preview keeps its own cache: a freshly
+    // created consumer hitting the limiter with no cache of its own would
+    // otherwise sit on "Загрузка…" until the next cycle instead of getting
+    // the (seconds-old) data another window already fetched.
+    private val lastGoodByKey = HashMap<String, FetchResult>()
     private val rateLock = Any()
     
     // Valid ticker pattern: only letters, numbers, dots and underscores
@@ -102,9 +108,13 @@ object StockApi {
      * A transport failure aborts at once (retrying 5 more URLs on a dead
      * network only burns time); HTTP-level empties keep falling back.
      *
+     * Within [RATE_LIMIT_MS] of a successful fetch for the same key this
+     * returns the cached result (no network); with [force] the limiter is
+     * skipped — for the explicit "Обновить данные" button.
+     *
      * Never throws: every failure mode is a [FetchResult.error].
      */
-    fun fetch(symbolRaw: String, code: Int): FetchResult {
+    fun fetch(symbolRaw: String, code: Int, force: Boolean = false): FetchResult {
         // Security: Validate input
         val symbol = symbolRaw.uppercase(Locale.US)
         if (!isValidTicker(symbol)) return FetchResult(null, code, FetchError.BAD_TICKER)
@@ -120,10 +130,13 @@ object StockApi {
         // window never blocks its own retry (callers space attempts anyway).
         val key = "$symbol|$code"
         val now = System.currentTimeMillis()
-        synchronized(rateLock) {
+        if (!force) synchronized(rateLock) {
             val last = lastFetchByKey[key] ?: 0L
             if (now - last < RATE_LIMIT_MS) {
-                return FetchResult(null, code, FetchError.RATE_LIMITED)
+                // Rate-limited, but the last successful candles for this key
+                // are better than a blank "Загрузка…" for a fresh consumer.
+                return lastGoodByKey[key]
+                    ?: FetchResult(null, code, FetchError.RATE_LIMITED)
             }
         }
 
@@ -155,8 +168,12 @@ object StockApi {
                     null
                 }
                 if (candles != null && candles.size >= 2) {
-                    synchronized(rateLock) { lastFetchByKey[key] = now }
-                    return FetchResult(candles, c, null, resp.code)
+                    val ok = FetchResult(candles, c, null, resp.code)
+                    synchronized(rateLock) {
+                        lastFetchByKey[key] = now
+                        lastGoodByKey[key] = ok
+                    }
+                    return ok
                 }
                 // HTTP OK but empty: fall through to the next fallback.
             }
@@ -200,7 +217,15 @@ object StockApi {
             c.readTimeout = 9000
             c.setRequestProperty("Accept", "application/json")
             val code = c.responseCode
-            if (code !in 200..299) return Resp(code, null)
+            if (code !in 200..299) {
+                // Drain the error stream so the platform can reuse the
+                // connection instead of dropping it after every failure.
+                try {
+                    c.errorStream?.use { it.readBytes() }
+                } catch (_: Exception) {
+                }
+                return Resp(code, null)
+            }
             return Resp(code, c.inputStream.bufferedReader().use { it.readText() })
         } finally {
             c.disconnect()

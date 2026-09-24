@@ -47,6 +47,10 @@ object Prefs {
     private const val KEY_STOCKS_ENABLED = "stocks_enabled"
     private const val KEY_STOCK_TICKER = "stock_ticker"
     private const val KEY_STOCK_REF = "stock_reference"
+    // Exact (double-bit) storage of the reference price; the legacy float
+    // KEY_STOCK_REF migrates on first read (275.35f.toString() -> "275.35",
+    // not 275.3500061035156).
+    private const val KEY_STOCK_REF_D = "stock_reference_d"
     // Stock chart rendering: 0 = line of closes, 1 = candlesticks.
     private const val KEY_STOCK_TYPE = "stock_type"
     // Chart period/timeframe: 0 = auto-cycle, otherwise a MOEX interval code
@@ -368,8 +372,12 @@ object Prefs {
     fun setStockTicker(ctx: Context, v: String) = setS(ctx, KEY_STOCK_TICKER, v.trim().uppercase())
 
     /** User-entered reference price the change percentage is computed from. */
-    fun stockReference(ctx: Context): Double = f(ctx, KEY_STOCK_REF, 0f).toDouble()
-    fun setStockReference(ctx: Context, v: Double) = setF(ctx, KEY_STOCK_REF, v.toFloat())
+    fun stockReference(ctx: Context): Double =
+        if (has(ctx, KEY_STOCK_REF_D))
+            java.lang.Double.longBitsToDouble(l(ctx, KEY_STOCK_REF_D, 0L))
+        else f(ctx, KEY_STOCK_REF, 0f).toString().toDouble() // migration: exact "275.35"
+    fun setStockReference(ctx: Context, v: Double) =
+        setL(ctx, KEY_STOCK_REF_D, java.lang.Double.doubleToRawLongBits(v))
 
     /** Stock chart style: 0 = line, 1 = candles. Default line. */
     fun stockType(ctx: Context): Int = i(ctx, KEY_STOCK_TYPE, 0).coerceIn(0, 1)

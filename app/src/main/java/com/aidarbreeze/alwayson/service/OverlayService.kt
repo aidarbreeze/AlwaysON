@@ -137,6 +137,12 @@ class OverlayService : Service(), SensorEventListener {
     // comes on), do not flash a new one forever — three attempts per
     // charge/session, then wait for a real event (plug, boot, screen).
     private var wakeAttempts = 0
+    // True once startForeground() has run for THIS instance. onCreate fires
+    // only for a fresh instance: a startForegroundService() delivered to an
+    // already-alive (quiet) instance must promote it here in
+    // onStartCommand, or the system crashes us after 5 s with
+    // "did not call startForeground".
+    private var foregroundStarted = false
     private val wakeTimeout = Runnable {
         // The screen never came on from the notification — drop it anyway.
         if (overlayView == null) cancelWake()
@@ -233,8 +239,12 @@ class OverlayService : Service(), SensorEventListener {
         }
     }
 
-    // The auto-standby is schedule-gated (e.g. night only). The clock hour
-    // change is the only moment the answer can flip while charging continues.
+    // The auto-standby is schedule-gated (e.g. night only). The answer can
+    // only flip while charging continues when the clock hour changes, so
+    // re-evaluate every minute: ACTION_TIME_TICK is the protected per-minute
+    // broadcast that arrives by itself (ACTION_TIME_CHANGED alone fires only
+    // on a manual time change, so a phone left on the charger would never
+    // enter/leave the scheduled window by itself).
     private val timeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             evaluateAndSync()
@@ -305,7 +315,9 @@ class OverlayService : Service(), SensorEventListener {
             addAction(Intent.ACTION_POWER_DISCONNECTED)
         })
         registerGuarded(timeReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_TIME_TICK)        // every minute, protected broadcast
             addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
         })
         registerGuarded(screenReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
@@ -338,8 +350,10 @@ class OverlayService : Service(), SensorEventListener {
         handler.removeCallbacks(wakeGuard)
         handler.postDelayed(wakeGuard, WAKE_GUARD_PERIOD_MS)
 
-        // Hide at once when a call starts (see callMonitor).
-        callMonitor.start()
+        // The call monitor is NOT started here: this service also lives as a
+        // quiet foreground service while NOT charging, and a 500 ms poll must
+        // not run around the clock. evaluateAndSync() starts/stops it — it
+        // only polls while the feature is on AND the device is on power.
 
         // Promote to a foreground service only when the feature is enabled:
         // the "reevaluate" requests from the preview use a plain startService
@@ -352,6 +366,11 @@ class OverlayService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // onCreate ran at most once, but a startForegroundService can arrive
+        // at an instance that was started quietly (plain startService while
+        // the feature was off) — satisfy the FGS contract on every start
+        // while the feature is on.
+        if (Prefs.autoStandby(this) && !foregroundStarted) startAsForeground()
         when (intent?.action) {
             ACTION_HIDE -> {
                 Prefs.setAutoStandby(this, false)
@@ -383,6 +402,7 @@ class OverlayService : Service(), SensorEventListener {
     }
 
     override fun onDestroy() {
+        foregroundStarted = false
         cancelWake()
         callMonitor.stop()
         removeOverlay()
@@ -439,6 +459,7 @@ class OverlayService : Service(), SensorEventListener {
         //    service can still be started as a side effect (e.g. the
         //    full-screen preview asks us to re-evaluate on open/close).
         if (!Prefs.autoStandby(this)) {
+            callMonitor.stop()
             removeOverlay()
             stopSelf()
             return
@@ -449,9 +470,14 @@ class OverlayService : Service(), SensorEventListener {
         //    caught by our own POWER_CONNECTED receiver reliably, without
         //    the app having to launch itself from the background.
         if (!isCharging(this)) {
+            callMonitor.stop()
             removeOverlay()
             return
         }
+
+        // On power (and the feature is on): hide at once when a call starts
+        // and re-evaluate when it ends. start() is idempotent.
+        callMonitor.start()
 
         // 3) No overlay permission -> nothing we can draw; do not try.
         if (!Settings.canDrawOverlays(this)) {
@@ -790,5 +816,6 @@ class OverlayService : Service(), SensorEventListener {
         } else {
             startForeground(NOTIF_ID, notif)
         }
+        foregroundStarted = true
     }
 }

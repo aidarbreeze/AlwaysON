@@ -78,10 +78,15 @@ object CallState {
 
         private val task = object : Runnable {
             override fun run() {
+                if (!running) return
                 val now = inCall(ctx)
                 if (now != last) {
                     last = now
                     onActive(now)
+                    // onActive may have called stop() (the overlay host runs
+                    // evaluateAndSync from this callback): the repost below
+                    // must not revive the poller after that.
+                    if (!running) return
                 }
                 handler.postDelayed(this, 500L)
             }

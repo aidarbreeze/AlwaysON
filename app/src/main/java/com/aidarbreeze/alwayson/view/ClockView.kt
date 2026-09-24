@@ -115,8 +115,10 @@ class ClockView @JvmOverloads constructor(
     private var floatLastMinute = ""
     private var floatAnimStart = 0L
 
-    // Solar face: cached sunrise/sunset (ms), refreshed at most every 10 min.
+    // Solar face: cached sunrise/sunset (ms) + the forecast city's zone,
+    // refreshed at most every 10 min.
     private var sunCache: Pair<Long, Long>? = null
+    private var sunCacheTz: String? = null
     private var sunCacheTs = 0L
 
     // Solar face: scratch rect for the sun-path arc (no per-frame alloc).
@@ -197,7 +199,8 @@ class ClockView @JvmOverloads constructor(
         // The analog/solar faces show live seconds (hands, sun drift) even
         // when the text itself hides them, so they redraw on every tick —
         // the 1-second ticker calls setTime() regardless.
-        val live = style() == 16 || style() == 18
+        val s = style() // single prefs read (the style was queried twice)
+        val live = s == 16 || s == 18
         if (text == timeText && !live) return
         // "9:59" -> "10:00" changes the fitted size and needs a re-measure;
         // same-length ticks ("10:00" -> "10:01") only need a redraw. Calling
@@ -755,7 +758,10 @@ class ClockView @JvmOverloads constructor(
 
     private fun drawNeon(canvas: Canvas, w: Float, h: Float) {
         val core = fitTextSize(w, cap())
-        val key = "$timeText|${w.toInt()}|${h.toInt()}|${core.toInt()}"
+        // The key must include the accent color: a color change has to
+        // re-render the cached bloom instead of glowing in the old ink
+        // until the text or size happens to change.
+        val key = "$timeText|${w.toInt()}|${h.toInt()}|${core.toInt()}|${ink()}"
         var bmp = if (key == neonKey) neonBmp else null
         if (bmp == null) {
             neonBmp?.recycle()
@@ -1149,16 +1155,20 @@ class ClockView @JvmOverloads constructor(
     // ---------- style 18: solar iPhone (sun-path arc) ----------
 
     /** Sunrise/sunset (ms) from the last-known forecast, refreshed at most
-     *  every 10 minutes (the repository itself is disk-cached). */
+     *  every 10 minutes (the repository itself is disk-cached). The forecast
+     *  point's zone is remembered too, so the labels format the instants in
+     *  the CITY's time, not the device's. */
     private fun sunTimes(): Pair<Long, Long>? {
         val now = System.currentTimeMillis()
         if (now - sunCacheTs < 10L * 60L * 1000L) return sunCache
         sunCacheTs = now
-        sunCache = try {
-            WeatherRepository.sunTimes(context)
+        val full = try {
+            WeatherRepository.sunTimesFull(context)
         } catch (_: Exception) {
             null
         }
+        sunCache = full?.let { it.riseMs to it.setMs }
+        sunCacheTz = full?.timezoneId
         return sunCache
     }
 
@@ -1177,9 +1187,14 @@ class ClockView @JvmOverloads constructor(
     private fun solarLabel(ms: Long): String {
         val use24 = Prefs.force24h(context) ||
             android.text.format.DateFormat.is24HourFormat(context)
+        // The sunrise/sunset instants belong to the forecast city: format
+        // them in ITS zone (the device zone shifted every label for a city
+        // in another timezone).
+        val tz = sunCacheTz?.takeIf { it.isNotBlank() }
+            ?.let { TimeZone.getTimeZone(it) } ?: TimeZone.getDefault()
         return SimpleDateFormat(
             if (use24) "HH:mm" else "h:mm", Locale.getDefault()
-        ).format(Date(ms))
+        ).apply { timeZone = tz }.format(Date(ms))
     }
 
     private fun drawSolar(canvas: Canvas, w: Float, h: Float) {

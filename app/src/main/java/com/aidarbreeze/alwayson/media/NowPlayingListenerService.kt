@@ -36,6 +36,21 @@ class NowPlayingListenerService : NotificationListenerService() {
     override fun onListenerDisconnected() {
         NowPlayingCache.current = null
         NowPlayingCache.updatedAt = 0L
+        // We no longer see any notifications: the messenger list and the
+        // call flag must not outlive the listener, or inCall() would stay
+        // true forever and the StandBy clock would never show again.
+        NotifCache.publish(emptyList())
+        if (CallState.callNotificationActive) {
+            CallState.callNotificationActive = false
+            OverlayService.requestReevaluate(this)
+        }
+        // Nudge the system to rebind right away instead of waiting for its
+        // own retry schedule, so media/notifications recover in seconds.
+        try {
+            requestRebind(ComponentName(this, NowPlayingListenerService::class.java))
+        } catch (_: Exception) {
+            // rebind scheduling is best-effort
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -50,6 +65,9 @@ class NowPlayingListenerService : NotificationListenerService() {
         super.onDestroy()
         NowPlayingCache.current = null
         NowPlayingCache.updatedAt = 0L
+        // Same "stuck call flag" hazard as onListenerDisconnected: a
+        // destroyed listener never posts another refresh() to clear it.
+        CallState.callNotificationActive = false
     }
 
     /** Scan current notifications and publish the first one that is really

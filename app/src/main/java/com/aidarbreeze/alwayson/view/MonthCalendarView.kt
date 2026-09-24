@@ -85,7 +85,7 @@ class MonthCalendarView @JvmOverloads constructor(
         color = 0xFF7DD3FC.toInt(); style = Paint.Style.STROKE
     }
 
-    /** Current style code (0..8, see class doc). */
+    /** Current style code (0..9, see class doc). */
     private fun style(): Int = Prefs.calendarStyle(context)
 
     /** True when the month heading is drawn (not in the minimal variants). */

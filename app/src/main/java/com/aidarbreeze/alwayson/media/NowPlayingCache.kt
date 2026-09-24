@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
+import java.lang.ref.WeakReference
 
 /** What is playing right now (title, artist, playing state, optional art). */
 data class NowPlaying(
@@ -35,9 +36,12 @@ object NowPlayingCache {
     // The standby ticker polls the art every second; without a memo the same
     // large cover would be re-scaled (a fresh bitmap + a full resample) every
     // second. Guarded by [memoLock]: downscale() is called both from the UI
-    // thread and from the notification-listener thread.
+    // thread and from the notification-listener thread. The SOURCE bitmap is
+    // held only weakly: a full-size album cover must not be pinned in memory
+    // forever just to skip one rescale — when the player releases it, the
+    // memo simply misses and re-scales on the next call.
     private val memoLock = Any()
-    private var memoSrc: Bitmap? = null
+    private var memoSrcRef: WeakReference<Bitmap>? = null
     private var memoScaled: Bitmap? = null
 
     /**
@@ -48,7 +52,8 @@ object NowPlayingCache {
     fun downscale(src: Bitmap?, maxPx: Int = 96): Bitmap? {
         if (src == null) return null
         synchronized(memoLock) {
-            if (src === memoSrc && memoScaled != null) return memoScaled
+            val cachedSrc = memoSrcRef?.get()
+            if (cachedSrc === src && memoScaled != null) return memoScaled
         }
         val out = try {
             val side = maxOf(src.width, src.height)
@@ -67,7 +72,7 @@ object NowPlayingCache {
             null
         }
         synchronized(memoLock) {
-            memoSrc = src
+            memoSrcRef = WeakReference(src)
             memoScaled = out
         }
         return out
