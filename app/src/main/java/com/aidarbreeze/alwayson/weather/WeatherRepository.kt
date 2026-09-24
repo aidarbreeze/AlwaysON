@@ -189,10 +189,10 @@ object WeatherRepository {
             if (inFlightKey == key) inFlightKey = null
             waiters.remove(key).orEmpty()
         }
-        main.post {
-            first(result)
-            others.forEach { it(result) }
-        }
+        // Each callback in its own post: an exception thrown by one consumer
+        // must not rob the others (and the initiator) of their result.
+        main.post { first(result) }
+        others.forEach { cb -> main.post { cb(result) } }
     }
 
     /**

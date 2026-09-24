@@ -119,6 +119,9 @@ class StandbyController(context: Context, private val root: View) {
     // returning nothing). The timestamp doubles as the fetch-generation:
     // a result is applied only if no newer fetch for the same key started.
     private val stockAttemptAt = HashMap<String, Long>()
+    // Last honest failure per key: without it every re-render of the window
+    // repainted "Загрузка…" over the error until the next attempt.
+    private val stockLastError = HashMap<String, String>()
     // Which ticker+interval the chart view is currently showing.
     private var currentStock: Pair<String, Int>? = null
     private val stockFreshMs = 60_000L
@@ -727,7 +730,9 @@ class StandbyController(context: Context, private val root: View) {
             val useCode = stockActualCode[key] ?: code
             stockView.setData(symbol, ref, intervalLabel(useCode), cached, useCode * 60)
         } else {
-            stockView.setStatus("Загрузка…")
+            // An already-known failure is more honest than a perpetual
+            // "Загрузка…" shown until the next attempt.
+            stockView.setStatus(stockLastError[key] ?: "Загрузка…")
         }
         val age = System.currentTimeMillis() - (stockAttemptAt[key] ?: 0L)
         if (age >= stockFreshMs) {
@@ -755,6 +760,7 @@ class StandbyController(context: Context, private val root: View) {
                 if (data != null && data.size >= 2) {
                     stockCached[key] = data
                     stockActualCode[key] = res.actualCode
+                    stockLastError.remove(key)
                     Prefs.setLastStockUpdateMs(appContext, System.currentTimeMillis())
                     Prefs.setLastStockError(appContext, "")
                     if (currentStock == symbol to code) {
@@ -770,6 +776,7 @@ class StandbyController(context: Context, private val root: View) {
                     // a transient network hiccup must not wipe an older chart.
                     val msg = stockErrorText(res)
                     if (msg != null) {
+                        stockLastError[key] = msg
                         stockView.setStatus(msg)
                         Prefs.setLastStockError(appContext, msg)
                     }

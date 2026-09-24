@@ -349,11 +349,6 @@ class OverlayService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // onCreate ran at most once, but a startForegroundService can arrive
-        // at an instance that was started quietly (plain startService while
-        // the feature was off) — satisfy the FGS contract on every start
-        // while the feature is on.
-        if (Prefs.autoStandby(this) && !foregroundStarted) startAsForeground()
         when (intent?.action) {
             ACTION_HIDE -> {
                 Prefs.setAutoStandby(this, false)
@@ -363,6 +358,13 @@ class OverlayService : Service(), SensorEventListener {
                 return START_NOT_STICKY
             }
             else -> {
+                // onCreate ran at most once, but a startForegroundService can
+                // arrive at an instance that was started quietly (plain
+                // startService while the feature was off) — satisfy the FGS
+                // contract here, NOT above: the ACTION_HIDE path comes in as
+                // a plain startService, and promoting before turning the
+                // feature off only flashed the notification for an instant.
+                if (Prefs.autoStandby(this) && !foregroundStarted) startAsForeground()
                 // The service may be starting in the MIDDLE of a charging
                 // session (boot on the charger, app opened, receiver start)
                 // — so the decision below reads the CURRENT live battery and

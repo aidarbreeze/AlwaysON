@@ -764,6 +764,9 @@ class MainActivity : Activity() {
     // Interval the cached candles REALLY are (fallback may be coarser).
     private val miniStockActual = HashMap<String, Int>()
     private val miniStockAttempt = HashMap<String, Long>()
+    // Last honest failure per key: without it every re-render of the window
+    // repainted "Загрузка…" over the error until the next attempt.
+    private val miniStockLastError = HashMap<String, String>()
     private val miniStockFreshMs = 60_000L
     private var miniWeatherCached: WeatherInfo? = null
     private val miniTicker = object : Runnable {
@@ -848,7 +851,9 @@ class MainActivity : Activity() {
                     val useCode = miniStockActual[key] ?: p.interval
                     miniStock.setData(p.symbol, ref, miniIntervalLabel(useCode), cached, useCode * 60)
                 } else {
-                    miniStock.setStatus("Загрузка…")
+                    // An already-known failure is more honest than a
+                    // perpetual "Загрузка…" shown until the next attempt.
+                    miniStock.setStatus(miniStockLastError[key] ?: "Загрузка…")
                 }
                 val age = System.currentTimeMillis() - (miniStockAttempt[key] ?: 0L)
                 if (age >= miniStockFreshMs) fetchMiniStock(p.symbol, p.interval)
@@ -891,6 +896,7 @@ class MainActivity : Activity() {
                 if (data != null && data.size >= 2) {
                     miniStockCached[key] = data
                     miniStockActual[key] = res.actualCode
+                    miniStockLastError.remove(key)
                     Prefs.setLastStockUpdateMs(this, System.currentTimeMillis())
                     Prefs.setLastStockError(this, "")
                     if (p != null && p.kind == 1 && p.symbol == symbol && p.interval == code) {
@@ -908,6 +914,7 @@ class MainActivity : Activity() {
                     // Only show the error when we have nothing to show at all.
                     val msg = miniStockErrorText(res)
                     if (msg != null) {
+                        miniStockLastError[key] = msg
                         miniStock.setStatus(msg)
                         Prefs.setLastStockError(this, msg)
                     }

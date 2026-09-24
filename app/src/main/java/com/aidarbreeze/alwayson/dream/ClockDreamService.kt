@@ -134,6 +134,9 @@ class ClockDreamService : DreamService() {
     override fun onDetachedFromWindow() {
         dreaming = false
         StandbyUiState.dreaming = false
+        // Belt & braces: the deferred re-arm must not outlive the window
+        // even on an abnormal teardown path that skipped onDreamingStopped.
+        window.decorView.removeCallbacks(reArmOverlay)
         callMonitor.stop()
         controller?.stop()
         controller = null

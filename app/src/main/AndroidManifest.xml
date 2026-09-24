@@ -15,7 +15,14 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application
-        android:allowBackup="true"
+        <!-- All app state is either re-fetchable (weather/stock cache) or
+             user-entered settings stored in EncryptedSharedPreferences: the
+             master key lives in the non-backup-able Android Keystore, so a
+             cloud restore of the prefs file on another device could never
+             be decrypted — Prefs would silently fall back to a DIFFERENT
+             plain file and every setting would look "lost". Safer to not
+             back the file up at all. -->
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
