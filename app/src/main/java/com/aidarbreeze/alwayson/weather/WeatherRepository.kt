@@ -60,6 +60,10 @@ object WeatherRepository {
     // For rate limiting, per location key (a global timestamp would block a
     // fetch for a DIFFERENT city for 15 min after any successful fetch).
     private val lastFetchByKey = HashMap<String, Long>()
+    // Callbacks that joined an already in-flight fetch for a key; they get
+    // the same result as the initiator (see [finish]) instead of a useless
+    // immediate "no data".
+    private val waiters = HashMap<String, MutableList<(Result) -> Unit>>()
     private var diskLoaded = false
 
     private fun keyOf(lat: Double, lon: Double): String = "$lat|$lon"
@@ -116,19 +120,29 @@ object WeatherRepository {
         // Rate limiting: check if enough time has passed since the last fetch
         // for THIS location.
         val now = System.currentTimeMillis()
+        var joined = false
         val shouldFetch = synchronized(lock) {
-            if (inFlightKey == key) {
-                false
-            } else if (now - (lastFetchByKey[key] ?: 0L) < RATE_LIMIT_MS && !force) {
-                // Rate limit enforced - not enough time since last fetch
-                false
-            } else {
-                inFlightKey = key
-                true
+            when {
+                inFlightKey == key -> {
+                    // An identical fetch is already running: join it and get
+                    // the real result when it lands (not a blank placeholder).
+                    waiters.getOrPut(key) { ArrayList() }.add(onResult)
+                    joined = true
+                    false
+                }
+                now - (lastFetchByKey[key] ?: 0L) < RATE_LIMIT_MS && !force -> {
+                    // Rate limit enforced - not enough time since last fetch
+                    false
+                }
+                else -> {
+                    inFlightKey = key
+                    true
+                }
             }
         }
+        if (joined) return   // the result arrives via [finish] with the fetch
         if (!shouldFetch) {
-            // An identical fetch is already running OR rate limit active; deliver what we have now.
+            // Rate limit active; deliver what we have now.
             val cur = synchronized(lock) { if (lastGoodKey == key) lastGood else null }
             deliver(Result(cur, fresh = false, stale = cur != null, offline = !isOnline(c)), onResult)
             return
@@ -152,17 +166,32 @@ object WeatherRepository {
                     val cur = synchronized(lock) { if (lastGoodKey == key) lastGood else null }
                     Result(cur, fresh = false, stale = cur != null, offline = offline)
                 }
-                main.post { onResult(result) }
+                finish(key, result, onResult)
             } catch (_: Throwable) {
                 // Never let one bad fetch wedge the single worker: hand back
                 // the last-known forecast for this location (if any).
                 val cur = synchronized(lock) { if (lastGoodKey == key) lastGood else null }
-                main.post { onResult(Result(cur, fresh = false, stale = cur != null, offline = true)) }
-            } finally {
-                // Released even on failure, or every later fetch for this
-                // location would take the "already in flight" path forever.
-                synchronized(lock) { inFlightKey = null }
+                finish(key, Result(cur, fresh = false, stale = cur != null, offline = true), onResult)
             }
+        }
+    }
+
+    /**
+     * Deliver [result] to the initiating callback [first] AND to every
+     * callback that joined the in-flight fetch for [key], always on the main
+     * thread. The in-flight marker is released inside the same lock section
+     * that detaches the waiters: a get() arriving afterwards can then start a
+     * NEW fetch instead of silently joining one that is about to end (which
+     * would leave it without a callback).
+     */
+    private fun finish(key: String, result: Result, first: (Result) -> Unit) {
+        val others = synchronized(lock) {
+            if (inFlightKey == key) inFlightKey = null
+            waiters.remove(key).orEmpty()
+        }
+        main.post {
+            first(result)
+            others.forEach { it(result) }
         }
     }
 

@@ -332,8 +332,12 @@ class MainActivity : Activity() {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                val d = s?.toString()?.toDoubleOrNull()
-                if (d != null) Prefs.setStockReference(this@MainActivity, d)
+                // A comma decimal separator must save too, an emptied field
+                // must clear the reference, and garbage mid-typing ("275.")
+                // must keep the last good value instead of dropping it.
+                val t = s?.toString()?.trim()?.replace(',', '.').orEmpty()
+                val v = if (t.isEmpty()) 0.0 else (t.toDoubleOrNull() ?: return)
+                Prefs.setStockReference(this@MainActivity, v)
             }
         })
         stockTypeGroup.setOnCheckedChangeListener { _, checkedId ->
@@ -508,10 +512,7 @@ class MainActivity : Activity() {
             startActivityForResult(intent, reqOverlay)
         }
 
-        autoSwitch.setOnCheckedChangeListener { _, checked ->
-            if (checked) enableAuto() else disableAuto()
-            updateScheduleRowVisibility()
-        }
+        attachAutoSwitchListener()
 
         findViewById<Button>(R.id.btnOpenDream).setOnClickListener {
             openDreamSettings()
@@ -536,10 +537,12 @@ class MainActivity : Activity() {
         btnRefreshData.setOnClickListener {
             // Force a fresh weather + chart fetch for the preview. The overlay
             // and the widget pick up the shared cache on their next update.
+            // force=true also bypasses StockApi's 60 s limiter, which would
+            // otherwise silently serve the old candles to the button.
             fetchMiniWeather(force = true)
             miniStockAttempt.clear()
             val p = miniSeq.getOrNull(miniStep)
-            if (p != null && p.kind == 1) fetchMiniStock(p.symbol, p.interval)
+            if (p != null && p.kind == 1) fetchMiniStock(p.symbol, p.interval, force = true)
             diagnostics.text = ""
         }
         btnResetPrefs.setOnClickListener {
@@ -639,6 +642,20 @@ class MainActivity : Activity() {
         previewHandler.removeCallbacks(tickerDebounce)
         // A typed-but-not-yet-debounced watchlist must not be lost.
         Prefs.setStockTickers(this, tickerInput.text?.toString() ?: "")
+        // Same for a typed city the user never confirmed with "done":
+        // resolve it in the background and persist via the app context —
+        // this activity may be gone when the geocode lands.
+        val typedCity = weatherCityInput.text?.toString()?.trim().orEmpty()
+        if (typedCity.isNotEmpty() && typedCity != Prefs.weatherCity(this)) {
+            val app = applicationContext
+            Thread {
+                val place = WeatherApi.geocode(typedCity)
+                if (place != null) {
+                    Prefs.setWeatherLocation(app, place.lat, place.lon)
+                    Prefs.setWeatherCity(app, place.name)
+                }
+            }.start()
+        }
         stopMiniPreview()
     }
 
@@ -839,13 +856,13 @@ class MainActivity : Activity() {
             if (res.httpCode > 0) "нет сети (HTTP ${res.httpCode})" else "нет сети"
     }
 
-    private fun fetchMiniStock(symbol: String, code: Int) {
+    private fun fetchMiniStock(symbol: String, code: Int, force: Boolean = false) {
         if (symbol.isEmpty()) return
         val key = "$symbol-$code"
         val attempt = System.currentTimeMillis()
         miniStockAttempt[key] = attempt
         Thread {
-            val res = StockApi.fetch(symbol, code)
+            val res = StockApi.fetch(symbol, code, force)
             previewHandler.post {
                 // The fetch may finish after the screen is gone: drop it
                 // instead of touching a dead activity's views.
@@ -1249,14 +1266,21 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun refreshSwitchState() {
-        val on = Prefs.autoStandby(this) && canDraw()
-        autoSwitch.setOnCheckedChangeListener(null)
-        autoSwitch.isChecked = on
+    /** The one true autoSwitch listener: toggles the feature AND keeps the
+     *  schedule row in sync. Re-attaching a listener without the visibility
+     *  update (the old enableAuto() path) desynced the schedule row. */
+    private fun attachAutoSwitchListener() {
         autoSwitch.setOnCheckedChangeListener { _, checked ->
             if (checked) enableAuto() else disableAuto()
             updateScheduleRowVisibility()
         }
+    }
+
+    private fun refreshSwitchState() {
+        val on = Prefs.autoStandby(this) && canDraw()
+        autoSwitch.setOnCheckedChangeListener(null)
+        autoSwitch.isChecked = on
+        attachAutoSwitchListener()
         updateScheduleRowVisibility()
     }
 
@@ -1271,9 +1295,8 @@ class MainActivity : Activity() {
             // Turn the switch back off and ask for the permission.
             autoSwitch.setOnCheckedChangeListener(null)
             autoSwitch.isChecked = false
-            autoSwitch.setOnCheckedChangeListener { _, checked ->
-                if (checked) enableAuto() else disableAuto()
-            }
+            attachAutoSwitchListener()
+            updateScheduleRowVisibility()
             refreshPermissionUi()
             return
         }

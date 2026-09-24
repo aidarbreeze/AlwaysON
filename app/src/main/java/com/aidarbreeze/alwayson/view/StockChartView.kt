@@ -198,14 +198,16 @@ class StockChartView @JvmOverloads constructor(
     private fun dayChangePct(): Double? {
         val list = candles
         if (list.size < 4) return null
-        val msk = TimeZone.getTimeZone("Europe/Moscow")
-        val cal = Calendar.getInstance(msk)
-        val lastCal = cal.apply { timeInMillis = list.last().timeMs }
-        val lastDay = lastCal.get(Calendar.DAY_OF_YEAR)
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"))
+        cal.timeInMillis = list.last().timeMs
+        // Year + day-of-year: a bare DAY_OF_YEAR would treat Dec 31 of last
+        // year and Jan 1 of this year as the same session.
+        fun dayKey(): Int = cal.get(Calendar.YEAR) * 1000 + cal.get(Calendar.DAY_OF_YEAR)
+        val lastDayKey = dayKey()
         var prevClose: Double? = null
         for (c in list.reversed()) {
             cal.timeInMillis = c.timeMs
-            if (cal.get(Calendar.DAY_OF_YEAR) == lastDay) continue
+            if (dayKey() == lastDayKey) continue
             prevClose = c.close
             break
         }
@@ -245,7 +247,9 @@ class StockChartView @JvmOverloads constructor(
     }
 
     private fun shortDate(): String {
-        val c = Calendar.getInstance()
+        // The chart's sessions run on Moscow time — label them with the MSK
+        // date, not with whatever local date the device is on.
+        val c = Calendar.getInstance(TimeZone.getTimeZone("Europe/Moscow"))
         return String.format(Locale.US, "%02d.%02d", c.get(Calendar.DAY_OF_MONTH), c.get(Calendar.MONTH) + 1)
     }
 

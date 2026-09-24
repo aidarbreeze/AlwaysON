@@ -318,6 +318,13 @@ class StandbyController(context: Context, private val root: View) {
         mediaPrev.setOnClickListener { sendMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
         mediaNext.setOnClickListener { sendMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT) }
         attachGestures()
+        // A stop() mid-flip left the page animation running (its end action
+        // never fired and pageFlipping stayed true): cancel both animations
+        // and clear the flag so swipes work from the first try. The explicit
+        // visibility resets below override whatever the cancel unwound.
+        pageClock.animate().cancel()
+        pageNotifs.animate().cancel()
+        pageFlipping = false
         // Always start on the clock page of a fresh session.
         currentPage = 0
         pageClock.visibility = View.VISIBLE
@@ -368,6 +375,11 @@ class StandbyController(context: Context, private val root: View) {
         transitionGen++
         panelAnimating = false
         pinned = false
+        // Same for a flip caught mid-animation: the end action (which resets
+        // pageFlipping) would never run after the teardown below.
+        pageClock.animate().cancel()
+        pageNotifs.animate().cancel()
+        pageFlipping = false
         handler.removeCallbacksAndMessages(null)
         root.setOnTouchListener(null)
         onTapExit = null
