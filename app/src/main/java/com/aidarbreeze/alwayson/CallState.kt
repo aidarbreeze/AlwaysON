@@ -15,7 +15,7 @@ import android.telecom.TelecomManager
  *  - the audio mode says so (MODE_RINGTONE while ringing, MODE_IN_CALL /
  *    MODE_IN_COMMUNICATION while talking) — works even for cellular calls
  *    without any READ_PHONE_STATE grant,
- *  - TelecomManager says the device is in a call/ringing (best effort).
+ *  - TelecomManager says the device is in a call (best effort).
  *
  * The StandBy screen (overlay + system screen saver) must step aside while a
  * call is up, so it never covers an incoming-call dialog.
@@ -52,7 +52,9 @@ object CallState {
         }
         try {
             val tm = ctx.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
-            if (tm != null && (tm.isInCall || tm.isRinging)) return true
+            // Note: TelecomManager has isInCall() only — "ringing" is covered
+            // by MODE_RINGTONE above and by call notifications.
+            if (tm != null && tm.isInCall) return true
         } catch (_: Exception) {
             // No READ_PHONE_STATE: the audio/notification signals above
             // already cover this case.

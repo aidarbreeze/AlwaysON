@@ -16,7 +16,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.format.DateFormat
-import android.text.TruncateAt
+import android.text.TextUtils.TruncateAt
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
