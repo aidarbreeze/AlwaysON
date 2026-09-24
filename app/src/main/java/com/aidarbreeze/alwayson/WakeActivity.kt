@@ -26,6 +26,10 @@ class WakeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // No window animation for this invisible helper: an open animation
+        // would briefly flash whatever is behind it (the keyguard) on the
+        // way to relighting the screen.
+        window.setWindowAnimations(0)
         // Keep the keyguard up; we only need the screen lit.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)

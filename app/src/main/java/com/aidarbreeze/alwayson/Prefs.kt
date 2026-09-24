@@ -95,6 +95,10 @@ object Prefs {
     private const val KEY_SECONDS_MODE = "seconds_mode"
     // Battery display: 0 hidden, 1 percent, 2 current, 3 charging indicator.
     private const val KEY_BATTERY_MODE = "battery_mode"
+    // Swipe page with the messenger notifications (Telegram / Max) list.
+    private const val KEY_NOTIF_PAGE = "notif_page"
+    // How many notifications that page shows at most ("макс."). 1..10.
+    private const val KEY_NOTIF_MAX = "notif_max"
     // Diagnostics: last successful data updates + last errors.
     private const val KEY_LAST_WEATHER_MS = "last_weather_ms"
     private const val KEY_LAST_WEATHER_ERR = "last_weather_err"
@@ -285,6 +289,14 @@ object Prefs {
     /** Temperature unit: 0 Celsius, 1 Fahrenheit (display only). */
     fun tempUnit(ctx: Context): Int = i(ctx, KEY_TEMP_UNIT, 0).coerceIn(0, 1)
     fun setTempUnit(ctx: Context, v: Int) = setI(ctx, KEY_TEMP_UNIT, v.coerceIn(0, 1))
+
+    /** Swipe notifications page (Telegram / Max) on the StandBy screen. */
+    fun notifPageEnabled(ctx: Context): Boolean = b(ctx, KEY_NOTIF_PAGE, true)
+    fun setNotifPageEnabled(ctx: Context, on: Boolean) = setB(ctx, KEY_NOTIF_PAGE, on)
+
+    /** Max rows on the notifications page ("макс."). 1..10, default 5. */
+    fun notifMax(ctx: Context): Int = i(ctx, KEY_NOTIF_MAX, 5).coerceIn(1, 10)
+    fun setNotifMax(ctx: Context, v: Int) = setI(ctx, KEY_NOTIF_MAX, v.coerceIn(1, 10))
 
     fun lastWeatherUpdateMs(ctx: Context): Long = l(ctx, KEY_LAST_WEATHER_MS, 0L)
     fun setLastWeatherUpdateMs(ctx: Context, v: Long) = setL(ctx, KEY_LAST_WEATHER_MS, v)

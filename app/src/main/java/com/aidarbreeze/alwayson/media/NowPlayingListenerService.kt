@@ -9,6 +9,10 @@ import android.os.Build
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import com.aidarbreeze.alwayson.CallState
+import com.aidarbreeze.alwayson.notif.NotifCache
+import com.aidarbreeze.alwayson.notif.NotifItem
+import com.aidarbreeze.alwayson.service.OverlayService
 
 /**
  * Reads the currently-playing track from media ("MediaStyle") notifications.
@@ -55,6 +59,12 @@ class NowPlayingListenerService : NotificationListenerService() {
      *  stale, no readable state) is ignored so the card never shows while no
      *  music is playing.
      *
+     *  The same scan also feeds two shared flags:
+   *   - messenger messages (Telegram / Max) -> [NotifCache] for the swipe
+   *     notifications page of the StandBy screen;
+   *   - call notifications (phone / VoIP) -> [CallState], so the StandBy
+   *     windows step aside and never cover an incoming-call dialog.
+     *
      *  Note: MediaController has no release() API — the controller is created
      *  per scan as a local that we never store, so it stays collectable. */
     private fun refresh() {
@@ -62,6 +72,54 @@ class NowPlayingListenerService : NotificationListenerService() {
             activeNotifications ?: emptyArray()
         } catch (_: Exception) {
             emptyArray()
+        }
+
+        val msgs = ArrayList<NotifItem>()
+        var callActive = false
+        for (sbn in notifs) {
+            val n = sbn.notification
+            if (CallState.isCallNotification(n)) {
+                callActive = true
+                continue
+            }
+            if (!NotifCache.isMessenger(sbn.packageName) || !sbn.isClearable) continue
+            val extras = n.extras
+            // Skip the "app is running in the background" style entries: only
+            // real messages (a title and/or text) are listed.
+            val title = (
+                extras.getCharSequence(Notification.EXTRA_TITLE_BIG)
+                    ?: extras.getCharSequence(Notification.EXTRA_TITLE)
+                )?.toString()?.trim().orEmpty()
+            val text = (
+                extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+                    ?: extras.getCharSequence(Notification.EXTRA_TEXT)
+                )?.toString()?.trim().orEmpty()
+            if (title.isEmpty() && text.isEmpty()) continue
+            msgs.add(
+                NotifItem(
+                    title = if (title.isEmpty()) text else title,
+                    text = if (title.isEmpty()) "" else text,
+                    timeMs = sbn.postTime
+                )
+            )
+        }
+
+        // Newest first; identical (title, text) collapsed to the newest copy;
+        // bounded so a chatty chat can never grow the list without limit.
+        msgs.sortByDescending { it.timeMs }
+        val seen = HashSet<String>()
+        val out = ArrayList<NotifItem>()
+        for (m in msgs) {
+            if (seen.add(m.title + '\u0000' + m.text)) out.add(m)
+            if (out.size >= NotifCache.MAX_KEEP) break
+        }
+        NotifCache.publish(out)
+
+        // Publish the call flag; if it FLIPPED, the standby windows must
+        // re-evaluate right now (hide on call start, restore on call end).
+        if (CallState.callNotificationActive != callActive) {
+            CallState.callNotificationActive = callActive
+            OverlayService.requestReevaluate(this)
         }
 
         var found: NowPlaying? = null

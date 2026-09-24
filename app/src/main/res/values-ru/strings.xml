@@ -23,6 +23,14 @@
     <string name="media_access_button">Выдать доступ к уведомлениям</string>
     <string name="media_access_hint">Чтобы карточка плеера появлялась для музыки из любого приложения, Android требует «Доступ к уведомлениям» для AlwaysON. Нажмите, чтобы открыть системный список, и включите AlwaysON.</string>
 
+    <!-- Страница уведомлений мессенджеров -->
+    <string name="section_notifs">Уведомления</string>
+    <string name="notif_page_title">Уведомления мессенджеров (Telegram, Max)</string>
+    <string name="notif_page_summary">Вторая страница заставки: свайп влево-вправо переключает часы и список последних уведомлений Telegram и Max со временем. Нужен «Доступ к уведомлениям» (см. выше). Во время звонка заставка сама уступает экран диалогу.</string>
+    <string name="notif_max_label">Показывать не более</string>
+    <string name="notif_header">Уведомления</string>
+    <string name="notif_empty">Уведомлений пока нет</string>
+
     <!-- Оформление -->
     <string name="section_appearance">Внешний вид</string>
     <string name="auto_brightness_title">Автояркость</string>

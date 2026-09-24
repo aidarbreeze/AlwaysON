@@ -9,6 +9,14 @@
         <item>60 s</item>
     </string-array>
 
+    <!-- Max rows on the notifications page ("макс."), same in all locales. -->
+    <string-array name="notif_max_entries">
+        <item>3</item>
+        <item>5</item>
+        <item>7</item>
+        <item>10</item>
+    </string-array>
+
     <!-- 0..23 hour labels for the StandBy time schedule. -->
     <string-array name="hours_0_23">
         <item>00:00</item>

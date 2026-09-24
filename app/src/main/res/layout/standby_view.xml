@@ -2,7 +2,8 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/standbyRoot"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/aod_background">
 
     <!-- Black backdrop: fades in to opaque on entry (controller-driven)
          BEFORE the data below is revealed. -->
@@ -21,8 +22,11 @@
         android:layout_height="match_parent"
         android:alpha="0">
 
-        <!-- Portrait: calendar card in the lower area, clock column above it. -->
+        <!-- Portrait: calendar card in the lower area, clock column above it.
+             Page 1 of 2 — page 2 (messenger notifications) is flipped in
+             with a horizontal swipe. -->
         <LinearLayout
+            android:id="@+id/pageClock"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
@@ -160,6 +164,83 @@
                     android:visibility="gone" />
             </FrameLayout>
 
+        </LinearLayout>
+
+        <!-- Page 2: recent messenger notifications (Telegram / Max) with
+             their times, under a compact clock. Flipped in with a swipe. -->
+        <LinearLayout
+            android:id="@+id/pageNotifs"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:paddingLeft="30dp"
+            android:paddingRight="30dp"
+            android:paddingTop="40dp"
+            android:paddingBottom="30dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/notifTimeText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/aod_clock_text"
+                android:textSize="34sp"
+                android:letterSpacing="0.02" />
+
+            <TextView
+                android:id="@+id/notifDateText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textColor="@color/aod_secondary_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/notifHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:layout_marginBottom="4dp"
+                android:text="@string/notif_header"
+                android:textAllCaps="true"
+                android:letterSpacing="0.08"
+                android:textColor="@color/aod_text_tertiary"
+                android:textSize="12sp" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
+                <ScrollView
+                    android:id="@+id/notifScroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="vertical"
+                    android:overScrollMode="never">
+
+                    <LinearLayout
+                        android:id="@+id/notifList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingBottom="8dp" />
+                </ScrollView>
+
+                <TextView
+                    android:id="@+id/notifEmpty"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal|top"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/notif_empty"
+                    android:textColor="@color/aod_secondary_text"
+                    android:textSize="15sp"
+                    android:visibility="gone" />
+            </FrameLayout>
         </LinearLayout>
 
     </FrameLayout>

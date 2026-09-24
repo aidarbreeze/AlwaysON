@@ -23,6 +23,14 @@
     <string name="media_access_button">Grant notification access</string>
     <string name="media_access_hint">To show the player card for music from any app, Android needs “Notification access” for AlwaysON. Tap to open the system list, then turn AlwaysON on.</string>
 
+    <!-- Messenger notifications page -->
+    <string name="section_notifs">Notifications</string>
+    <string name="notif_page_title">Messenger notifications (Telegram, Max)</string>
+    <string name="notif_page_summary">A second StandBy page: swipe left/right to flip between the clock and a list of the latest Telegram and Max notifications, each with its time. Needs “Notification access” (see above). The StandBy screen steps aside while a call is up.</string>
+    <string name="notif_max_label">Show at most</string>
+    <string name="notif_header">Notifications</string>
+    <string name="notif_empty">No notifications yet</string>
+
     <!-- Appearance -->
     <string name="section_appearance">Appearance</string>
     <string name="auto_brightness_title">Auto brightness</string>

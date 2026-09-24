@@ -100,6 +100,8 @@ class MainActivity : Activity() {
     private lateinit var durCalSpinner: Spinner
     private lateinit var durStockSpinner: Spinner
     private lateinit var durWeatherSpinner: Spinner
+    private lateinit var notifSwitch: Switch
+    private lateinit var notifMaxSpinner: Spinner
 
     // Full-StandBy mini preview (calendar / chart / weather windows).
     private lateinit var miniRoot: View
@@ -152,6 +154,8 @@ class MainActivity : Activity() {
         durCalSpinner = findViewById(R.id.durCalSpinner)
         durStockSpinner = findViewById(R.id.durStockSpinner)
         durWeatherSpinner = findViewById(R.id.durWeatherSpinner)
+        notifSwitch = findViewById(R.id.notifSwitch)
+        notifMaxSpinner = findViewById(R.id.notifMaxSpinner)
 
         autoSwitch = findViewById(R.id.autoSwitch)
         permStatus = findViewById(R.id.permStatus)
@@ -375,6 +379,20 @@ class MainActivity : Activity() {
         bindIntSpinner(tempUnitSpinner, R.array.temp_unit_entries, Prefs.tempUnit(this)) {
             Prefs.setTempUnit(this, it)
             startMiniPreview()
+        }
+
+        // --- Messenger notifications page (Telegram / Max) ---
+        notifSwitch.isChecked = Prefs.notifPageEnabled(this)
+        notifSwitch.setOnCheckedChangeListener { _, checked ->
+            Prefs.setNotifPageEnabled(this, checked)
+        }
+        // The spinner index maps to the "макс." row count (3/5/7/10).
+        val notifMaxValues = intArrayOf(3, 5, 7, 10)
+        bindIntSpinner(
+            notifMaxSpinner, R.array.notif_max_entries,
+            notifMaxValues.indexOf(Prefs.notifMax(this)).coerceAtLeast(0)
+        ) {
+            Prefs.setNotifMax(this, notifMaxValues[it.coerceIn(0, notifMaxValues.size - 1)])
         }
         dimSwitch.isChecked = Prefs.dimMode(this)
         dimSwitch.setOnCheckedChangeListener { _, checked ->

@@ -1,5 +1,9 @@
-// Top-level build file. Plugin versions are declared here and applied in module files.
+// Top-level build file. Plugin versions are declared here and applied in
+// module files.
 plugins {
-    id("com.android.application") version "8.4.2" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+    // AGP 9.1+ (requires Gradle 9.3.1+): runs on Java 17-26, so the build
+    // works with the Java 25 that current Android Studio versions ship.
+    // Kotlin compilation is built into AGP 9 (built-in Kotlin) — the old
+    // org.jetbrains.kotlin.android plugin must NOT be applied alongside it.
+    id("com.android.application") version "9.1.1" apply false
 }

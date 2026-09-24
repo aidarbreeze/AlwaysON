@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // NOTE: no org.jetbrains.kotlin.android — AGP 9 compiles Kotlin via its
+    // built-in Kotlin support (that plugin is incompatible with the AGP 9 DSL).
 }
 
 android {
@@ -13,6 +14,8 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -34,9 +37,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+}
 
-    kotlinOptions {
-        jvmTarget = "17"
+// Replacement for the removed android.kotlinOptions{} block (AGP 9 built-in
+// Kotlin migration): keep the bytecode target aligned with compileOptions.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
@@ -48,7 +55,7 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation("androidx.test:core:1.5.0")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    
+
     // The app intentionally uses only the Android framework (no external
     // AndroidX / Material dependencies) so the project builds straight out of
     // the box in Android Studio without version-matching issues.

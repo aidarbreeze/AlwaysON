@@ -1,12 +1,15 @@
 package com.aidarbreeze.alwayson.dream
 
 import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.service.dreams.DreamService
 import android.view.LayoutInflater
 import android.view.OrientationEventListener
 import android.view.View
 import android.view.WindowManager
+import com.aidarbreeze.alwayson.CallState
 import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.StandbyController
 import com.aidarbreeze.alwayson.ui.StandbyUiState
@@ -17,10 +20,15 @@ import com.aidarbreeze.alwayson.ui.StandbyUiState
  * on a pure black OLED-friendly background with burn-in protection.
  *
  * Android starts it automatically when the device is idle and (per the system
- * setting) charging/docked, and stops it the moment the user touches the
- * screen or moves the device. Many OEM builds (e.g. OnePlus/OxygenOS) do not
+ * setting) charging/docked. Many OEM builds (e.g. OnePlus/OxygenOS) do not
  * auto-start third-party dreams while charging — for those, use the app's
  * optional "show while charging" overlay instead.
+ *
+ * The dream is INTERACTIVE: a horizontal swipe flips between the clock and
+ * the messenger notifications page, a quick tap exits (finish()). It also
+ * steps aside by itself while a call is up, so an incoming-call dialog is
+ * never covered. The window background is pure black from the first frame,
+ * so the lock screen can never flash through when the dream starts or stops.
  *
  * Unlike an Activity, a dream is a Service: its content view is not recreated
  * automatically when the device rotates, so a portrait layout would otherwise
@@ -33,14 +41,35 @@ class ClockDreamService : DreamService() {
     private var controller: StandbyController? = null
     private var orientationListener: OrientationEventListener? = null
 
+    // While a call is up the dream must go away (call dialog on top); the
+    // monitor polls and reports flips only.
+    private val callMonitor = CallState.Monitor(this) { active ->
+        if (active) {
+            // Keep the re-arm below: after the call ends the overlay should
+            // come back on its own — only a user tap dismisses for good.
+            finish()
+        }
+    }
+
     // Which layout variant is currently shown in the dream window.
     private var shownLandscape = false
     private var dreaming = false
+    // True when the user (or a call) made us finish() ourselves — the lock
+    // screen must then be handed over CLEANLY (see onDreamingStopped).
+    private var selfStopped = false
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        isInteractive = false
+        // Interactive: touches reach the content (paging gestures + tap to
+        // exit) instead of instantly stopping the dream behind the user's
+        // back — with a black window there is no keyguard flash either way.
+        isInteractive = true
         isFullscreen = true
+
+        // Pure black from the very first frame: the lock screen behind the
+        // dream can never show through during start/stop transitions (the
+        // "blink" between the keyguard and the screen saver).
+        window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
 
         // Hide the status & navigation bars for a clean, immersive full-screen
         // clock. isFullscreen alone is not honoured by every ROM (OxygenOS
@@ -68,22 +97,36 @@ class ClockDreamService : DreamService() {
         StandbyUiState.dreaming = true
         showLayout()
         controller?.start()
-        // Let the charging overlay step aside immediately (no stacked blacks).
-        com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
+        callMonitor.start()
+        // Let the charging overlay step aside (no stacked blacks), but only
+        // after the dream's first frames are on screen — both windows are
+        // opaque black with the same clock, so the handover never shows the
+        // keyguard behind them.
+        window.decorView.postDelayed({
+            com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
+        }, 150L)
     }
 
     override fun onDreamingStopped() {
         dreaming = false
         StandbyUiState.dreaming = false
+        callMonitor.stop()
         controller?.stop()
         super.onDreamingStopped()
-        // The dream gave the screen back — re-arm the overlay if it may show.
-        com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
+        // FLICKER FIX: when the user tapped to dismiss the screen saver, the
+        // keyguard must be handed over CLEANLY — re-covering it with the
+        // overlay at once looked like a blink (lock screen -> clock again).
+        // For every other stop (system, call) re-arm the overlay as usual.
+        if (!selfStopped) {
+            com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
+        }
+        selfStopped = false
     }
 
     override fun onDetachedFromWindow() {
         dreaming = false
         StandbyUiState.dreaming = false
+        callMonitor.stop()
         controller?.stop()
         controller = null
         orientationListener?.disable()
@@ -133,7 +176,15 @@ class ClockDreamService : DreamService() {
         controller?.stop()
         controller = null
         setContentView(view)
-        controller = StandbyController(this, view)
+        controller = StandbyController(this, view).apply {
+            // Tap anywhere on an empty area hands the screen back to the
+            // keyguard (mirrors the old "touch stops the dream" behaviour);
+            // swipes flip pages (handled inside the controller).
+            onTapExit = {
+                selfStopped = true
+                finish()
+            }
+        }
 
         shownLandscape =
             resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE

@@ -26,10 +26,10 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.view.Gravity
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.OrientationEventListener
 import android.view.View
 import android.view.WindowManager
+import com.aidarbreeze.alwayson.CallState
 import com.aidarbreeze.alwayson.Prefs
 import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.StandbyController
@@ -43,15 +43,18 @@ import kotlin.math.sqrt
  * the phone back (removes the overlay, revealing the normal lock/home
  * screen) the moment the user is actually using it:
  *
- *  - tapping the screen anywhere,
+ *  - tapping the screen anywhere (a horizontal swipe instead flips between
+ *    the clock page and the messenger notifications page),
  *  - unlocking / waking the screen,
- *  - or picking the phone up (detected with the accelerometer).
+ *  - picking the phone up (detected with the accelerometer),
+ *  - or while a call is ringing / in progress (never cover a call dialog).
  *
  * Pressing the power button behaves exactly like a screen timeout: the
  * screen goes dark and the clock shows again. The overlay window carries
  * FLAG_KEEP_SCREEN_ON, so it relights the screen by itself; the one-shot
  * full-screen-intent notification is only a fallback for OEM builds that
- * ignore that.
+ * ignore that. The window is opaque black from the very first frame (no
+ * fade-in), so the lock screen can never flash through at transitions.
  */
 class OverlayService : Service(), SensorEventListener {
 
@@ -116,6 +119,13 @@ class OverlayService : Service(), SensorEventListener {
     private var overlayView: View? = null
     private var controller: StandbyController? = null
     private var orientationListener: OrientationEventListener? = null
+
+    // While a call (cellular or messenger) is up, the clock must step aside
+    // so it never covers the incoming-call dialog; it comes back when the
+    // call ends (if the StandBy rules still allow it).
+    private val callMonitor = CallState.Monitor(this) { active ->
+        if (active) removeOverlay() else evaluateAndSync()
+    }
 
     private var shownOrientationType = -1
 
@@ -328,6 +338,9 @@ class OverlayService : Service(), SensorEventListener {
         handler.removeCallbacks(wakeGuard)
         handler.postDelayed(wakeGuard, WAKE_GUARD_PERIOD_MS)
 
+        // Hide at once when a call starts (see callMonitor).
+        callMonitor.start()
+
         // Promote to a foreground service only when the feature is enabled:
         // the "reevaluate" requests from the preview use a plain startService
         // and must not flash a persistent notification for a disabled feature.
@@ -371,6 +384,7 @@ class OverlayService : Service(), SensorEventListener {
 
     override fun onDestroy() {
         cancelWake()
+        callMonitor.stop()
         removeOverlay()
         unregisterSensors()
         try {
@@ -451,6 +465,13 @@ class OverlayService : Service(), SensorEventListener {
             return
         }
 
+        // 4b) A call is ringing / in progress (cellular, Telegram, Max…):
+        //     never cover the incoming-call dialog.
+        if (CallState.inCall(this)) {
+            removeOverlay()
+            return
+        }
+
         // 5) The user is looking at the in-app preview — it owns the screen.
         if (StandbyUiState.previewVisible) {
             removeOverlay()
@@ -506,6 +527,7 @@ class OverlayService : Service(), SensorEventListener {
         if (!Prefs.autoStandby(this)) return
         if (!isCharging(this)) return
         if (StandbyUiState.previewVisible || StandbyUiState.dreaming) return
+        if (CallState.inCall(this)) return  // never over a call screen
         if (!Prefs.isStandbyTimeAllowed(this, java.util.Calendar.getInstance())) return
         if (!Settings.canDrawOverlays(this)) return
         if (wakeAttempts >= WAKE_MAX_ATTEMPTS) return // OEM ignored us before
@@ -585,19 +607,12 @@ class OverlayService : Service(), SensorEventListener {
         // automatically based on the current orientation.
         val view = inflater.inflate(R.layout.standby_view, null)
 
-        // Tap anywhere exits to the normal screen.
-        view.setOnTouchListener { _, event ->
-            if (event.actionMasked == MotionEvent.ACTION_UP) {
-                exitStandby()
-            }
-            true
-        }
-
-        // The overlay intentionally CONSUMES touches while it is shown: a tap
-        // anywhere exits back to the normal screen (the touch listener set
-        // above), and the player prev/next buttons need touches too. (An
-        // earlier FLAG_NOT_TOUCHABLE here silently broke BOTH: the listener
-        // never fired and taps fell through to whatever was underneath.)
+        // The overlay intentionally CONSUMES touches while it is shown:
+        // a quick tap anywhere exits back to the normal screen, a horizontal
+        // swipe flips between the clock and notifications pages, and the
+        // player prev/next buttons need touches too. All of that is handled
+        // by StandbyController's root gestures (an earlier FLAG_NOT_TOUCHABLE
+        // here silently broke BOTH taps and the media buttons).
         val flags =
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -610,9 +625,16 @@ class OverlayService : Service(), SensorEventListener {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             flags,
-            PixelFormat.TRANSLUCENT
+            // OPAQUE, not TRANSLUCENT: the window is a full black screen and
+            // an opaque surface is composited immediately — the lock screen
+            // behind can never flash through during show/hide transitions
+            // (the "blink" the user saw when the StandBy toggled).
+            PixelFormat.OPAQUE
         )
         params.gravity = Gravity.CENTER
+        // No system window animation (an open/close animation briefly shows
+        // what is behind — i.e. the keyguard — at every transition).
+        params.windowAnimations = 0
         try {
             val wm = getSystemService(WINDOW_SERVICE) as WindowManager
             wm.addView(view, params)
@@ -624,6 +646,7 @@ class OverlayService : Service(), SensorEventListener {
         cancelWake() // the clock is up — the wake notification is no longer needed
 
         val c = StandbyController(this, view)
+        c.onTapExit = { exitStandby() }
         c.start()
         controller = c
 
@@ -648,6 +671,7 @@ class OverlayService : Service(), SensorEventListener {
             return
         }
         overlayView = null
+        controller?.onTapExit = null
         controller?.stop()
         controller = null
         view.setOnTouchListener(null)

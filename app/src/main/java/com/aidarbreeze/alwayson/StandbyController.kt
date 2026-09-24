@@ -14,11 +14,19 @@ import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import android.text.format.DateFormat
+import android.text.TruncateAt
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
+import android.widget.LinearLayout
 import android.widget.TextView
 import com.aidarbreeze.alwayson.media.MediaArtView
 import com.aidarbreeze.alwayson.media.MediaWatcher
+import com.aidarbreeze.alwayson.notif.NotifCache
+import com.aidarbreeze.alwayson.notif.NotifItem
 import com.aidarbreeze.alwayson.stock.Candle
 import com.aidarbreeze.alwayson.stock.StockApi
 import com.aidarbreeze.alwayson.view.ClockView
@@ -29,7 +37,9 @@ import com.aidarbreeze.alwayson.weather.WeatherInfo
 import com.aidarbreeze.alwayson.weather.WeatherRepository
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * Drives the iPhone-StandBy-style screen shared by the screen-saver service,
@@ -41,7 +51,7 @@ import java.util.Locale
  *  - OLED burn-in protection: the whole content block slowly drifts by a few
  *    pixels on a timer so no pixels stay lit in one place for long.
  */
-class StandbyController(context: Context, root: View) {
+class StandbyController(context: Context, private val root: View) {
 
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
@@ -59,9 +69,18 @@ class StandbyController(context: Context, root: View) {
     private val stockView: StockChartView = root.findViewById(R.id.stockView)
     private val weatherView: WeatherPanelView = root.findViewById(R.id.weatherView)
     private val content: View = root.findViewById(R.id.standbyContent)
-    // Dedicated black backdrop: on entry it fades in to opaque BEFORE the
-    // data is revealed (see enter()).
+    // Dedicated black backdrop: on entry it is opaque from the very first
+    // frame (see enter()) and the data is revealed over it.
     private val aodBg: View = root.findViewById(R.id.aodBg)
+
+    // Swipe pages: 1 = the usual clock/calendar screen, 2 = the messenger
+    // notifications list (Telegram / Max) under a compact clock.
+    private val pageClock: View = root.findViewById(R.id.pageClock)
+    private val pageNotifs: View = root.findViewById(R.id.pageNotifs)
+    private val notifTimeText: TextView = root.findViewById(R.id.notifTimeText)
+    private val notifDateText: TextView = root.findViewById(R.id.notifDateText)
+    private val notifList: LinearLayout = root.findViewById(R.id.notifList)
+    private val notifEmpty: TextView = root.findViewById(R.id.notifEmpty)
 
     private val mediaWatcher = MediaWatcher(appContext)
 
@@ -187,6 +206,32 @@ class StandbyController(context: Context, root: View) {
     // backdrop has fully faded in.
     private var entranceAlpha = 1f
 
+    // --- swipe paging (clock page <-> notifications page) ---
+    /** Host hook: called on a single tap on a non-interactive area. The
+     *  overlay uses it to exit, the dream to finish, the preview leaves it
+     *  null (Back exits there). */
+    var onTapExit: (() -> Unit)? = null
+
+    private var currentPage = 0
+    private var pageFlipping = false
+    // Notifications-list rebuild signature (cache stamp + the "макс." cap).
+    private var lastNotifSig = ""
+    // Manual swipe/tap/long-press recognition on the root (the controller
+    // owns the root touch: children like the media buttons still get their
+    // events first and consume them themselves).
+    private val touchSlop = ViewConfiguration.get(appContext).scaledTouchSlop
+    private var touchDownX = 0f
+    private var touchDownY = 0f
+    private var touchDownAt = 0L
+    private var touchDragging = false
+    private var touchLongFired = false
+    private val longPressRunnable = Runnable {
+        if (!touchDragging) {
+            touchLongFired = true
+            root.performLongClick()
+        }
+    }
+
     /** OLED-protection white cap: 85% when the dim mode is on. */
     private fun dimFactor(): Float = if (Prefs.dimMode(appContext)) 0.85f else 1f
 
@@ -205,6 +250,7 @@ class StandbyController(context: Context, root: View) {
             updateClock()
             tickCount++
             updateMedia() // poll every second so playback changes feel instant
+            renderNotifs() // cheap signature check; rebuilds only on changes
             if (batteryText.visibility == View.VISIBLE && tickCount % 2 == 0) {
                 updateBattery() // refresh the charge current about every 2 s
             }
@@ -268,8 +314,16 @@ class StandbyController(context: Context, root: View) {
         updateClock()
         updateMedia()
         updateBattery()
+        renderNotifs(force = true)
         mediaPrev.setOnClickListener { sendMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
         mediaNext.setOnClickListener { sendMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT) }
+        attachGestures()
+        // Always start on the clock page of a fresh session.
+        currentPage = 0
+        pageClock.visibility = View.VISIBLE
+        pageClock.translationX = 0f
+        pageNotifs.visibility = View.GONE
+        pageNotifs.translationX = 0f
         lastDay = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
         monthView.invalidate()
         handler.post(tick)
@@ -279,34 +333,32 @@ class StandbyController(context: Context, root: View) {
     }
 
     /**
-     * Entry sequence: first the black backdrop fades in from transparent to
-     * fully opaque (smoothly covering whatever was on screen), and only
-     * AFTER that the data (clock, panel, media card) is revealed. Driven on
-     * the main handler with the shared generation counter, so a teardown
-     * mid-entry can never leave the screen half-covered or data shown over
-     * a half-faded background.
+     * Entry sequence: the black backdrop is ALREADY opaque on the very first
+     * frame — fading it in from transparent used to let the system lock
+     * screen flash through the half-transparent window at every StandBy
+     * on/off transition (the visible "blink" between the keyguard and the
+     * clock). Only the data fades in now, quickly, over pure black. Driven
+     * on the main handler with the shared generation counter, so a teardown
+     * mid-entry can never leave the screen half-covered.
      */
     private fun enter() {
-        aodBg.alpha = 0f
+        aodBg.alpha = 1f
         entranceAlpha = 0f
         refreshContentAlpha()
         transitionGen++
         val gen = transitionGen
-        animateAlpha(aodBg, 1f, gen) {
-            if (gen != transitionGen) return@animateAlpha
-            val start = System.currentTimeMillis()
-            val frame = object : Runnable {
-                override fun run() {
-                    if (gen != transitionGen) return
-                    val t = ((System.currentTimeMillis() - start).toDouble() / 300.0)
-                        .coerceIn(0.0, 1.0)
-                    entranceAlpha = t.toFloat()
-                    refreshContentAlpha()
-                    if (t < 1.0) handler.postDelayed(this, 16)
-                }
+        val start = System.currentTimeMillis()
+        val frame = object : Runnable {
+            override fun run() {
+                if (gen != transitionGen) return
+                val t = ((System.currentTimeMillis() - start).toDouble() / 200.0)
+                    .coerceIn(0.0, 1.0)
+                entranceAlpha = t.toFloat()
+                refreshContentAlpha()
+                if (t < 1.0) handler.postDelayed(this, 16)
             }
-            handler.postDelayed(frame, 16)
         }
+        handler.postDelayed(frame, 16)
     }
 
     fun stop() {
@@ -317,6 +369,8 @@ class StandbyController(context: Context, root: View) {
         panelAnimating = false
         pinned = false
         handler.removeCallbacksAndMessages(null)
+        root.setOnTouchListener(null)
+        onTapExit = null
         // Clean entry state: the next start() animates from scratch.
         aodBg.alpha = 1f
         entranceAlpha = 1f
@@ -325,6 +379,148 @@ class StandbyController(context: Context, root: View) {
         weatherView.alpha = 1f
         refreshContentAlpha()
         showCalendarOnly()
+    }
+
+    // ---------- swipe paging: clock page <-> notifications page ----------
+
+    /**
+     * Root gestures, consumed by the controller (children still get their
+     * events first and consume them themselves — e.g. the media buttons):
+     *  - horizontal swipe -> flip between the clock and notifications pages,
+     *  - quick tap         -> [onTapExit] (the host decides: overlay hides,
+     *    the dream finishes, the preview does nothing),
+     *  - long-press        -> the root's OnLongClickListener (preview pin).
+     */
+    private fun attachGestures() {
+        root.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    touchDownX = ev.x
+                    touchDownY = ev.y
+                    touchDownAt = SystemClock.uptimeMillis()
+                    touchDragging = false
+                    touchLongFired = false
+                    handler.removeCallbacks(longPressRunnable)
+                    handler.postDelayed(longPressRunnable, 500)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!touchDragging &&
+                        (abs(ev.x - touchDownX) > touchSlop ||
+                            abs(ev.y - touchDownY) > touchSlop)
+                    ) {
+                        touchDragging = true
+                        handler.removeCallbacks(longPressRunnable)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    handler.removeCallbacks(longPressRunnable)
+                    val dx = ev.x - touchDownX
+                    val dy = ev.y - touchDownY
+                    val dt = SystemClock.uptimeMillis() - touchDownAt
+                    when {
+                        touchLongFired -> Unit // long-press already handled
+                        abs(dx) > touchSlop * 2.5f && abs(dx) > abs(dy) * 1.6f -> flipPage()
+                        !touchDragging && dt < 500L -> onTapExit?.invoke()
+                        // a slow drag / pause: deliberate, not a tap — stay.
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(longPressRunnable)
+                    true
+                }
+                else -> true
+            }
+        }
+    }
+
+    /** Flip to the other page with a short horizontal slide ("перелистывание"). */
+    private fun flipPage() {
+        if (!Prefs.notifPageEnabled(appContext) || pageFlipping) return
+        val target = if (currentPage == 0) 1 else 0
+        val outView = if (currentPage == 0) pageClock else pageNotifs
+        val inView = if (target == 0) pageClock else pageNotifs
+        val width = root.width.toFloat().coerceAtLeast(1f)
+        // 1 -> content leaves to the left; 0 -> to the right.
+        val dir = if (target == 1) -1f else 1f
+        if (target == 1) renderNotifs(force = true)
+        currentPage = target
+        pageFlipping = true
+        inView.visibility = View.VISIBLE
+        inView.translationX = -dir * width
+        inView.animate().translationX(0f).setDuration(240L).start()
+        outView.animate().translationX(dir * width).setDuration(240L)
+            .withEndAction {
+                outView.visibility = View.GONE
+                outView.translationX = 0f
+                pageFlipping = false
+            }.start()
+    }
+
+    /**
+     * Rebuild the notifications rows from [NotifCache] (newest first, at most
+     * Prefs.notifMax rows — the user's "макс." cap). Cheap no-op while the
+     * cache stamp and the cap are unchanged; hidden page rebuilds on flip.
+     */
+    private fun renderNotifs(force: Boolean = false) {
+        val max = Prefs.notifMax(appContext)
+        val sig = NotifCache.updatedAt.toString() + '#' + max
+        if (!force && sig == lastNotifSig) return
+        lastNotifSig = sig
+        if (!force && pageNotifs.visibility != View.VISIBLE) return
+        val items = NotifCache.items.take(max)
+        notifList.removeAllViews()
+        notifEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        for (item in items) notifList.addView(notifRow(item))
+    }
+
+    /** One notifications row: "HH:mm  Title / text" (times per the 12/24h). */
+    private fun notifRow(item: NotifItem): View {
+        val density = appContext.resources.displayMetrics.density
+        fun dpI(v: Int): Int = (v * density).toInt().coerceAtLeast(1)
+        val use24 = Prefs.force24h(appContext) || DateFormat.is24HourFormat(appContext)
+        val timeFmt = SimpleDateFormat(if (use24) "HH:mm" else "h:mm", Locale.getDefault())
+
+        val row = LinearLayout(appContext).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dpI(10) }
+        }
+        val time = TextView(appContext).apply {
+            text = timeFmt.format(Date(item.timeMs))
+            textSize = 13f
+            setTextColor(appContext.getColor(R.color.aod_text_tertiary))
+            setPadding(0, dpI(2), dpI(12), 0)
+        }
+        val col = LinearLayout(appContext).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        col.addView(TextView(appContext).apply {
+            text = item.title
+            textSize = 15f
+            setTextColor(appContext.getColor(R.color.aod_text_primary))
+            maxLines = 1
+            ellipsize = TruncateAt.END
+        })
+        if (item.text.isNotEmpty() && item.text != item.title) {
+            col.addView(TextView(appContext).apply {
+                text = item.text
+                textSize = 13f
+                setTextColor(appContext.getColor(R.color.aod_secondary_text))
+                maxLines = 2
+                ellipsize = TruncateAt.END
+            })
+        }
+        row.addView(time)
+        row.addView(
+            col,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        return row
     }
 
     // ---------- calendar <-> stock chart alternation ----------
@@ -705,8 +901,14 @@ class StandbyController(context: Context, root: View) {
             else -> "h:mm"
         }
         // The clock view self-fits to its column for every style.
-        clockView.setTime(SimpleDateFormat(pattern, Locale.getDefault()).format(millis))
-        dateText.text = dateLine(now)
+        val timeStr = SimpleDateFormat(pattern, Locale.getDefault()).format(millis)
+        clockView.setTime(timeStr)
+        val date = dateLine(now)
+        dateText.text = date
+        // The notifications page carries a compact clock of its own ("time
+        // with the notifications list").
+        notifTimeText.text = timeStr
+        notifDateText.text = date
     }
 
     /** Date line shown above the clock, per the user's format:

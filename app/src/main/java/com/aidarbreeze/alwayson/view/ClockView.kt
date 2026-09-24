@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Typeface
 import android.util.AttributeSet
 import android.os.SystemClock
@@ -27,7 +28,9 @@ import kotlin.math.sin
  *
  *  0 - NORMAL  : plain light text (the default look).
  *  1 - OUTLINE : the digit shapes drawn as hollow contours; the line thickness
- *                is chosen by the user.
+ *                is chosen by the user. Rendered as "inflated glyph minus the
+ *                glyph" (two fills of one path) so the contour has no miter
+ *                spikes and no stroke self-intersection creases at corners.
  *  2 - DOTS    : "comic" dot-matrix digits — each digit is built from many
  *                small round dots with gaps between them.
  *  3 - FLIP    : an old "откидные часы" flip-clock — each digit is split into
@@ -87,6 +90,17 @@ class ClockView @JvmOverloads constructor(
         color = 0x26FFFFFF
     }
 
+    // Reused glyph path of the OUTLINE style: getTextPath -> drawPath (two
+    // passes over ONE path) so the stroke joins are honoured exactly as
+    // configured and the two passes share identical glyph boundaries.
+    private val glyphPath = Path()
+    // Black fill used to erase the glyph interior back to the pure-black
+    // OLED background (OUTLINE style's second pass).
+    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.BLACK
+    }
+
     // Reused stroke/fill paints for the iPhone faces (analog ticks/hands,
     // solar arc, world dots) so their onDraw stays allocation-free too.
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -142,7 +156,9 @@ class ClockView @JvmOverloads constructor(
         }
 
         // Dotted world map for style 19 (60 x 30, '#' = land). Coarse on
-        // purpose: at dot size it reads as continents, not pixels.
+        // purpose: at dot size it reads as continents, not pixels. The last
+        // 6 rows (below ~-54°) are empty ocean and never drawn.
+        private const val WORLD_ROWS = 24
         private val WORLD_MAP = arrayOf(
             "........##.............##................###................",
             ".......#####..........####.............###..................",
@@ -259,18 +275,28 @@ class ClockView @JvmOverloads constructor(
      *  The width is measured on a width-stable reference (every digit ->
      *  "8", the widest glyph) in the style's OWN typeface, so the chosen size
      *  — and therefore the clock width — never jumps when the digits change
-     *  (e.g. 11:11 -> 12:45) and matches what is actually drawn. */
+     *  (e.g. 11:11 -> 12:45) and matches what is actually drawn.
+     *
+     *  [padPx] subtracts a constant margin (e.g. a stroke that grows the
+     *  glyph by a fixed amount), [inflateFrac] accounts for a stroke width
+     *  proportional to the em (FILL_AND_STROKE styles), [letterSpacing] the
+     *  tracking the style draws with — so fit == draw for every style. */
     private fun fitTextSize(
         availW: Float,
         capPx: Float,
-        typeface: Typeface = typefaceForStyle()
+        typeface: Typeface = typefaceForStyle(),
+        padPx: Float = 0f,
+        inflateFrac: Float = 0f,
+        letterSpacing: Float = 0f
     ): Float {
         paint.textSize = 1000f
         paint.typeface = typeface
+        paint.letterSpacing = letterSpacing
         val ref = timeText.map { if (it.isDigit()) '8' else it }.joinToString("")
-        val w1000 = paint.measureText(ref)
+        val w1000 = paint.measureText(ref) + inflateFrac * 1000f
+        paint.letterSpacing = 0f
         if (w1000 <= 0f) return capPx
-        val fromWidth = (availW * 1000f / w1000) * 0.97f
+        val fromWidth = ((availW - padPx) * 1000f / w1000) * 0.97f
         return fromWidth.coerceAtMost(capPx)
     }
 
@@ -334,12 +360,16 @@ class ClockView @JvmOverloads constructor(
         // measured box.
         val st = style()
         val textSize = when (st) {
+            1 -> fitTextSize(availW - pad * 2f, capPx, padPx = 2f * thicknessPx())
+            13 -> fitTextSize(availW - pad * 2f, capPx, inflateFrac = 0.10f)
             14 -> fitPremiumSize(availW - pad * 2f, capPx)
             15 -> fitStackedSize(availW - pad * 2f, capPx)
             16 -> 0f // analog is measured geometrically (a square dial)
-            17 -> fitTextSize(availW - pad * 2f, capPx, tfBlack)
+            17 -> fitTextSize(availW - pad * 2f, capPx, tfBlack, inflateFrac = 0.14f)
             18, 19 -> fitTextSize(availW - pad * 2f, capPx, tfBold)
-            20 -> fitTextSize(availW - pad * 2f, capPx, Typeface.MONOSPACE) * 0.66f
+            20 -> fitTextSize(
+                availW - pad * 2f, capPx, Typeface.MONOSPACE, letterSpacing = 0.08f
+            ) * 0.66f
             else -> fitTextSize(availW - pad * 2f, capPx)
         }
 
@@ -351,7 +381,10 @@ class ClockView @JvmOverloads constructor(
             15 -> stackedHeight(textSize)
             16 -> min(availW, capPx * 2.2f).coerceAtLeast(dp(120f))
             18 -> textHeight(textSize) + availW * 0.30f + textSize * 0.62f + dp(8f)
-            19 -> availW * 0.5f + textHeight(textSize) + textSize * 0.60f + dp(8f)
+            // Map height is 24 rows at cell = availW / 60 -> 0.4 * availW.
+            19 -> availW * 0.4f + textHeight(textSize) + textSize * 0.60f + dp(8f)
+            // The outline contour sits outside the glyph (+t all around).
+            1 -> textHeight(textSize) + dp(6f) + 2f * thicknessPx()
             else -> textHeight(textSize) + dp(6f)
         }
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
@@ -440,19 +473,45 @@ class ClockView @JvmOverloads constructor(
     }
 
     // ---------- style 1: hollow outline digits ----------
+    //
+    // Rendered as "the glyph dilated outward minus the glyph itself": ONE
+    // path from getTextPath is drawn twice — first FILL_AND_STROKE with a
+    // round-join stroke of 2t (the glyph inflated by t in every direction),
+    // then the same path filled with the pure-black background, which erases
+    // the glyph interior and leaves a uniform t-thick contour OUTSIDE the
+    // font shape. The inner edge of the contour is an exact fill boundary of
+    // the glyph and the outer edge is a clean morphological dilation (round
+    // joins) — so, unlike a plain STROKED text, the digit corners have no
+    // miter spikes ("удлинения") and the tight junctions have no stroke
+    // self-intersection lumps ("заломы"), at any thickness.
 
     private fun drawOutline(canvas: Canvas, w: Float, h: Float) {
-        val size = fitTextSize(w, cap())
+        val t = thicknessPx().coerceAtLeast(dp(0.5f))
+        val size = fitTextSize(w - dp(4f), cap(), padPx = 2f * t)
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
         paint.typeface = tfBold
+        paint.textAlign = Paint.Align.LEFT
+        val fm = paint.fontMetrics
+        val x = (w - paint.measureText(timeText)) / 2f
+        val y = h / 2f - (fm.ascent + fm.descent) / 2f
+        glyphPath.reset()
+        paint.getTextPath(timeText, 0, timeText.length, x, y, glyphPath)
+
+        // Pass 1: the glyph dilated outward by t. ROUND joins keep the
+        // dilation smooth at convex corners (no spikes past the offset).
         paint.color = ink()
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = thicknessPx()
+        paint.style = Paint.Style.FILL_AND_STROKE
+        paint.strokeWidth = 2f * t
         paint.strokeJoin = Paint.Join.ROUND
         paint.strokeCap = Paint.Cap.ROUND
-        drawCenteredText(canvas, timeText, w, h, paint)
+        canvas.drawPath(glyphPath, paint)
+
+        // Pass 2: erase the glyph itself back to the black background — only
+        // the contour ring remains.
+        bgPaint.color = Color.BLACK
+        canvas.drawPath(glyphPath, bgPaint)
     }
 
     // ---------- style 3: flip-clock ----------
@@ -768,7 +827,13 @@ class ClockView @JvmOverloads constructor(
             return t
         }
         var size = (h * 0.72f).coerceAtMost(capPx)
-        while (size > 6f && total(size) > w) size -= 2f
+        fun pillHeight(s: Float): Float {
+            paint.textSize = s
+            return paint.fontMetrics.bottom - paint.fontMetrics.top + dp(12f)
+        }
+        // Shrink until BOTH the row fits the width and the pills fit the
+        // height (a short box would otherwise clip the chip tops/bottoms).
+        while (size > 6f && (total(size) > w || pillHeight(size) > h)) size -= 2f
         paint.textSize = size
         val fm = paint.fontMetrics
         val textH = fm.bottom - fm.top
@@ -846,7 +911,7 @@ class ClockView @JvmOverloads constructor(
     // ---------- style 13: soft rounded ("pillow") digits ----------
 
     private fun drawSoftRounded(canvas: Canvas, w: Float, h: Float) {
-        val size = fitTextSize(w, cap())
+        val size = fitTextSize(w - dp(2f), cap(), inflateFrac = 0.10f)
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
@@ -1017,14 +1082,16 @@ class ClockView @JvmOverloads constructor(
                 cx + dx * rO, cy + dy * rO, tick
             )
         }
-        // Quarter numerals only, like the iPhone widget.
+        // Quarter numerals only, like the iPhone widget. Pulled slightly
+        // inside (0.66) so they never collide with the inner tips of the
+        // hour ticks along the axes.
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = rout * 0.22f
         paint.typeface = tfBold
         paint.color = main
         paint.style = Paint.Style.FILL
-        val nr = rout * 0.70f
+        val nr = rout * 0.66f
         drawCenteredAt(canvas, "12", cx, cy - nr, paint)
         drawCenteredAt(canvas, "3", cx + nr, cy, paint)
         drawCenteredAt(canvas, "6", cx, cy + nr, paint)
@@ -1045,7 +1112,7 @@ class ClockView @JvmOverloads constructor(
     // ---------- style 17: float iPhone bubble digits ----------
 
     private fun drawFloat(canvas: Canvas, w: Float, h: Float) {
-        val size = fitTextSize(w - dp(4f), cap(), tfBlack)
+        val size = fitTextSize(w - dp(4f), cap(), tfBlack, inflateFrac = 0.14f)
         // "Pop" scale on every minute change (350 ms ease-out).
         val minute = textParts().second
         val now = SystemClock.uptimeMillis()
@@ -1173,14 +1240,17 @@ class ClockView @JvmOverloads constructor(
     private fun drawWorld(canvas: Canvas, w: Float, h: Float) {
         val size = fitTextSize(w - dp(4f), cap(), tfBold)
         val main = ink()
-        // Dotted continents, 2:1.
+        // Dotted continents. The map data spans the full globe over 30 rows,
+        // but only the top 24 rows carry land (below -54° there is nothing
+        // but empty ocean here) — draw only those, so the block has no dead
+        // gap under the continents.
         val cols = WORLD_MAP[0].length
-        val rows = WORLD_MAP.size
-        val mapH = w * 0.5f
+        val mapRows = WORLD_ROWS
         val cell = w / cols
+        val mapHeight = cell * mapRows
         val dotR = (cell * 0.30f).coerceAtLeast(0.8f)
         fillPaint.color = dimmed(main, 0.42f)
-        for (r in 0 until rows) {
+        for (r in 0 until mapRows) {
             val row = WORLD_MAP[r]
             val cy = cell * (r + 0.5f)
             for (c in 0 until cols) {
@@ -1189,14 +1259,16 @@ class ClockView @JvmOverloads constructor(
                 }
             }
         }
-        // "You are here" dot from the weather location, when known.
+        // "You are here" dot from the weather location, when known. The geo
+        // mapping still spans the full 30-row globe, so latitudes land in the
+        // same cells the land dots occupy.
         try {
             val loc = Prefs.weatherLocation(context)
             if (loc != null) {
                 val px = ((loc.second + 180.0) / 360.0 * cols)
                     .toFloat().coerceIn(0f, (cols - 1).toFloat())
-                val py = ((90.0 - loc.first) / 180.0 * rows)
-                    .toFloat().coerceIn(0f, (rows - 1).toFloat())
+                val py = ((90.0 - loc.first) / 180.0 * WORLD_MAP.size)
+                    .toFloat().coerceIn(0f, (mapRows - 1).toFloat())
                 fillPaint.color = 0xFFFB923C.toInt()
                 canvas.drawCircle(
                     cell * (px + 0.5f), cell * (py + 0.5f), dotR * 2.2f, fillPaint
@@ -1214,7 +1286,7 @@ class ClockView @JvmOverloads constructor(
         paint.style = Paint.Style.FILL
         paint.textAlign = Paint.Align.CENTER
         val fm = paint.fontMetrics
-        val tBase = mapH + size * 0.06f - fm.top
+        val tBase = mapHeight + size * 0.06f - fm.top
         canvas.drawText(timeText, w / 2f, tBase, paint)
         val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
         val utcStr = "UTC %02d:%02d".format(
@@ -1232,7 +1304,9 @@ class ClockView @JvmOverloads constructor(
     // ---------- style 20: minimal mono (small, calm, letterspaced) ----------
 
     private fun drawMinimalMono(canvas: Canvas, w: Float, h: Float) {
-        val size = fitTextSize(w - dp(4f), cap(), Typeface.MONOSPACE) * 0.66f
+        val size = fitTextSize(
+            w - dp(4f), cap(), Typeface.MONOSPACE, letterSpacing = 0.08f
+        ) * 0.66f
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
