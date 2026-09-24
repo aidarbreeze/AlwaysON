@@ -53,6 +53,12 @@ class ClockDreamService : DreamService() {
 
     // Which layout variant is currently shown in the dream window.
     private var shownLandscape = false
+    // Deferred overlay re-arm (see onDreamingStarted). Kept as a field so
+    // the teardown can cancel it: a dream stopped within the 150 ms grace
+    // must not poke the overlay service on its way out.
+    private val reArmOverlay = Runnable {
+        com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
+    }
     private var dreaming = false
     // True when the user (or a call) made us finish() ourselves — the lock
     // screen must then be handed over CLEANLY (see onDreamingStopped).
@@ -102,14 +108,16 @@ class ClockDreamService : DreamService() {
         // after the dream's first frames are on screen — both windows are
         // opaque black with the same clock, so the handover never shows the
         // keyguard behind them.
-        window.decorView.postDelayed({
-            com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
-        }, 150L)
+        window.decorView.removeCallbacks(reArmOverlay)
+        window.decorView.postDelayed(reArmOverlay, 150L)
     }
 
     override fun onDreamingStopped() {
         dreaming = false
         StandbyUiState.dreaming = false
+        // A dream stopped within the 150 ms grace must not re-arm the
+        // overlay on its way out.
+        window.decorView.removeCallbacks(reArmOverlay)
         callMonitor.stop()
         controller?.stop()
         super.onDreamingStopped()

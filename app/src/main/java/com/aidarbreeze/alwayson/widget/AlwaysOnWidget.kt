@@ -34,6 +34,13 @@ class AlwaysOnWidget : AppWidgetProvider() {
     companion object {
         private const val ACTION_TICK = "com.aidarbreeze.alwayson.WIDGET_TICK"
         private const val TICK_MS = 60_000L
+        // Shared formatters: update() used to allocate a new pair on every
+        // refresh. All widget updates run on the main thread, so reuse is
+        // safe (SimpleDateFormat is not thread-safe).
+        private val timeFmt24 = SimpleDateFormat("HH:mm", Locale.getDefault())
+        private val timeFmt12 = SimpleDateFormat("h:mm", Locale.getDefault())
+        private val dateFmtRu = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault())
+        private val dateFmtEn = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
     }
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
@@ -95,10 +102,9 @@ class AlwaysOnWidget : AppWidgetProvider() {
         // Same 12/24h rule as everywhere in the app: the user's explicit
         // override wins over the system setting.
         val use24 = Prefs.force24h(context) || DateFormat.is24HourFormat(context)
-        val pattern = if (use24) "HH:mm" else "h:mm"
         views.setTextViewText(
             R.id.widgetTime,
-            SimpleDateFormat(pattern, Locale.getDefault()).format(Date(millis))
+            (if (use24) timeFmt24 else timeFmt12).format(Date(millis))
         )
 
         val locale = Locale.getDefault()
@@ -106,7 +112,8 @@ class AlwaysOnWidget : AppWidgetProvider() {
             "EEEE, d MMMM" else "EEEE, MMMM d"
         views.setTextViewText(
             R.id.widgetDate,
-            SimpleDateFormat(datePattern, locale).format(Date(millis))
+            (if (locale.language.equals("ru", ignoreCase = true)) dateFmtRu else dateFmtEn)
+                .format(Date(millis))
         )
 
         // Status line: battery + last known weather (shared cache).

@@ -19,6 +19,11 @@ import android.media.session.PlaybackState
  */
 class MediaWatcher(private val context: Context) {
 
+    // The ticker calls current() EVERY second; without a gate a missing or
+    // revoked notification access re-attempted (and re-threw) the binder
+    // call once per second, forever. One fallback attempt per 3 s is plenty.
+    private var lastFallbackAttempt = 0L
+
     fun current(): NowPlaying? {
         // Preferred path: what the notification listener just saw. Only trust
         // it while it is fresh AND reported as actually playing.
@@ -28,6 +33,9 @@ class MediaWatcher(private val context: Context) {
         ) {
             return cached
         }
+        val now = System.currentTimeMillis()
+        if (now - lastFallbackAttempt < 3_000) return null
+        lastFallbackAttempt = now
         // Fallback: poll media sessions directly (playing ones only).
         return try {
             val manager =

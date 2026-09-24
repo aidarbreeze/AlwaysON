@@ -109,6 +109,18 @@ class MainActivity : Activity() {
     private lateinit var miniStock: StockChartView
     private lateinit var miniWeather: WeatherPanelView
 
+    // Cached formatters for the 1-second preview tick (a fresh
+    // SimpleDateFormat pair was allocated every second before).
+    private val fmtCache = HashMap<String, SimpleDateFormat>()
+    private fun fmt(pattern: String): SimpleDateFormat {
+        val key = pattern + '|' + Locale.getDefault().toLanguageTag()
+        return fmtCache.getOrPut(key) { SimpleDateFormat(pattern, Locale.getDefault()) }
+    }
+
+    // City text a geocode is currently running for, so leaving the screen
+    // does not fire a SECOND identical geocode right after the "Done" one.
+    private var geocodeInFlightFor: String? = null
+
     // Style names for the "‹ ›" carousels (array index == style code).
     private lateinit var clockEntries: Array<String>
     private lateinit var colorEntries: Array<String>
@@ -524,10 +536,17 @@ class MainActivity : Activity() {
 
         findViewById<Button>(R.id.btnBatteryProbe).setOnClickListener {
             // Diagnostic: what the device reports for charge current, so we can
-            // pick the right node for a specific phone/ROM.
-            val lines = BatteryInfo.probe(this)
-            batteryProbe.text = lines.joinToString("\n")
+            // pick the right node for a specific phone/ROM. The probe reads a
+            // few dozen sysfs nodes — run it OFF the main thread.
             batteryProbe.visibility = View.VISIBLE
+            batteryProbe.text = "…"
+            Thread {
+                val lines = BatteryInfo.probe(this)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    batteryProbe.text = lines.joinToString("\n")
+                }
+            }.start()
         }
 
         // ---------- diagnostics / maintenance ----------
@@ -644,9 +663,12 @@ class MainActivity : Activity() {
         Prefs.setStockTickers(this, tickerInput.text?.toString() ?: "")
         // Same for a typed city the user never confirmed with "done":
         // resolve it in the background and persist via the app context —
-        // this activity may be gone when the geocode lands.
+        // this activity may be gone when the geocode lands. Skip when the
+        // identical geocode is already running (the user pressed "Done").
         val typedCity = weatherCityInput.text?.toString()?.trim().orEmpty()
-        if (typedCity.isNotEmpty() && typedCity != Prefs.weatherCity(this)) {
+        if (typedCity.isNotEmpty() && typedCity != Prefs.weatherCity(this) &&
+            typedCity != geocodeInFlightFor
+        ) {
             val app = applicationContext
             Thread {
                 val place = WeatherApi.geocode(typedCity)
@@ -693,7 +715,7 @@ class MainActivity : Activity() {
         // setTime() alone: it re-measures only when the text length changes
         // ("9:59" -> "10:00"). A refresh() here would re-layout the whole
         // settings ScrollView every second and stutter scrolling.
-        previewClock.setTime(SimpleDateFormat(pattern, Locale.getDefault()).format(millis))
+        previewClock.setTime(fmt(pattern).format(millis))
 
         val locale = Locale.getDefault()
         val ru = locale.language.equals("ru", ignoreCase = true)
@@ -703,7 +725,7 @@ class MainActivity : Activity() {
             2 -> if (ru) "d MMMM" else "MMMM d"
             else -> if (ru) "EEEE, d MMMM" else "EEEE, MMMM d"
         }
-        val line = SimpleDateFormat(dp, locale).format(millis)
+        val line = fmt(dp).format(millis)
         previewDate.text =
             if (mode == 0) line.replaceFirstChar { it.titlecase(locale) } else line
 
@@ -847,14 +869,10 @@ class MainActivity : Activity() {
     }
 
     /** Honest one-line status for a failed mini stock fetch (null = stay
-     *  silent, keep showing "Загрузка…" — the retry comes by itself). */
-    private fun miniStockErrorText(res: StockApi.FetchResult): String? = when (res.error) {
-        null, StockApi.FetchError.RATE_LIMITED -> null
-        StockApi.FetchError.BAD_TICKER, StockApi.FetchError.NOT_FOUND -> "тикер не найден"
-        StockApi.FetchError.CLOSED_EMPTY -> "торги закрыты"
-        StockApi.FetchError.NETWORK ->
-            if (res.httpCode > 0) "нет сети (HTTP ${res.httpCode})" else "нет сети"
-    }
+     *  silent, keep showing "Загрузка…" — the retry comes by itself).
+     *  Delegates to the single shared mapping in [StockApi.errorText]. */
+    private fun miniStockErrorText(res: StockApi.FetchResult): String? =
+        StockApi.errorText(res)
 
     private fun fetchMiniStock(symbol: String, code: Int, force: Boolean = false) {
         if (symbol.isEmpty()) return
@@ -1235,9 +1253,11 @@ class MainActivity : Activity() {
             updateWeatherStatus()
             return
         }
+        geocodeInFlightFor = q
         Thread {
             val place = WeatherApi.geocode(q)
             runOnUiThread {
+                geocodeInFlightFor = null
                 // The fetch outlives the screen when the user leaves fast:
                 // never touch the views of a dead activity.
                 if (isFinishing || isDestroyed) return@runOnUiThread

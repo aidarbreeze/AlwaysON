@@ -248,6 +248,11 @@ class StockChartView @JvmOverloads constructor(
         return "06:50"
     }
 
+    // HH:MM tick labels: one formatter per view instead of a fresh one on
+    // every draw pass (drawing happens on the main thread only — reuse is
+    // safe for SimpleDateFormat).
+    private val timeTickFmt = SimpleDateFormat("HH:mm", Locale.US)
+
     private fun shortDate(): String {
         // The chart's sessions run on Moscow time — label them with the MSK
         // date, not with whatever local date the device is on.
@@ -361,7 +366,7 @@ class StockChartView @JvmOverloads constructor(
         // free for the date (left) and the interval (right).
         val hasTimes = candles.any { it.timeMs > 0 }
         if (hasTimes) {
-            val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
+            val timeFmt = timeTickFmt
             labelPaint.textAlign = Paint.Align.CENTER
             for (frac in floatArrayOf(0.25f, 0.5f, 0.75f)) {
                 val idx = (frac * (candles.size - 1)).toInt()

@@ -98,6 +98,21 @@ object StockApi {
     )
 
     /**
+     * Human-readable one-line status for a failed fetch, shown under the
+     * chart (Russian, like the other chart labels). null = stay silent and
+     * keep "Загрузка…" — the retry comes with the next cycle. Single source
+     * of truth: the overlay controller and the settings mini-preview used
+     * to keep two copies of this mapping that had started to drift.
+     */
+    fun errorText(res: FetchResult): String? = when (res.error) {
+        null, FetchError.RATE_LIMITED -> null
+        FetchError.BAD_TICKER, FetchError.NOT_FOUND -> "тикер не найден"
+        FetchError.CLOSED_EMPTY -> "торги закрыты"
+        FetchError.NETWORK ->
+            if (res.httpCode > 0) "нет сети (HTTP ${res.httpCode})" else "нет сети"
+    }
+
+    /**
      * Fetch candles (OHLC + time) for [symbol] at MOEX interval [code]
      * (1, 10 or 60), chronological oldest -> newest.
      *

@@ -17,7 +17,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -89,30 +88,14 @@ class OverlayService : Service(), SensorEventListener {
 
         /** True while the phone is on a working charger: it must be PLUGGED
          *  (AC / USB / wireless) AND not in a draining/unknown state. A FULL
-         *  status alone does not prove the device is still on power. */
-        fun isCharging(context: Context): Boolean {
-            val intent = context.registerReceiver(
-                null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-            ) ?: return false
-
-            val status = intent.getIntExtra(
-                BatteryManager.EXTRA_STATUS,
-                BatteryManager.BATTERY_STATUS_UNKNOWN
-            )
-
-            val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
-
-            val connectedToPower =
-                plugged == BatteryManager.BATTERY_PLUGGED_AC ||
-                    plugged == BatteryManager.BATTERY_PLUGGED_USB ||
-                    plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS
-
-            val validBatteryState =
-                status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                    status == BatteryManager.BATTERY_STATUS_FULL
-
-            return connectedToPower && validBatteryState
-        }
+         *  status alone does not prove the device is still on power.
+         *
+         *  Single source of truth: BatteryInfo.isCharging. The two copies
+         *  of this check had drifted apart on the odd edge statuses (e.g. a
+         *  missing sticky broadcast), so the overlay and the diagnostics
+         *  could disagree about "charging" on the same device. */
+        fun isCharging(context: Context): Boolean =
+            com.aidarbreeze.alwayson.BatteryInfo.isCharging(context)
     }
 
     private val handler = Handler(Looper.getMainLooper())

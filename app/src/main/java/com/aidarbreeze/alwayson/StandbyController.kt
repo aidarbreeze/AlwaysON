@@ -90,6 +90,16 @@ class StandbyController(context: Context, private val root: View) {
     // Minutes elapsed, used to compute the burn-in drift offset.
     private var driftTick = 0L
 
+    // Cached formatters: updateClock() runs once or twice a second for the
+    // whole life of the always-on screen and used to allocate a fresh
+    // SimpleDateFormat pair every tick (constant GC churn). Patterns plus
+    // the locale are the cache key; access is main-thread-only.
+    private val fmtCache = HashMap<String, SimpleDateFormat>()
+    private fun fmt(pattern: String): SimpleDateFormat {
+        val key = pattern + '|' + Locale.getDefault().toLanguageTag()
+        return fmtCache.getOrPut(key) { SimpleDateFormat(pattern, Locale.getDefault()) }
+    }
+
     // --- panel alternation: calendar <-> stock chart <-> weather ---
     // A fixed set of "windows" is rotated on a timer. Windows can be the month
     // calendar, a MOEX chart of a chosen interval, or the weather forecast.
@@ -504,7 +514,7 @@ class StandbyController(context: Context, private val root: View) {
         val density = appContext.resources.displayMetrics.density
         fun dpI(v: Int): Int = (v * density).toInt().coerceAtLeast(1)
         val use24 = Prefs.force24h(appContext) || DateFormat.is24HourFormat(appContext)
-        val timeFmt = SimpleDateFormat(if (use24) "HH:mm" else "h:mm", Locale.getDefault())
+        val timeFmt = fmt(if (use24) "HH:mm" else "h:mm")
 
         val row = LinearLayout(appContext).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -726,14 +736,10 @@ class StandbyController(context: Context, private val root: View) {
     }
 
     /** Honest one-line status for a failed stock fetch (null = stay silent,
-     *  keep showing "Загрузка…" — the retry comes with the next cycle). */
-    private fun stockErrorText(res: StockApi.FetchResult): String? = when (res.error) {
-        null, StockApi.FetchError.RATE_LIMITED -> null
-        StockApi.FetchError.BAD_TICKER, StockApi.FetchError.NOT_FOUND -> "тикер не найден"
-        StockApi.FetchError.CLOSED_EMPTY -> "торги закрыты"
-        StockApi.FetchError.NETWORK ->
-            if (res.httpCode > 0) "нет сети (HTTP ${res.httpCode})" else "нет сети"
-    }
+     *  keep showing "Загрузка…" — the retry comes with the next cycle).
+     *  Delegates to the single shared mapping in [StockApi.errorText]. */
+    private fun stockErrorText(res: StockApi.FetchResult): String? =
+        StockApi.errorText(res)
 
     /** Fetch candles for a ticker+interval; apply the result only when it is
      *  still the freshest attempt for that key AND the chart still shows it. */
@@ -924,7 +930,7 @@ class StandbyController(context: Context, private val root: View) {
             else -> "h:mm"
         }
         // The clock view self-fits to its column for every style.
-        val timeStr = SimpleDateFormat(pattern, Locale.getDefault()).format(millis)
+        val timeStr = fmt(pattern).format(millis)
         clockView.setTime(timeStr)
         val date = dateLine(now)
         dateText.text = date
@@ -945,7 +951,7 @@ class StandbyController(context: Context, private val root: View) {
             2 -> if (ru) "d MMMM" else "MMMM d"
             else -> if (ru) "EEEE, d MMMM" else "EEEE, MMMM d"
         }
-        val raw = SimpleDateFormat(pattern, locale).format(now.timeInMillis)
+        val raw = fmt(pattern).format(now.timeInMillis)
         return if (Prefs.dateFormat(appContext) == 0)
             raw.replaceFirstChar { it.titlecase(locale) }
         else raw
