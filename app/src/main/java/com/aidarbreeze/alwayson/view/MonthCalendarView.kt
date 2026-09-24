@@ -105,6 +105,9 @@ class MonthCalendarView @JvmOverloads constructor(
     private var cachedYear = -1
     private var cachedMonth = -1
     private var cachedFirstDow = -1
+    // Weekday labels depend on the locale too: a language switch used to
+    // leave stale ("Mon" / "Пн") labels until the month actually changed.
+    private var cachedLocale = ""
     private var daysInMonth = 31
     private var firstCell = 0
     // "Today" is stored as a full day+month+year triple so a cell is only ever
@@ -149,7 +152,9 @@ class MonthCalendarView @JvmOverloads constructor(
         todayDay = now.get(Calendar.DAY_OF_MONTH)
         todayMonth = month
         todayYear = year
-        if (year != cachedYear || month != cachedMonth || fDow != cachedFirstDow) {
+        if (year != cachedYear || month != cachedMonth || fDow != cachedFirstDow ||
+            Locale.getDefault().toLanguageTag() != cachedLocale
+        ) {
             rebuild(year, month, fDow)
         }
 
@@ -440,6 +445,7 @@ class MonthCalendarView @JvmOverloads constructor(
         cachedYear = year
         cachedMonth = month
         cachedFirstDow = fDow
+        cachedLocale = locale.toLanguageTag()
     }
 
     /** Localized month in nominative, first letter capital (e.g. "Сентябрь"). */

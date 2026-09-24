@@ -637,8 +637,13 @@ class WeatherPanelView @JvmOverloads constructor(
                 "${t(pts[iMax].tempC)}", xMax, yFor(pts[iMax].tempC) - dpf(6f), curveLabelPaint
             )
             val xMin = xFor(pts[iMin].timeMs).coerceIn(pad + marginX, w - pad - marginX)
+            // Clamp the label INSIDE the plot too: on a short panel the
+            // unclamped "+12dp below the point" dipped under curveBottom
+            // into the week list.
+            val yMin = (yFor(pts[iMin].tempC) + dpf(12f))
+                .coerceAtMost(curveBottom - dpf(2f))
             canvas.drawText(
-                "${t(pts[iMin].tempC)}", xMin, yFor(pts[iMin].tempC) + dpf(12f), curveLabelPaint
+                "${t(pts[iMin].tempC)}", xMin, yMin, curveLabelPaint
             )
 
             // "now" dot at the left edge + the current temperature

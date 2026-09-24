@@ -160,7 +160,11 @@ object WeatherApi {
                     WeatherHour(
                         timeMs = timeMs,
                         tempC = Math.round(hTemp.getDouble(i)).toInt(),
-                        code = if (hCode != null && !hCode.isNull(i)) hCode.getInt(i) else codeNow
+                        // Length guard: a truncated/short weather_code array
+                        // must not throw isNull(i) past its end and kill the
+                        // whole parse from the outer catch.
+                        code = if (hCode != null && i < hCode.length() && !hCode.isNull(i))
+                            hCode.getInt(i) else codeNow
                     )
                 )
             }
@@ -200,7 +204,11 @@ object WeatherApi {
                 days.add(
                     WeatherDay(
                         timeMs = t,
-                        code = if (!dCode.isNull(i)) dCode.getInt(i) else codeNow,
+                        // Length guard, same as the hourly array above: a
+                        // short daily weather_code array must not throw past
+                        // its end and discard the whole forecast.
+                        code = if (dCode != null && i < dCode.length() && !dCode.isNull(i))
+                            dCode.getInt(i) else codeNow,
                         tMin = Math.round(dMin.getDouble(i)).toInt(),
                         tMax = Math.round(dMax.getDouble(i)).toInt()
                     )

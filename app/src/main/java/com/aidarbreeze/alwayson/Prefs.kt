@@ -298,8 +298,19 @@ object Prefs {
     fun notifPageEnabled(ctx: Context): Boolean = b(ctx, KEY_NOTIF_PAGE, true)
     fun setNotifPageEnabled(ctx: Context, on: Boolean) = setB(ctx, KEY_NOTIF_PAGE, on)
 
-    /** Max rows on the notifications page ("макс."). 1..10, default 5. */
-    fun notifMax(ctx: Context): Int = i(ctx, KEY_NOTIF_MAX, 5).coerceIn(1, 10)
+    /** Max rows on the notifications page ("макс."). The UI offers exactly
+     *  3/5/7/10, so a legacy value between the steps (e.g. 4) is snapped
+     *  onto the nearest supported one — otherwise the spinner showed "3"
+     *  while the pref silently kept 4 until the user touched it. */
+    fun notifMax(ctx: Context): Int {
+        val v = i(ctx, KEY_NOTIF_MAX, 5)
+        return when {
+            v <= 3 -> 3
+            v <= 5 -> 5
+            v <= 7 -> 7
+            else -> 10
+        }
+    }
     fun setNotifMax(ctx: Context, v: Int) = setI(ctx, KEY_NOTIF_MAX, v.coerceIn(1, 10))
 
     fun lastWeatherUpdateMs(ctx: Context): Long = l(ctx, KEY_LAST_WEATHER_MS, 0L)

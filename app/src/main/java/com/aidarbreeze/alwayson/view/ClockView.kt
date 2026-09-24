@@ -252,7 +252,8 @@ class ClockView @JvmOverloads constructor(
         val use24 = Prefs.force24h(context) ||
             android.text.format.DateFormat.is24HourFormat(context)
         val hh = if (use24) h else if (h % 12 == 0) 12 else h % 12
-        return Triple(hh.toString(), "%02d".format(m), "")
+        // Locale.US for stable Latin digits (see the UTC label note).
+        return Triple(hh.toString(), "%02d".format(Locale.US, m), "")
     }
 
     private fun style(): Int = Prefs.clockStyle(context)
@@ -1304,8 +1305,11 @@ class ClockView @JvmOverloads constructor(
         val tBase = mapHeight + size * 0.06f - fm.top
         canvas.drawText(timeText, w / 2f, tBase, paint)
         val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        // Locale.US: Latin digits always, like every other numeric label —
+        // the default locale would render Arabic-Indic digits on ar/fa
+        // locales and break the monospace look.
         val utcStr = "UTC %02d:%02d".format(
-            utc.get(Calendar.HOUR_OF_DAY), utc.get(Calendar.MINUTE)
+            Locale.US, utc.get(Calendar.HOUR_OF_DAY), utc.get(Calendar.MINUTE)
         )
         paint.textSize = size * 0.30f
         paint.letterSpacing = 0.10f
