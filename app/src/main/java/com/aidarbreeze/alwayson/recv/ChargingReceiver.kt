@@ -28,6 +28,11 @@ class ChargingReceiver : BroadcastReceiver() {
                     // The service decides from the live battery state whether
                     // the overlay is due right now (screen off + allowed time).
                     i.action = OverlayService.ACTION_REFRESH
+                    // Only a real plug (not a boot) carries the bypass
+                    // trigger across the cold start.
+                    if (intent.action == Intent.ACTION_POWER_CONNECTED) {
+                        i.putExtra(OverlayService.EXTRA_PLUG_EVENT, true)
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         context.startForegroundService(i)
                     } else {

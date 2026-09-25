@@ -60,7 +60,10 @@ class BypassAutomationService : AccessibilityService() {
             val svc = instance ?: return false
             if (running) return true // already in progress: do not double-tap
             val pm = svc.getSystemService(Context.POWER_SERVICE) as? PowerManager
-            if (pm?.isInteractive != true) return false
+            if (pm?.isInteractive != true) {
+                android.util.Log.d("BypassAuto", "skip: screen is dark")
+                return false
+            }
             running = true
             svc.runSequence()
             return true
@@ -84,24 +87,32 @@ class BypassAutomationService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     private fun runSequence() {
+        android.util.Log.d("BypassAuto", "sequence start (dreaming=${StandbyUiState.dreaming})")
         val dreaming = StandbyUiState.dreaming
-        // 0) our screensaver is up: a tap exits it (curtain + finish) — the
-        //    gestures below must land on the system control center.
-        if (dreaming) schedule({ tap(540f, 1177f) }, 0L)
-        // 1) the WakeActivity host, if any, was already stopped by
-        //    OverlayService.makeWayForBypass right before this call.
-        val swipeAt = if (dreaming) 800L else 0L
-        // 2) pull the control center from the right side of the status bar.
+        // 0) our hosts step aside for BOTH entry points (the service start
+        //    path and the settings button): stop the WakeActivity host and
+        //    latch re-hosting until the sequence ends.
+        OverlayService.makeWayForBypass(applicationContext)
+        // 0b) our screensaver is up: a tap exits it (curtain + finish) — the
+        //     gestures below must land on the system control center.
+        if (dreaming) schedule({ tap(540f, 1177f, "dream exit") }, 0L)
+        // 1) pull the control center from the right side of the status bar
+        //    (a short settle after the host teardown when no dream was up).
+        val swipeAt = if (dreaming) 800L else 350L
         schedule({ swipeDown() }, swipeAt)
-        // 3) settle, then tap the bypass tile.
+        // 2) settle, then tap the bypass tile.
         val tileAt = swipeAt + SWIPE_MS + PANEL_SETTLE_MS
-        schedule({ tap(TILE_X, TILE_Y) }, tileAt)
-        // 4) 500 ms later collapse the shade.
-        schedule({ performGlobalAction(GLOBAL_ACTION_BACK) }, tileAt + AFTER_TAP_MS)
-        // 5) hand the screen back to the standby hosts (clock returns).
+        schedule({ tap(TILE_X, TILE_Y, "bypass tile") }, tileAt)
+        // 3) 500 ms later collapse the shade.
+        schedule({
+            android.util.Log.d("BypassAuto", "collapse shade")
+            performGlobalAction(GLOBAL_ACTION_BACK)
+        }, tileAt + AFTER_TAP_MS)
+        // 4) hand the screen back to the standby hosts (clock returns).
         schedule({
             OverlayService.clearBypassWay(applicationContext)
             running = false
+            android.util.Log.d("BypassAuto", "sequence done, hosts restored")
         }, tileAt + AFTER_TAP_MS + REHOST_DELAY_MS)
     }
 
@@ -114,14 +125,16 @@ class BypassAutomationService : AccessibilityService() {
             moveTo(SWIPE_X, SWIPE_Y0)
             lineTo(SWIPE_X, SWIPE_Y1)
         }
+        android.util.Log.d("BypassAuto", "pulling the shade")
         dispatch(
             GestureDescription.Builder()
                 .addStroke(GestureDescription.StrokeDescription(path, 0, SWIPE_MS))
-                .build()
+                .build(),
+            "shade swipe"
         )
     }
 
-    private fun tap(x: Float, y: Float) {
+    private fun tap(x: Float, y: Float, what: String) {
         val path = Path().apply {
             moveTo(x, y)
             lineTo(x, y + 0.5f) // a 0.5 px stroke = a tap at (x, y)
@@ -129,17 +142,27 @@ class BypassAutomationService : AccessibilityService() {
         dispatch(
             GestureDescription.Builder()
                 .addStroke(GestureDescription.StrokeDescription(path, 0, 40))
-                .build()
+                .build(),
+            what
         )
     }
 
-    private fun dispatch(gesture: GestureDescription) {
+    private fun dispatch(gesture: GestureDescription, what: String) {
         try {
-            dispatchGesture(gesture, null, null)
+            dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(g: GestureDescription?) {
+                    android.util.Log.d("BypassAuto", "$what: gesture ok")
+                }
+
+                override fun onCancelled(g: GestureDescription?) {
+                    android.util.Log.d("BypassAuto", "$what: gesture CANCELLED")
+                }
+            }, null)
         } catch (_: Exception) {
             // A mid-run disable or a display-size change: the sequence
             // aborts; OverlayService still restores the hosts via the
             // scheduled clearBypassWay.
+            android.util.Log.d("BypassAuto", "$what: dispatch threw")
         }
     }
 }

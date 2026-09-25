@@ -164,6 +164,12 @@ class OverlayService : Service(), SensorEventListener {
         // off, or active use on a keyguard-less device where no USER_PRESENT
         // will ever arrive).
         const val ACTION_STOP_HOST = "com.aidarbreeze.alwayson.STOP_HOST"
+        /** ChargingReceiver marks POWER_CONNECTED starts with this flag:
+         *  on a cold start the runtime receiver is not registered yet, so
+         *  the broadcast itself is already gone when the service comes up
+         *  (the user's 10:13 log: REFRESH arrived, the bypass trigger
+         *  never fired). */
+        const val EXTRA_PLUG_EVENT = "plug_event"
         // Process-wide host state; WakeActivity updates both (same process).
         @Volatile
         var hostActive = false
@@ -322,32 +328,7 @@ class OverlayService : Service(), SensorEventListener {
                     }
                     stopSelf()
                 }
-                Intent.ACTION_POWER_CONNECTED -> {
-                    // A fresh charge session resets the whole wake cycle.
-                    wakeAttempts = 0
-                    wakeArmed = false
-                    cancelWake()
-                    // Re-seed the screen cache: the event arrived while the
-                    // service was quiet, the cache may be stale.
-                    screenOn = isScreenInteractive()
-                    evaluateAndSync()
-                    // Bypass charging: with the accessibility service on,
-                    // the app pulls the control center and taps the user's
-                    // own bypass tile automatically (injected gestures, no
-                    // root); without it, the one-tap notification reminder
-                    // is the fallback.
-                    if (Prefs.bypassReminder(context)) {
-                        if (BypassAutomationService.isReady()) maybeRunBypassAutomation()
-                        else maybePostBypassReminder()
-                    }
-                    // Plugged in with the screen dark: evaluateAndSync should
-                    // have shown the clock; if the screen is still dark
-                    // (an OEM that ignores FLAG_KEEP_SCREEN_ON) the
-                    // notification is the fallback.
-                    if (!isScreenInteractive()) {
-                        scheduleRelightCheck()
-                    }
-                }
+                Intent.ACTION_POWER_CONNECTED -> handlePowerConnected("warm receiver")
             }
         }
     }
@@ -512,6 +493,12 @@ class OverlayService : Service(), SensorEventListener {
                 // fallback.
                 if (!isScreenInteractive()) {
                     scheduleRelightCheck()
+                }
+                // A genuine POWER_CONNECTED that woke us up (see
+                // EXTRA_PLUG_EVENT): the runtime receiver missed the
+                // broadcast — run the plug handling here instead.
+                if (intent?.getBooleanExtra(EXTRA_PLUG_EVENT, false) == true) {
+                    handlePowerConnected("cold start")
                 }
                 // A disabled feature must not keep (or revive) us: the system
                 // would otherwise restart a sticky service we just stopped.
@@ -762,12 +749,51 @@ class OverlayService : Service(), SensorEventListener {
         if (Prefs.bypassReminder(this)) postBypassReminder(this)
     }
 
-    /** Runs the tile choreography once the wake/clock has settled: our
-     *  hosts step aside, the gestures flip the user's bypass tile, then
-     *  the standby clock comes back. */
+    /** The single POWER_CONNECTED path — called both from the runtime
+     *  receiver (service already up) and from onStartCommand when
+     *  ChargingReceiver started us cold (the broadcast is gone by then,
+     *  only the flag survives). Guarded: one plug must never run twice. */
+    private fun handlePowerConnected(source: String) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastPlugHandledAt < 15_000L) return // same plug, other path
+        lastPlugHandledAt = now
+        // A fresh charge session resets the whole wake cycle.
+        wakeAttempts = 0
+        wakeArmed = false
+        cancelWake()
+        // Re-seed the screen cache: the event arrived while the
+        // service was quiet, the cache may be stale.
+        screenOn = isScreenInteractive()
+        evaluateAndSync()
+        // Plugged in with the screen dark: evaluateAndSync should
+        // have shown the clock; if the screen is still dark
+        // (an OEM that ignores FLAG_KEEP_SCREEN_ON) the
+        // notification is the fallback.
+        if (!isScreenInteractive()) {
+            scheduleRelightCheck()
+        }
+        // Bypass charging: with the accessibility service on, the app
+        // pulls the control center and taps the user's own bypass tile
+        // automatically (injected gestures, no root); without it, the
+        // one-tap notification reminder is the fallback.
+        if (Prefs.bypassReminder(this)) {
+            if (BypassAutomationService.isReady()) {
+                android.util.Log.d("BypassAuto", "plug via $source: automation in 1.2 s")
+                maybeRunBypassAutomation()
+            } else {
+                android.util.Log.d("BypassAuto", "plug via $source: accessibility off, posting reminder")
+                maybePostBypassReminder()
+            }
+        }
+    }
+
+    // When the last genuine plug was handled (both paths share this).
+    private var lastPlugHandledAt = 0L
+
+    /** Runs the tile choreography once the wake/clock has settled; the
+     *  hosts are stepped aside inside the sequence itself. */
     private fun maybeRunBypassAutomation() {
         handler.postDelayed({
-            makeWayForBypass(this) // stop the WakeActivity host + latch
             BypassAutomationService.runBypassSequence()
         }, 1200L)
     }
