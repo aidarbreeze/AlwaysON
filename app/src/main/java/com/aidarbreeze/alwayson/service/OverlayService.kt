@@ -336,7 +336,7 @@ class OverlayService : Service(), SensorEventListener {
                     // own bypass tile automatically (injected gestures, no
                     // root); without it, the one-tap notification reminder
                     // is the fallback.
-                    if (Prefs.bypassReminder(this)) {
+                    if (Prefs.bypassReminder(context)) {
                         if (BypassAutomationService.isReady()) maybeRunBypassAutomation()
                         else maybePostBypassReminder()
                     }
