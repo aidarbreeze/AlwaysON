@@ -77,6 +77,23 @@ class OverlayService : Service(), SensorEventListener {
         // How long our own relight counts as "no user activity" (see
         // relightGraceUntil).
         const val RELIGHT_GRACE_MS = 15_000L
+        // How long a dismissed host stays dismissed: a tap on the clock must
+        // not be undone by the very next evaluation.
+        const val HOST_DISMISS_LATCH_MS = 60_000L
+        // The service asks a running WakeActivity host to finish (feature
+        // off, or active use on a keyguard-less device where no USER_PRESENT
+        // will ever arrive).
+        const val ACTION_STOP_HOST = "com.aidarbreeze.alwayson.STOP_HOST"
+        // Process-wide host state; WakeActivity updates both (same process).
+        @Volatile
+        var hostActive = false
+        @Volatile
+        var hostDismissedUntil = 0L
+
+        /** The user tapped the clock away: do not re-host for a minute. */
+        fun notifyHostDismissed() {
+            hostDismissedUntil = System.currentTimeMillis() + HOST_DISMISS_LATCH_MS
+        }
         const val WAKE_MAX_ATTEMPTS = 3
 
         fun requestReevaluate(context: Context) {
@@ -515,24 +532,81 @@ class OverlayService : Service(), SensorEventListener {
         //    - screen ON but locked  -> desk clock over the keyguard.
         //    - screen ON and unlocked-> the user is using an app; never
         //                               cover it while the phone charges.
+        // MIUI/HyperOS draws its keyguard ABOVE third-party overlay windows:
+        // an overlay added while the keyguard is up is never VISIBLE there
+        // (the screen lights, the user still sees the lock screen).
+        // Activities are the one display path guaranteed above the keyguard
+        // on every vendor, so both resting states are hosted in WakeActivity;
+        // the overlay window remains only as the OEM-blocked fallback.
         if (!isScreenInteractive()) {
-            showOverlay()
-            cancelWake()
+            hostInActivity(needWake = true)
         } else if ((getSystemService(KEYGUARD_SERVICE) as? android.app.KeyguardManager)
                 ?.isKeyguardLocked == true
         ) {
-            showOverlay()
-            cancelWake()
-        } else if (System.currentTimeMillis() >= relightGraceUntil) {
-            removeOverlay()
-            cancelWake()
-        } else {
+            hostInActivity(needWake = false)
+        } else if (System.currentTimeMillis() < relightGraceUntil) {
             // Relight grace: the screen was lit by US seconds ago — an
             // unlocked interactive device on the charger is the phone resting,
-            // not in use. Keep/show the clock; the next evaluation (per-minute
-            // tick) acts normally once the grace ends.
-            showOverlay()
+            // not in use. Keep the current clock host/overlay as is.
             cancelWake()
+        } else {
+            removeOverlay()
+            cancelWake()
+            // Active use (or a keyguard-less device nobody will unlock):
+            // a running host must hand the screen over.
+            if (hostActive) {
+                hostDismissedUntil = System.currentTimeMillis() + HOST_DISMISS_LATCH_MS
+                sendBroadcast(Intent(ACTION_STOP_HOST).setPackage(packageName))
+            }
+        }
+    }
+
+    /** Show the locked-screen clock in [WakeActivity] (visible above the
+     *  keyguard on every vendor); fall back to the overlay window when a
+     *  background activity start is blocked by the OEM. */
+    private fun hostInActivity(needWake: Boolean) {
+        if (System.currentTimeMillis() < hostDismissedUntil) return
+        if (needWake) wakeDisplay()
+        removeOverlay()
+        if (hostActive) return // the host is already up
+        try {
+            startActivity(
+                Intent(this, com.aidarbreeze.alwayson.WakeActivity::class.java)
+                    .addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
+            )
+        } catch (_: Exception) {
+            // Background start blocked: the old overlay path.
+            showOverlay()
+        }
+    }
+
+    /** Light the display up when the clock (overlay window or WakeActivity
+     *  host) is added on a DARK screen: FLAG_KEEP_SCREEN_ON only keeps an
+     *  already-lit screen on, it never wakes one. ACQUIRE_CAUSES_WAKEUP turns
+     *  the display on at once; after the 10 s safety timeout the window's or
+     *  activity's own FLAG_KEEP_SCREEN_ON keeps it lit. Arms the relight
+     *  grace (see relightGraceUntil). */
+    private fun wakeDisplay() {
+        if (isScreenInteractive()) return
+        relightGraceUntil = System.currentTimeMillis() + RELIGHT_GRACE_MS
+        try {
+            @Suppress("DEPRECATION")
+            val wl = (getSystemService(POWER_SERVICE) as? PowerManager)
+                ?.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+                        PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "alwayson:overlay"
+                )
+            if (wl != null) {
+                wl.acquire(10_000L)
+                screenWake = wl
+            }
+        } catch (_: Exception) {
+            // Wake lock refused (policy): the wake notification
+            // remains the fallback path.
         }
     }
 
@@ -677,31 +751,9 @@ class OverlayService : Service(), SensorEventListener {
         shownOrientationType = currentOrientationType()
         cancelWake() // the clock is up — the wake notification is no longer needed
 
-        // MIUI/OEM builds often ignore the window's FLAG_KEEP_SCREEN_ON as a
-        // wake trigger: the overlay just sits on a DARK display and the user
-        // sees nothing (the notification fallback then fights the vendor
-        // AOD). Light the display up ourselves: ACQUIRE_CAUSES_WAKEUP turns
-        // it on at once; after the 10 s safety timeout the overlay's own
-        // FLAG_KEEP_SCREEN_ON keeps it lit for as long as the clock shows.
-        if (!isScreenInteractive()) {
-            relightGraceUntil = System.currentTimeMillis() + RELIGHT_GRACE_MS
-            try {
-                @Suppress("DEPRECATION")
-                val wl = (getSystemService(POWER_SERVICE) as? PowerManager)
-                    ?.newWakeLock(
-                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
-                            PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                        "alwayson:overlay"
-                    )
-                if (wl != null) {
-                    wl.acquire(10_000L)
-                    screenWake = wl
-                }
-            } catch (_: Exception) {
-                // Wake lock refused (policy): the wake notification
-                // remains the fallback path.
-            }
-        }
+        // A dark display must be lit for the clock to be seen at all (see
+        // wakeDisplay; also arms the relight grace).
+        wakeDisplay()
 
         val c = StandbyController(this, view)
         c.onTapExit = { exitStandby() }
