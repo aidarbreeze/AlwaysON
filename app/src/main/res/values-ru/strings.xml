@@ -94,6 +94,7 @@
         <item>Матовое стекло</item>
         <item>Железнодорожные</item>
         <item>Браун</item>
+        <item>Волна</item>
     </string-array>
     <string name="clock_color_title">Цвет часов</string>
     <string-array name="clock_color_entries">

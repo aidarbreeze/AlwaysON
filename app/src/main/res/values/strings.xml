@@ -94,6 +94,7 @@
         <item>Frosted Glass</item>
         <item>Railway</item>
         <item>Braun</item>
+        <item>Waveform</item>
     </string-array>
     <string name="clock_color_title">Clock color</string>
     <string-array name="clock_color_entries">

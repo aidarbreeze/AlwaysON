@@ -219,7 +219,8 @@ class ClockView @JvmOverloads constructor(
         const val STYLE_FROST = 45
         const val STYLE_RAILWAY = 46
         const val STYLE_BRAUN = 47
-        const val MAX_CLOCK_STYLE = STYLE_BRAUN
+        const val STYLE_WAVE = 48
+        const val MAX_CLOCK_STYLE = STYLE_WAVE
 
         /** Faces hidden by user request. Ids stay stable on purpose: saved
          *  presets and the draw dispatch remain valid; the settings, the
@@ -322,7 +323,7 @@ class ClockView @JvmOverloads constructor(
         val live = s == 16 || s == 18 || s == STYLE_PONG || s == STYLE_BINARY ||
             s == STYLE_POLAR || s == STYLE_DRIFT || s == STYLE_GLITCH ||
             s == STYLE_MATRIX_RAIN || s == STYLE_ORBIT || s == STYLE_PERIMETER ||
-            s == STYLE_OUTLINE
+            s == STYLE_OUTLINE || s == STYLE_ODO || s == STYLE_WAVE
         if (s != lastStyleApplied) {
             // Time rotation switched the face: heights differ per style.
             lastStyleApplied = s
@@ -559,6 +560,7 @@ class ClockView @JvmOverloads constructor(
         STYLE_FROST -> min(availW * 0.55f, capPx * 1.50f).coerceAtLeast(dp(110f))
         STYLE_RAILWAY -> min(availW * 0.92f, capPx * 1.75f).coerceAtLeast(dp(150f))
         STYLE_BRAUN -> min(availW * 0.92f, capPx * 1.75f).coerceAtLeast(dp(150f))
+        STYLE_WAVE -> min(availW * 0.55f, capPx * 1.60f).coerceAtLeast(dp(120f))
         else -> 0f
     }
 
@@ -709,6 +711,7 @@ class ClockView @JvmOverloads constructor(
             STYLE_FROST -> drawFrosted(canvas, w, h)
             STYLE_RAILWAY -> drawRailway(canvas, w, h)
             STYLE_BRAUN -> drawBraun(canvas, w, h)
+            STYLE_WAVE -> drawWaveform(canvas, w, h)
             else -> drawNormal(canvas, w, h)
         }
         if (sc < 1f) canvas.restore()
@@ -2709,11 +2712,38 @@ class ClockView @JvmOverloads constructor(
 
     // ---- 40: odometer drums ----
 
+    /**
+     * True rolling drums (the reference sheet #39, seconds removed): each
+     * wheel eases to its next digit near the end of its period - minute
+     * units in the last 2 s of a minute, ten-minutes in the last 2 s of the
+     * block, hours in the last 45 s (so the roll is visible at all).
+     * Neighbour digits peek above/below the current one.
+     */
     private fun drawOdometer(canvas: Canvas, w: Float, h: Float) {
-        val parts = hourMinuteText().split(":")
-        if (parts.size < 2) return
-        val digits = (parts[0].padStart(2, '0') + parts[1].padStart(2, '0')).toCharArray()
-        if (digits.size < 4) return
+        val (h24, m, _) = wallTime()
+        val tSec = (System.currentTimeMillis() % 60000L) / 1000f
+        val tMin = tSec + m * 60f
+        val t10m = tSec + (m % 10) * 60f
+        val t10h = tMin + (h24 % 10) * 3600f
+
+        fun roll(pos: Float, period: Float, win: Float): Float {
+            val raw = ((pos - (period - win)) / win).coerceIn(0f, 1f)
+            return raw * raw * (3f - 2f * raw)
+        }
+
+        val wheels = arrayOf(
+            intArrayOf((h24 / 10) % 3, 3),
+            intArrayOf(h24 % 10, 10),
+            intArrayOf(m / 10, 6),
+            intArrayOf(m % 10, 10)
+        )
+        val fracs = floatArrayOf(
+            roll(t10h, 36000f, 45f),
+            roll(tMin, 3600f, 45f),
+            roll(t10m, 600f, 2f),
+            roll(tSec, 60f, 2f)
+        )
+
         val colonW = w * 0.08f
         val gap = dp(5f)
         val ww = (w - colonW - gap * 5f) / 4f
@@ -2721,7 +2751,7 @@ class ClockView @JvmOverloads constructor(
         val top = (h - wh) / 2f
         var x = gap
         for (i in 0 until 4) {
-            drawOdoWheel(canvas, x, top, ww, wh, digits[i] - '0')
+            drawOdoWheel(canvas, x, top, ww, wh, wheels[i][0], wheels[i][1], fracs[i])
             x += ww + gap
             if (i == 1) {
                 paint.reset()
@@ -2734,9 +2764,15 @@ class ClockView @JvmOverloads constructor(
                 x += colonW
             }
         }
+
+        postInvalidateDelayed(50L)
     }
 
-    private fun drawOdoWheel(canvas: Canvas, l: Float, t: Float, ww: Float, wh: Float, cur: Int) {
+    /** One drum: a vertical strip of digits shifted by the roll fraction. */
+    private fun drawOdoWheel(
+        canvas: Canvas, l: Float, t: Float, ww: Float, wh: Float,
+        cur: Int, period: Int, frac: Float
+    ) {
         canvas.save()
         val r = dp(4f)
         val clip = Path().apply {
@@ -2752,9 +2788,10 @@ class ClockView @JvmOverloads constructor(
         paint.textSize = wh * 0.52f
         paint.color = 0xFFF7EFE0.toInt()
         val cx = l + ww / 2f
-        drawCenteredAt(canvas, ((cur + 9) % 10).toString(), cx, t - wh * 0.5f, paint)
-        drawCenteredAt(canvas, cur.toString(), cx, t + wh * 0.5f, paint)
-        drawCenteredAt(canvas, ((cur + 1) % 10).toString(), cx, t + wh * 1.5f, paint)
+        for (j in -1..1) {
+            val digit = ((cur + j) % period + period) % period
+            drawCenteredAt(canvas, digit.toString(), cx, t + wh * 0.5f + (j - frac) * wh, paint)
+        }
         fillPaint.color = 0x59000000.toInt()
         canvas.drawRect(l, t, l + ww, t + wh * 0.16f, fillPaint)
         canvas.drawRect(l, t + wh * 0.84f, l + ww, t + wh, fillPaint)
@@ -2765,6 +2802,43 @@ class ClockView @JvmOverloads constructor(
         canvas.drawRect(l, t + wh / 2f - dp(0.5f), l + ww, t + wh / 2f + dp(0.5f), fillPaint)
     }
 
+    // ---- 48: waveform; a slow sine glides through the digits ----
+
+    private fun drawSineLine(
+        canvas: Canvas, w: Float, mid: Float, amp: Float,
+        wavelength: Float, phase: Float, sw: Float, color: Int
+    ) {
+        val path = Path()
+        val n = 48
+        for (i in 0..n) {
+            val x = i / n.toFloat() * w
+            val y = mid + sin(x / wavelength * 2f * PI.toFloat() + phase) * amp
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        strokePaint.color = color
+        strokePaint.strokeWidth = sw
+        strokePaint.strokeCap = Paint.Cap.ROUND
+        canvas.drawPath(path, strokePaint)
+    }
+
+    private fun drawWaveform(canvas: Canvas, w: Float, h: Float) {
+        val t = SystemClock.uptimeMillis() / 1000f
+        val mid = h * 0.52f
+        fillPaint.color = 0xFF0B1020.toInt()
+        canvas.drawRect(0f, 0f, w, h, fillPaint)
+        drawSineLine(canvas, w, mid + dp(10f), h * 0.11f, w * 1.1f, -t * 0.7f + 2f, dp(1.4f), 0x8C22D3EE.toInt())
+        drawSineLine(canvas, w, mid, h * 0.16f, w * 1.35f, t * 0.9f, dp(3.2f), 0xF27C3AED.toInt())
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfSans
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = min(h * 0.24f, w * 0.15f)
+        paint.color = 0xFFF5F7FB.toInt()
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, mid, paint)
+
+        postInvalidateDelayed(50L)
+    }
 
     // ---------- styles 41-47: the rest of the concept sheet ----------
 
