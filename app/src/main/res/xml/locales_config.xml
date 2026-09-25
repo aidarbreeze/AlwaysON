@@ -1,4 +1,4 @@
-<?xml version="1" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!-- Per-app language support (Android 13+): the app ships English and
      Russian strings; the manifest's android:localeConfig points here so the
      system language picker can offer both. -->
