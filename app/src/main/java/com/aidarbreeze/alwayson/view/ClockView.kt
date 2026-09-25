@@ -64,7 +64,8 @@ import kotlin.math.sin
  *  21 - FLIQLO  : classic Fliqlo-like split-flap cards with individual digits.
  *  22 - NIXIE   : glowing orange Nixie-tube clock.
  *  23 - LCD     : retro LCD panel with ghost + active seven-segment strokes.
- *  24 - PONG    : Pong Clock-style scoreboard with paddles and moving ball.
+ *  24 - PONG    : a real self-playing Pong match (AI paddles, real
+ *                  bounces, running score to 11) plus a small clock line.
  *  25 - WORD    : minimalist word-clock phrase (e.g. "TEN THIRTY TWO").
  *  26 - BINARY  : HH:MM:SS binary clock in six LED columns.
  *  27 - POLAR   : concentric progress-ring (Polar Clock) face.
@@ -187,6 +188,12 @@ class ClockView @JvmOverloads constructor(
         const val STYLE_GLITCH = 29
         const val STYLE_MATRIX_RAIN = 30
         const val MAX_CLOCK_STYLE = STYLE_MATRIX_RAIN
+
+        // Pong match (style 24): first to PONG_GAME_TO points wins the game,
+        // then the scoreboard restarts. The ball pauses briefly per point.
+        private const val PONG_GAME_TO = 11
+        private const val PONG_SERVE_PAUSE_MS = 900L
+        private const val PONG_PADDLE_H = 0.24f // paddle length, share of court height
 
         // Reused 5x7 glyph rows. Keeping these as IntArray constants removes
         // dozens of Array<Int> allocations per frame in DOTS/MATRIX faces.
@@ -1623,15 +1630,172 @@ class ClockView @JvmOverloads constructor(
         seg.strokeCap = Paint.Cap.ROUND
     }
 
-    // ---------- style 24: Pong Clock ----------
+    // ---------- style 24: Pong - a real self-playing match ----------
+
+    // Game state; survives frame skips and face switches. Positions are in
+    // view pixels, velocities in pixels per second.
+    private var pongInit = false
+    private var pongW = 0f
+    private var pongH = 0f
+    private var pongBallX = 0f
+    private var pongBallY = 0f
+    private var pongBallVx = 0f
+    private var pongBallVy = 0f
+    private var pongLeftY = 0f
+    private var pongRightY = 0f
+    private var pongLeftErr = 0f   // AI aim error for the current approach
+    private var pongRightErr = 0f
+    private var pongScoreLeft = 0
+    private var pongScoreRight = 0
+    private var pongServeDir = 1f  // +1 = serve to the right, -1 = to the left
+    private var pongServeAt = 0L   // uptimeMillis of the next serve; 0 = in play
+    private var pongLastFrame = 0L
+
+    private fun pongReset(w: Float, h: Float, now: Long) {
+        pongInit = true
+        pongW = w
+        pongH = h
+        pongBallX = w / 2f
+        pongBallY = h / 2f
+        pongBallVx = 0f
+        pongBallVy = 0f
+        pongLeftY = h / 2f
+        pongRightY = h / 2f
+        pongServeDir = if (kotlin.random.Random(now).nextBoolean()) 1f else -1f
+        pongServeAt = now + 700L
+        pongLastFrame = now
+    }
+
+    /** One point won; [scorer] 0 = left player, 1 = right player. */
+    private fun pongPoint(scorer: Int, now: Long) {
+        if (scorer == 0) pongScoreLeft++ else pongScoreRight++
+        if (pongScoreLeft >= PONG_GAME_TO || pongScoreRight >= PONG_GAME_TO) {
+            // Game won - the scoreboard starts over.
+            pongScoreLeft = 0
+            pongScoreRight = 0
+        }
+        // The player who conceded receives the next serve.
+        pongServeDir = if (scorer == 0) 1f else -1f
+        pongBallX = pongW / 2f
+        pongBallY = pongH / 2f
+        pongBallVx = 0f
+        pongBallVy = 0f
+        pongServeAt = now + PONG_SERVE_PAUSE_MS
+    }
+
+    private fun pongServe(now: Long) {
+        val rnd = kotlin.random.Random(now)
+        pongBallX = pongW / 2f
+        pongBallY = pongH * (0.3f + 0.4f * rnd.nextFloat())
+        pongBallVx = pongServeDir * pongBaseSpeed()
+        pongBallVy = pongBallVx * (rnd.nextFloat() * 1.2f - 0.6f)
+        // Fresh aim error for both defenders.
+        pongLeftErr = pongAimError(rnd)
+        pongRightErr = pongAimError(rnd)
+    }
+
+    private fun pongBaseSpeed(): Float = pongW * 0.55f
+
+    /** How far off the ball the AI aims this approach; large errors miss. */
+    private fun pongAimError(rnd: kotlin.random.Random): Float =
+        (rnd.nextFloat() * 2f - 1f) * pongH * PONG_PADDLE_H * 0.9f
+
+    private fun approachPong(cur: Float, target: Float, maxStep: Float): Float {
+        val d = target - cur
+        return if (abs(d) <= maxStep) target else cur + if (d > 0f) maxStep else -maxStep
+    }
+
+    /**
+     * Advance the match by one frame. Real physics: the ball bounces off the
+     * top/bottom edges and off the paddle faces, the return angle depends on
+     * where exactly the paddle caught it, and each hit makes the ball a bit
+     * faster. Both paddles are AI with a speed limit and a per-serve aim
+     * error, so steep shots really do score points.
+     */
+    private fun stepPong(now: Long) {
+        val dt = (now - pongLastFrame).coerceIn(0L, 100L) / 1000f
+        pongLastFrame = now
+
+        val w = pongW
+        val h = pongH
+        val margin = min(w, h) * 0.06f
+        val paddleH = h * PONG_PADDLE_H
+        val half = paddleH / 2f
+        val paddleW = maxOf(dp(4f), w * 0.012f)
+        val planeL = margin + paddleW
+        val planeR = w - margin - paddleW
+        val ballR = maxOf(dp(3f), min(w, h) * 0.022f)
+
+        // Between points the paddles drift home and the score stays visible.
+        if (pongServeAt != 0L) {
+            if (now < pongServeAt) {
+                val home = h * 0.85f * dt
+                pongLeftY = approachPong(pongLeftY, h / 2f, home)
+                pongRightY = approachPong(pongRightY, h / 2f, home)
+                return
+            }
+            pongServe(now)
+            pongServeAt = 0L
+        }
+
+        val step = h * 0.85f * dt
+        val targetL = if (pongBallVx < 0f) (pongBallY + pongLeftErr).coerceIn(half, h - half) else h / 2f
+        val targetR = if (pongBallVx > 0f) (pongBallY + pongRightErr).coerceIn(half, h - half) else h / 2f
+        pongLeftY = approachPong(pongLeftY, targetL, step)
+        pongRightY = approachPong(pongRightY, targetR, step)
+
+        pongBallX += pongBallVx * dt
+        pongBallY += pongBallVy * dt
+        if (pongBallY < ballR) { pongBallY = ballR; pongBallVy = abs(pongBallVy) }
+        if (pongBallY > h - ballR) { pongBallY = h - ballR; pongBallVy = -abs(pongBallVy) }
+
+        // Paddle faces: reflect while the ball is still in front of them.
+        val reach = half + ballR
+        if (pongBallVx < 0f && pongBallX - ballR <= planeL && pongBallX >= margin * 0.5f &&
+            pongBallY > pongLeftY - reach && pongBallY < pongLeftY + reach
+        ) {
+            pongBallX = planeL + ballR
+            pongBounce((pongBallY - pongLeftY) / reach, 1f)
+            pongRightErr = pongAimError(kotlin.random.Random(now))
+        }
+        if (pongBallVx > 0f && pongBallX + ballR >= planeR && pongBallX <= w - margin * 0.5f &&
+            pongBallY > pongRightY - reach && pongBallY < pongRightY + reach
+        ) {
+            pongBallX = planeR - ballR
+            pongBounce((pongBallY - pongRightY) / reach, -1f)
+            pongLeftErr = pongAimError(kotlin.random.Random(now))
+        }
+
+        // A ball fully past a paddle is a point for the other side.
+        if (pongBallX + ballR < 0f) pongPoint(1, now)     // left conceded, right scores
+        else if (pongBallX - ballR > w) pongPoint(0, now) // right conceded, left scores
+    }
+
+    /** Reflect off a paddle: the hit offset sets the return angle (up to
+     *  60 degrees) and every hit makes the ball a bit faster, capped. */
+    private fun pongBounce(offset: Float, dir: Float) {
+        val clamped = offset.coerceIn(-1f, 1f)
+        val speed = min(
+            pongBaseSpeed() * 1.9f,
+            kotlin.math.hypot(pongBallVx, pongBallVy) * 1.045f
+        )
+        val angle = clamped * (PI.toFloat() / 3f)
+        pongBallVx = dir * speed * cos(angle)
+        pongBallVy = speed * sin(angle)
+    }
 
     private fun drawPong(canvas: Canvas, w: Float, h: Float) {
         val now = SystemClock.uptimeMillis()
-        val t = (now % 8000L) / 8000f
-        val phase = t * 2f * PI.toFloat()
+        if (!pongInit || w != pongW || h != pongH) pongReset(w, h, now)
+        stepPong(now)
+
         val main = ink()
         val margin = min(w, h) * 0.06f
+        val paddleH = h * PONG_PADDLE_H
+        val paddleW = maxOf(dp(4f), w * 0.012f)
+        val ballR = maxOf(dp(3f), min(w, h) * 0.022f)
 
+        // Center net, dashed.
         strokePaint.color = dimmed(main, 0.32f)
         strokePaint.strokeWidth = dp(1.2f)
         var y = margin
@@ -1640,27 +1804,33 @@ class ClockView @JvmOverloads constructor(
             y += dp(13f)
         }
 
-        val paddleH = h * 0.24f
-        val paddleW = maxOf(dp(4f), w * 0.012f)
+        // Paddles and ball (the ball hides between points).
         fillPaint.color = main
-        val leftY = h / 2f + sin(phase * 0.72f) * h * 0.20f
-        val rightY = h / 2f - sin(phase * 0.91f) * h * 0.20f
-        canvas.drawRoundRect(margin, leftY - paddleH / 2f, margin + paddleW, leftY + paddleH / 2f, paddleW, paddleW, fillPaint)
-        canvas.drawRoundRect(w - margin - paddleW, rightY - paddleH / 2f, w - margin, rightY + paddleH / 2f, paddleW, paddleW, fillPaint)
+        canvas.drawRoundRect(
+            margin, pongLeftY - paddleH / 2f,
+            margin + paddleW, pongLeftY + paddleH / 2f, paddleW, paddleW, fillPaint
+        )
+        canvas.drawRoundRect(
+            w - margin - paddleW, pongRightY - paddleH / 2f,
+            w - margin, pongRightY + paddleH / 2f, paddleW, paddleW, fillPaint
+        )
+        if (pongServeAt == 0L) canvas.drawCircle(pongBallX, pongBallY, ballR, fillPaint)
 
-        val ballR = maxOf(dp(3f), min(w, h) * 0.022f)
-        val bx = margin + paddleW + ballR + (w - 2f * (margin + paddleW + ballR)) * ((sin(phase) + 1f) / 2f)
-        val by = h / 2f + sin(phase * 1.73f) * h * 0.30f
-        canvas.drawCircle(bx, by, ballR, fillPaint)
-
-        val score = hourMinuteText()
+        // Player scores: points actually won by each side (game to 11).
         paint.reset()
         paint.isAntiAlias = true
         paint.typeface = Typeface.MONOSPACE
         paint.textAlign = Paint.Align.CENTER
-        paint.textSize = min(h * 0.30f, w * 0.13f)
+        paint.textSize = min(h * 0.22f, w * 0.11f)
         paint.color = main
-        drawCenteredAt(canvas, score, w / 2f, h * 0.23f, paint)
+        drawCenteredAt(canvas, pongScoreLeft.toString(), w * 0.30f, h * 0.26f, paint)
+        drawCenteredAt(canvas, pongScoreRight.toString(), w * 0.70f, h * 0.26f, paint)
+
+        // Small dim clock at the bottom: the match plays, the face still
+        // tells the time.
+        paint.textSize = min(h * 0.08f, w * 0.05f)
+        paint.color = dimmed(main, 0.45f)
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h - margin * 0.4f, paint)
 
         // 20 fps is smooth enough for a screensaver but much cheaper than 60 fps.
         postInvalidateDelayed(50L)
