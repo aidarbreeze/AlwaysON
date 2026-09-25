@@ -59,8 +59,18 @@ import kotlin.math.sin
  *                real sunrise/sunset (from the weather cache when present).
  *  19 - WORLD  : iPhone StandBy World — dotted world map (with a "you are
  *                here" dot when the location is known), local time + UTC.
- *  20 - MONO   : iPhone Minimal Mono — small calm letterspaced monospaced
+ *  20 - MIN_MONO: iPhone Minimal Mono — small calm letterspaced monospaced
  *                digits.
+ *  21 - FLIQLO  : classic Fliqlo-like split-flap cards with individual digits.
+ *  22 - NIXIE   : glowing orange Nixie-tube clock.
+ *  23 - LCD     : retro LCD panel with ghost + active seven-segment strokes.
+ *  24 - PONG    : Pong Clock-style scoreboard with paddles and moving ball.
+ *  25 - WORD    : minimalist word-clock phrase (e.g. "TEN THIRTY TWO").
+ *  26 - BINARY  : HH:MM:SS binary clock in six LED columns.
+ *  27 - POLAR   : concentric progress-ring (Polar Clock) face.
+ *  28 - DRIFT   : burn-in-friendly drifting minimalist clock.
+ *  29 - GLITCH  : cyber/glitch digital face with deterministic RGB offsets.
+ *  30 - MATRIX  : Matrix-rain screensaver with the time cut through the rain.
  *
  * The view is sized to fill its column horizontally and picks the biggest
  * legible digit size that still fits, then centres the time. Font-based
@@ -74,6 +84,10 @@ class ClockView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     private var timeText = "00:00"
+    private var stableRefSource = ""
+    private var stableRefCache = "88:88"
+    private var hmSource = ""
+    private var hmCache = "00:00"
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val dimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -161,6 +175,33 @@ class ClockView @JvmOverloads constructor(
             Typeface.create("sans-serif-black", Typeface.NORMAL)
         }
 
+        // Public style ids: settings/UI code can use the same stable values.
+        const val STYLE_FLIQLO = 21
+        const val STYLE_NIXIE = 22
+        const val STYLE_LCD = 23
+        const val STYLE_PONG = 24
+        const val STYLE_WORD = 25
+        const val STYLE_BINARY = 26
+        const val STYLE_POLAR = 27
+        const val STYLE_DRIFT = 28
+        const val STYLE_GLITCH = 29
+        const val STYLE_MATRIX_RAIN = 30
+        const val MAX_CLOCK_STYLE = STYLE_MATRIX_RAIN
+
+        // Reused 5x7 glyph rows. Keeping these as IntArray constants removes
+        // dozens of Array<Int> allocations per frame in DOTS/MATRIX faces.
+        private val GLYPH_0 = intArrayOf(0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110)
+        private val GLYPH_1 = intArrayOf(0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110)
+        private val GLYPH_2 = intArrayOf(0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111)
+        private val GLYPH_3 = intArrayOf(0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110)
+        private val GLYPH_4 = intArrayOf(0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010)
+        private val GLYPH_5 = intArrayOf(0b11111, 0b10000, 0b10000, 0b11110, 0b00001, 0b00001, 0b11110)
+        private val GLYPH_6 = intArrayOf(0b01110, 0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110)
+        private val GLYPH_7 = intArrayOf(0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000)
+        private val GLYPH_8 = intArrayOf(0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110)
+        private val GLYPH_9 = intArrayOf(0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110)
+        private val DIGIT_STRINGS = arrayOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+
         // Dotted world map for style 19 (60 x 30, '#' = land). Coarse on
         // purpose: at dot size it reads as continents, not pixels. The last
         // 6 rows (below ~-54°) are empty ocean and never drawn.
@@ -204,7 +245,9 @@ class ClockView @JvmOverloads constructor(
         // when the text itself hides them, so they redraw on every tick —
         // the 1-second ticker calls setTime() regardless.
         val s = style() // single prefs read (the style was queried twice)
-        val live = s == 16 || s == 18
+        val live = s == 16 || s == 18 || s == STYLE_PONG || s == STYLE_BINARY ||
+            s == STYLE_POLAR || s == STYLE_DRIFT || s == STYLE_GLITCH ||
+            s == STYLE_MATRIX_RAIN
         if (text == timeText && !live) return
         // "9:59" -> "10:00" changes the fitted size and needs a re-measure;
         // same-length ticks ("10:00" -> "10:01") only need a redraw. Calling
@@ -274,9 +317,30 @@ class ClockView @JvmOverloads constructor(
         7 -> tfSerif
         8 -> tfBoldItalic
         10, 13, 14 -> tfSans
-        12, 20 -> Typeface.MONOSPACE
-        15, 17 -> tfBlack
+        12, 20, STYLE_LCD, STYLE_NIXIE, STYLE_MATRIX_RAIN -> Typeface.MONOSPACE
+        15, 17, STYLE_FLIQLO, STYLE_GLITCH -> tfBlack
         else -> tfBold
+    }
+
+    private fun stableReferenceText(): String {
+        if (stableRefSource != timeText) {
+            stableRefSource = timeText
+            val chars = timeText.toCharArray()
+            for (i in chars.indices) if (chars[i].isDigit()) chars[i] = '8'
+            stableRefCache = String(chars)
+        }
+        return stableRefCache
+    }
+
+    /** HH:mm part cached for animated faces so they do not allocate every frame. */
+    private fun hourMinuteText(): String {
+        if (hmSource != timeText) {
+            hmSource = timeText
+            val first = timeText.indexOf(':')
+            val second = if (first >= 0) timeText.indexOf(':', first + 1) else -1
+            hmCache = if (second > 0) timeText.substring(0, second) else timeText
+        }
+        return hmCache
     }
 
     /** Biggest digit text size (px) for one line that fits [availW], capped.
@@ -300,8 +364,7 @@ class ClockView @JvmOverloads constructor(
         paint.textSize = 1000f
         paint.typeface = typeface
         paint.letterSpacing = letterSpacing
-        val ref = timeText.map { if (it.isDigit()) '8' else it }.joinToString("")
-        val w1000 = paint.measureText(ref) + inflateFrac * 1000f
+        val w1000 = paint.measureText(stableReferenceText()) + inflateFrac * 1000f
         paint.letterSpacing = 0f
         if (w1000 <= 0f) return capPx
         val fromWidth = ((availW - padPx) * 1000f / w1000) * 0.97f
@@ -347,6 +410,34 @@ class ClockView @JvmOverloads constructor(
         return (availW / perUnit).coerceIn(8f, capPx)
     }
 
+    /** Exact grid height that fits [availW], avoiding the old 2 px shrink loop. */
+    private fun gridHeightForWidth(availW: Float, capPx: Float, sevenSeg: Boolean): Float {
+        var units = 0f
+        for (ch in timeText) {
+            units += if (ch.isDigit()) {
+                0.62f * if (sevenSeg) 1.12f else 1.06f
+            } else {
+                0.62f * if (sevenSeg) 0.55f else 0.50f
+            }
+        }
+        if (units <= 0f) return capPx
+        return (availW / units).coerceIn(dp(16f), capPx)
+    }
+
+    /** Fixed draw height of the complex screensaver faces, derived from the
+     *  available width (0 = the face sizes itself like a text clock). */
+    private fun fixedFaceHeight(style: Int, availW: Float, capPx: Float): Float = when (style) {
+        STYLE_FLIQLO -> min(availW * 0.40f, capPx * 1.18f).coerceAtLeast(dp(82f))
+        STYLE_NIXIE -> min(availW * 0.44f, capPx * 1.28f).coerceAtLeast(dp(92f))
+        STYLE_LCD -> min(availW * 0.34f, capPx).coerceAtLeast(dp(72f))
+        STYLE_PONG -> min(availW * 0.56f, capPx * 1.65f).coerceAtLeast(dp(120f))
+        STYLE_WORD -> min(availW * 0.48f, capPx * 1.30f).coerceAtLeast(dp(96f))
+        STYLE_BINARY -> min(availW * 0.48f, capPx * 1.35f).coerceAtLeast(dp(104f))
+        STYLE_POLAR -> min(availW * 0.76f, capPx * 2.05f).coerceAtLeast(dp(150f))
+        STYLE_MATRIX_RAIN -> min(availW * 0.58f, capPx * 1.70f).coerceAtLeast(dp(128f))
+        else -> 0f
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // Honour the measure modes: EXACTLY -> use the given size,
         // AT_MOST -> at most the given size (capped by a sane default),
@@ -369,6 +460,8 @@ class ClockView @JvmOverloads constructor(
         val st = style()
         val textSize = when (st) {
             1 -> fitTextSize(availW - pad * 2f, capPx, padPx = 2f * thicknessPx())
+            2, 9 -> gridHeightForWidth(availW - pad * 2f, capPx, sevenSeg = false)
+            4 -> gridHeightForWidth(availW - pad * 2f, capPx, sevenSeg = true)
             13 -> fitTextSize(availW - pad * 2f, capPx, inflateFrac = 0.10f)
             14 -> fitPremiumSize(availW - pad * 2f, capPx)
             15 -> fitStackedSize(availW - pad * 2f, capPx)
@@ -378,21 +471,24 @@ class ClockView @JvmOverloads constructor(
             20 -> fitTextSize(
                 availW - pad * 2f, capPx, Typeface.MONOSPACE, letterSpacing = 0.08f
             ) * 0.66f
+            STYLE_DRIFT -> fitTextSize(availW * 0.72f, capPx, tfLight) * 0.72f
+            STYLE_GLITCH -> fitTextSize(availW - pad * 2f, capPx, tfBlack, inflateFrac = 0.04f)
             else -> fitTextSize(availW - pad * 2f, capPx)
         }
 
-        // Grid-glyph styles (dots, seven-seg LED, square matrix) are sized by
-        // the view height directly; the font-drawn styles need font metrics;
-        // the iPhone faces stack extra rows (arc/map/UTC) under the time.
-        val height = when (st) {
+        // Grid faces use an analytically fitted height; complex screensaver
+        // faces have fixed aspect ratios so draw and measure cannot disagree.
+        val fixed = fixedFaceHeight(st, availW, capPx)
+        val height = if (fixed > 0f) fixed else when (st) {
             2, 4, 9 -> textSize
             15 -> stackedHeight(textSize)
             16 -> min(availW, capPx * 2.2f).coerceAtLeast(dp(120f))
             18 -> textHeight(textSize) + availW * 0.30f + textSize * 0.62f + dp(8f)
             // Map height is 24 rows at cell = availW / 60 -> 0.4 * availW.
             19 -> availW * 0.4f + textHeight(textSize) + textSize * 0.60f + dp(8f)
-            // The outline contour sits outside the glyph (+t all around).
             1 -> textHeight(textSize) + dp(6f) + 2f * thicknessPx()
+            STYLE_DRIFT -> textHeight(textSize) + dp(28f)
+            STYLE_GLITCH -> textHeight(textSize) + dp(16f)
             else -> textHeight(textSize) + dp(6f)
         }
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
@@ -434,7 +530,10 @@ class ClockView @JvmOverloads constructor(
         // Height-driven faces (grids, chips, analog) size themselves from
         // the measured box and always fit; the width-fitted faces scale down
         // when the box came back shorter than the fitted content.
-        val heightDriven = s == 2 || s == 4 || s == 6 || s == 9 || s == 16
+        val heightDriven = s == 2 || s == 4 || s == 6 || s == 9 || s == 16 ||
+            s == STYLE_FLIQLO || s == STYLE_NIXIE || s == STYLE_LCD ||
+            s == STYLE_PONG || s == STYLE_WORD || s == STYLE_BINARY ||
+            s == STYLE_POLAR || s == STYLE_MATRIX_RAIN
         val sc = if (heightDriven) 1f else contentScale
         if (sc < 1f) {
             canvas.save()
@@ -461,6 +560,16 @@ class ClockView @JvmOverloads constructor(
             18 -> drawSolar(canvas, w, h)
             19 -> drawWorld(canvas, w, h)
             20 -> drawMinimalMono(canvas, w, h)
+            STYLE_FLIQLO -> drawFliqlo(canvas, w, h)
+            STYLE_NIXIE -> drawNixie(canvas, w, h)
+            STYLE_LCD -> drawLcd(canvas, w, h)
+            STYLE_PONG -> drawPong(canvas, w, h)
+            STYLE_WORD -> drawWordClock(canvas, w, h)
+            STYLE_BINARY -> drawBinary(canvas, w, h)
+            STYLE_POLAR -> drawPolar(canvas, w, h)
+            STYLE_DRIFT -> drawDrift(canvas, w, h)
+            STYLE_GLITCH -> drawGlitch(canvas, w, h)
+            STYLE_MATRIX_RAIN -> drawMatrixRain(canvas, w, h)
             else -> drawNormal(canvas, w, h)
         }
         if (sc < 1f) canvas.restore()
@@ -1358,6 +1467,425 @@ class ClockView @JvmOverloads constructor(
         paint.letterSpacing = 0f
     }
 
+    // ---------- style 21: Fliqlo-like split-flap cards ----------
+
+    private fun drawFliqlo(canvas: Canvas, w: Float, h: Float) {
+        val digits = timeText.filter { it.isDigit() }.padStart(4, '0').take(4)
+        val gap = h * 0.035f
+        val colonW = h * 0.12f
+        val cardW = ((w - colonW - gap * 6f) / 4f).coerceAtLeast(dp(18f))
+        val cardH = min(h * 0.88f, cardW * 1.55f)
+        val totalW = cardW * 4f + colonW + gap * 6f
+        var x = (w - totalW) / 2f + gap
+        val top = (h - cardH) / 2f
+        val radius = min(cardW, cardH) * 0.10f
+
+        fillPaint.color = 0xFF161616.toInt()
+        strokePaint.color = 0xFF050505.toInt()
+        strokePaint.strokeWidth = dp(1.2f)
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfLight
+        paint.textAlign = Paint.Align.CENTER
+        paint.color = ink()
+        paint.textSize = cardH * 0.72f
+        val fm = paint.fontMetrics
+        val baseline = top + cardH / 2f - (fm.ascent + fm.descent) / 2f
+
+        for (i in 0 until 4) {
+            canvas.drawRoundRect(x, top, x + cardW, top + cardH, radius, radius, fillPaint)
+            canvas.drawLine(x + dp(2f), top + cardH / 2f, x + cardW - dp(2f), top + cardH / 2f, strokePaint)
+            canvas.drawText(digits[i].toString(), x + cardW / 2f, baseline, paint)
+            x += cardW + gap
+            if (i == 1) {
+                fillPaint.color = dimmed(ink(), 0.88f)
+                val cx = x + colonW / 2f
+                val r = maxOf(dp(2f), cardH * 0.025f)
+                canvas.drawCircle(cx, h * 0.42f, r, fillPaint)
+                canvas.drawCircle(cx, h * 0.58f, r, fillPaint)
+                fillPaint.color = 0xFF161616.toInt()
+                x += colonW + gap
+            }
+        }
+    }
+
+    // ---------- style 22: Nixie tubes ----------
+
+    private fun drawNixie(canvas: Canvas, w: Float, h: Float) {
+        val digits = timeText.filter { it.isDigit() }.padStart(4, '0').take(4)
+        val orange = 0xFFFF7A18.toInt()
+        val dimOrange = 0x55FF6A00
+        val gap = h * 0.035f
+        val colonW = h * 0.12f
+        val tubeW = ((w - colonW - gap * 6f) / 4f).coerceAtLeast(dp(18f))
+        val tubeH = min(h * 0.90f, tubeW * 1.65f)
+        val totalW = tubeW * 4f + colonW + gap * 6f
+        var x = (w - totalW) / 2f + gap
+        val top = (h - tubeH) / 2f
+        val radius = tubeW * 0.46f
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = Typeface.MONOSPACE
+        paint.textAlign = Paint.Align.CENTER
+        paint.style = Paint.Style.STROKE
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.textSize = tubeH * 0.67f
+        val fm = paint.fontMetrics
+        val baseline = top + tubeH / 2f - (fm.ascent + fm.descent) / 2f
+
+        for (i in 0 until 4) {
+            fillPaint.color = 0x161A0A00
+            canvas.drawRoundRect(x, top, x + tubeW, top + tubeH, radius, radius, fillPaint)
+            strokePaint.color = 0x445A2B0A
+            strokePaint.strokeWidth = dp(1f)
+            canvas.drawRoundRect(x, top, x + tubeW, top + tubeH, radius, radius, strokePaint)
+            // Wide translucent filament followed by a crisp core.
+            paint.color = dimOrange
+            paint.strokeWidth = maxOf(dp(3f), tubeW * 0.065f)
+            canvas.drawText(digits[i].toString(), x + tubeW / 2f, baseline, paint)
+            paint.color = orange
+            paint.strokeWidth = maxOf(dp(1.1f), tubeW * 0.018f)
+            canvas.drawText(digits[i].toString(), x + tubeW / 2f, baseline, paint)
+            x += tubeW + gap
+            if (i == 1) {
+                fillPaint.color = orange
+                val cx = x + colonW / 2f
+                val r = maxOf(dp(2f), tubeH * 0.022f)
+                canvas.drawCircle(cx, h * 0.42f, r, fillPaint)
+                canvas.drawCircle(cx, h * 0.58f, r, fillPaint)
+                x += colonW + gap
+            }
+        }
+        paint.style = Paint.Style.FILL
+    }
+
+    // ---------- style 23: retro LCD ----------
+
+    private fun drawLcd(canvas: Canvas, w: Float, h: Float) {
+        val panelPad = min(w, h) * 0.05f
+        val radius = min(w, h) * 0.08f
+        fillPaint.color = 0xFFB7C8A5.toInt()
+        canvas.drawRoundRect(panelPad, panelPad, w - panelPad, h - panelPad, radius, radius, fillPaint)
+
+        var units = 0f
+        for (ch in timeText) units += if (ch.isDigit()) 0.62f * 1.12f else 0.62f * 0.55f
+        if (units <= 0f) return
+        val innerW = w - panelPad * 2.8f
+        val innerH = h - panelPad * 2.2f
+        val digitH = min(innerH, innerW / units)
+        val dw = digitH * 0.62f
+        var x = (w - units * digitH) / 2f
+        val top = h / 2f - digitH / 2f
+        val active = 0xFF233126.toInt()
+        val ghost = 0x18233126
+        val seg = segPaint
+
+        for (ch in timeText) {
+            if (ch.isDigit()) {
+                // Draw all seven ghost segments, then active segments on top.
+                seg.color = ghost
+                drawSegMask(canvas, x, top, digitH, 0b1111111, seg)
+                seg.color = active
+                drawSegMask(canvas, x, top, digitH, segPattern(ch), seg)
+                x += dw * 1.12f
+            } else {
+                seg.style = Paint.Style.FILL
+                seg.color = active
+                val cx = x + dw * 0.25f
+                val r = digitH * 0.055f
+                canvas.drawCircle(cx, h / 2f - digitH * 0.18f, r, seg)
+                canvas.drawCircle(cx, h / 2f + digitH * 0.18f, r, seg)
+                x += dw * 0.55f
+            }
+        }
+        seg.style = Paint.Style.STROKE
+    }
+
+    private fun drawSegMask(canvas: Canvas, left: Float, top: Float, dh: Float, mask: Int, seg: Paint) {
+        val dw = dh * 0.62f
+        seg.style = Paint.Style.STROKE
+        seg.strokeCap = Paint.Cap.SQUARE
+        seg.strokeWidth = dh * 0.13f
+        val xL = left + dw * 0.12f
+        val xR = left + dw * 0.88f
+        val y0 = top + dh * 0.06f
+        val yM = top + dh * 0.50f
+        val y1 = top + dh * 0.94f
+        if ((mask and 1) != 0) canvas.drawLine(xL, y0, xR, y0, seg)
+        if ((mask and 64) != 0) canvas.drawLine(xL, yM, xR, yM, seg)
+        if ((mask and 8) != 0) canvas.drawLine(xL, y1, xR, y1, seg)
+        if ((mask and 32) != 0) canvas.drawLine(xL, y0, xL, yM, seg)
+        if ((mask and 2) != 0) canvas.drawLine(xR, y0, xR, yM, seg)
+        if ((mask and 16) != 0) canvas.drawLine(xL, yM, xL, y1, seg)
+        if ((mask and 4) != 0) canvas.drawLine(xR, yM, xR, y1, seg)
+        seg.strokeCap = Paint.Cap.ROUND
+    }
+
+    // ---------- style 24: Pong Clock ----------
+
+    private fun drawPong(canvas: Canvas, w: Float, h: Float) {
+        val now = SystemClock.uptimeMillis()
+        val t = (now % 8000L) / 8000f
+        val phase = t * 2f * PI.toFloat()
+        val main = ink()
+        val margin = min(w, h) * 0.06f
+
+        strokePaint.color = dimmed(main, 0.32f)
+        strokePaint.strokeWidth = dp(1.2f)
+        var y = margin
+        while (y < h - margin) {
+            canvas.drawLine(w / 2f, y, w / 2f, min(y + dp(6f), h - margin), strokePaint)
+            y += dp(13f)
+        }
+
+        val paddleH = h * 0.24f
+        val paddleW = maxOf(dp(4f), w * 0.012f)
+        fillPaint.color = main
+        val leftY = h / 2f + sin(phase * 0.72f) * h * 0.20f
+        val rightY = h / 2f - sin(phase * 0.91f) * h * 0.20f
+        canvas.drawRoundRect(margin, leftY - paddleH / 2f, margin + paddleW, leftY + paddleH / 2f, paddleW, paddleW, fillPaint)
+        canvas.drawRoundRect(w - margin - paddleW, rightY - paddleH / 2f, w - margin, rightY + paddleH / 2f, paddleW, paddleW, fillPaint)
+
+        val ballR = maxOf(dp(3f), min(w, h) * 0.022f)
+        val bx = margin + paddleW + ballR + (w - 2f * (margin + paddleW + ballR)) * ((sin(phase) + 1f) / 2f)
+        val by = h / 2f + sin(phase * 1.73f) * h * 0.30f
+        canvas.drawCircle(bx, by, ballR, fillPaint)
+
+        val score = hourMinuteText()
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = Typeface.MONOSPACE
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = min(h * 0.30f, w * 0.13f)
+        paint.color = main
+        drawCenteredAt(canvas, score, w / 2f, h * 0.23f, paint)
+
+        // 20 fps is smooth enough for a screensaver but much cheaper than 60 fps.
+        postInvalidateDelayed(50L)
+    }
+
+    // ---------- style 25: word clock ----------
+
+    private fun numberWord(v: Int): String = when (v) {
+        0 -> "ZERO"
+        1 -> "ONE"
+        2 -> "TWO"
+        3 -> "THREE"
+        4 -> "FOUR"
+        5 -> "FIVE"
+        6 -> "SIX"
+        7 -> "SEVEN"
+        8 -> "EIGHT"
+        9 -> "NINE"
+        10 -> "TEN"
+        11 -> "ELEVEN"
+        12 -> "TWELVE"
+        13 -> "THIRTEEN"
+        14 -> "FOURTEEN"
+        15 -> "FIFTEEN"
+        16 -> "SIXTEEN"
+        17 -> "SEVENTEEN"
+        18 -> "EIGHTEEN"
+        19 -> "NINETEEN"
+        20 -> "TWENTY"
+        30 -> "THIRTY"
+        40 -> "FORTY"
+        50 -> "FIFTY"
+        else -> if (v in 21..59) {
+            numberWord((v / 10) * 10) + " " + numberWord(v % 10)
+        } else {
+            v.toString()
+        }
+    }
+
+    private fun drawWordClock(canvas: Canvas, w: Float, h: Float) {
+        val (h24, m, _) = wallTime()
+        val use24 = Prefs.force24h(context) || android.text.format.DateFormat.is24HourFormat(context)
+        val hour = if (use24) h24 else if (h24 % 12 == 0) 12 else h24 % 12
+        val first = numberWord(hour)
+        val second = numberWord(m)
+        val main = ink()
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfBold
+        paint.textAlign = Paint.Align.CENTER
+        paint.color = main
+        paint.textSize = min(h * 0.28f, w * 0.13f)
+        paint.letterSpacing = 0.06f
+        drawCenteredAt(canvas, first, w / 2f, h * 0.38f, paint)
+        paint.color = dimmed(main, 0.62f)
+        paint.textSize *= 0.82f
+        drawCenteredAt(canvas, second, w / 2f, h * 0.65f, paint)
+        paint.letterSpacing = 0f
+    }
+
+    // ---------- style 26: binary HH:MM:SS ----------
+
+    private fun drawBinary(canvas: Canvas, w: Float, h: Float) {
+        val (hh, mm, ss) = wallTime()
+        val values = intArrayOf(hh / 10, hh % 10, mm / 10, mm % 10, ss / 10, ss % 10)
+        val main = ink()
+        val cols = 6
+        val rows = 4
+        val cellW = w / (cols + 1.2f)
+        val cellH = h / (rows + 1.6f)
+        val r = min(cellW, cellH) * 0.23f
+        val startX = (w - cellW * (cols - 1)) / 2f
+        val startY = (h - cellH * (rows - 1)) / 2f
+
+        for (c in 0 until cols) {
+            for (row in 0 until rows) {
+                val bit = 3 - row
+                val on = ((values[c] shr bit) and 1) != 0
+                fillPaint.color = if (on) main else dimmed(main, 0.12f)
+                canvas.drawCircle(startX + c * cellW, startY + row * cellH, r, fillPaint)
+            }
+        }
+        // subtle separators between HH / MM / SS
+        fillPaint.color = dimmed(main, 0.45f)
+        val dotR = maxOf(dp(1.5f), r * 0.23f)
+        for (sep in intArrayOf(2, 4)) {
+            val x = startX + (sep - 0.5f) * cellW
+            canvas.drawCircle(x, h * 0.43f, dotR, fillPaint)
+            canvas.drawCircle(x, h * 0.57f, dotR, fillPaint)
+        }
+    }
+
+    // ---------- style 27: Polar Clock ----------
+
+    private fun drawPolar(canvas: Canvas, w: Float, h: Float) {
+        val (hh, mm, ss) = wallTime()
+        val cx = w / 2f
+        val cy = h / 2f
+        val baseR = min(w, h) * 0.39f
+        val main = ink()
+        val track = dimmed(main, 0.14f)
+        val stroke = maxOf(dp(4f), baseR * 0.075f)
+        val values = floatArrayOf((hh % 12) / 12f, mm / 60f, ss / 60f)
+
+        strokePaint.strokeCap = Paint.Cap.ROUND
+        strokePaint.strokeWidth = stroke
+        for (i in 0..2) {
+            val r = baseR - i * stroke * 1.65f
+            arcRect.set(cx - r, cy - r, cx + r, cy + r)
+            strokePaint.color = track
+            canvas.drawArc(arcRect, -90f, 360f, false, strokePaint)
+            strokePaint.color = dimmed(main, 1f - i * 0.20f)
+            canvas.drawArc(arcRect, -90f, 360f * values[i], false, strokePaint)
+        }
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfBold
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = min(w, h) * 0.17f
+        paint.color = main
+        drawCenteredAt(canvas, timeText, cx, cy, paint)
+    }
+
+    // ---------- style 28: drifting burn-in-safe clock ----------
+
+    private fun drawDrift(canvas: Canvas, w: Float, h: Float) {
+        val size = fitTextSize(w * 0.72f, cap(), tfLight) * 0.72f
+        val now = System.currentTimeMillis() / 1000L
+        // Deterministic slow path: no Random allocations and no sudden jumps.
+        val ax = sin(now / 37.0).toFloat()
+        val ay = sin(now / 53.0 + 1.7).toFloat()
+        val dx = ax * w * 0.11f
+        val dy = ay * h * 0.16f
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfLight
+        paint.textSize = size
+        paint.color = dimmed(ink(), 0.86f)
+        paint.style = Paint.Style.FILL
+        val fm = paint.fontMetrics
+        paint.textAlign = Paint.Align.CENTER
+        val baseline = h / 2f + dy - (fm.ascent + fm.descent) / 2f
+        canvas.drawText(timeText, w / 2f + dx, baseline, paint)
+    }
+
+    // ---------- style 29: deterministic glitch ----------
+
+    private fun drawGlitch(canvas: Canvas, w: Float, h: Float) {
+        val size = fitTextSize(w - dp(10f), cap(), tfBlack, inflateFrac = 0.04f)
+        val tick = System.currentTimeMillis() / 180L
+        val jitterA = (((tick * 37L) % 9L) - 4L).toFloat() * dp(0.55f)
+        val jitterB = (((tick * 53L) % 11L) - 5L).toFloat() * dp(0.45f)
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfBlack
+        paint.textSize = size
+        paint.textAlign = Paint.Align.CENTER
+        paint.style = Paint.Style.FILL
+        val fm = paint.fontMetrics
+        val baseline = h / 2f - (fm.ascent + fm.descent) / 2f
+
+        paint.color = 0x887C3AED.toInt()
+        canvas.drawText(timeText, w / 2f + jitterA, baseline - dp(1f), paint)
+        paint.color = 0x8867E8F9.toInt()
+        canvas.drawText(timeText, w / 2f + jitterB, baseline + dp(1f), paint)
+        paint.color = ink()
+        canvas.drawText(timeText, w / 2f, baseline, paint)
+
+        // A few deterministic horizontal dropout slices.
+        fillPaint.color = Color.BLACK
+        for (i in 0..2) {
+            val frac = (((tick + i * 29L) % 100L) / 100f)
+            val y = h * (0.28f + frac * 0.44f)
+            canvas.drawRect(0f, y, w, y + dp(1.2f), fillPaint)
+        }
+        postInvalidateDelayed(180L)
+    }
+
+    // ---------- style 30: Matrix rain ----------
+
+    private fun drawMatrixRain(canvas: Canvas, w: Float, h: Float) {
+        val green = 0xFF00E676.toInt()
+        val now = SystemClock.uptimeMillis()
+        val colW = maxOf(dp(12f), w / 24f)
+        val cols = (w / colW).toInt().coerceAtLeast(1)
+        val rows = (h / colW).toInt() + 3
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = Typeface.MONOSPACE
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = colW * 0.78f
+        val phase = (now / 90L).toInt()
+        for (c in 0 until cols) {
+            val head = (phase + c * 7) % rows
+            for (tail in 0..5) {
+                val row = head - tail
+                if (row < 0 || row >= rows) continue
+                val code = ((c * 17 + row * 31 + phase) % 10)
+                paint.color = Color.argb((220 - tail * 34).coerceAtLeast(35), 0, 230, 118)
+                canvas.drawText(DIGIT_STRINGS[code], c * colW + colW / 2f, (row + 1) * colW, paint)
+            }
+        }
+
+        // Dark veil behind the time keeps it readable without a rectangular card.
+        paint.typeface = tfBlack
+        paint.textSize = fitTextSize(w - dp(12f), cap(), tfBlack)
+        val fm = paint.fontMetrics
+        val base = h / 2f - (fm.ascent + fm.descent) / 2f
+        val textW = paint.measureText(timeText)
+        fillPaint.color = 0xB8000000.toInt()
+        canvas.drawRoundRect(
+            w / 2f - textW / 2f - dp(10f), base + fm.ascent - dp(5f),
+            w / 2f + textW / 2f + dp(10f), base + fm.descent + dp(5f),
+            dp(8f), dp(8f), fillPaint
+        )
+        paint.color = green
+        canvas.drawText(timeText, w / 2f, base, paint)
+        postInvalidateDelayed(90L)
+    }
+
     private fun drawCenteredText(
         canvas: Canvas,
         text: String,
@@ -1383,36 +1911,19 @@ class ClockView @JvmOverloads constructor(
         else -> 1f
     }
 
-    // Standard 5x7 (columns packed in low bits, LSB = leftmost) glyphs.
-    private fun glyph(ch: Char): Array<Int>? {
-        return when (ch) {
-            '0' -> arrayOf(
-                0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110
-            )
-            '1' -> arrayOf(0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110)
-            '2' -> arrayOf(
-                0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111
-            )
-            '3' -> arrayOf(
-                0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110
-            )
-            '4' -> arrayOf(
-                0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010
-            )
-            '5' -> arrayOf(
-                0b11111, 0b10000, 0b10000, 0b11110, 0b00001, 0b00001, 0b11110
-            )
-            '6' -> arrayOf(
-                0b01110, 0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110
-            )
-            '7' -> arrayOf(0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000)
-            '8' -> arrayOf(
-                0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110
-            )
-            '9' -> arrayOf(
-                0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110
-            )
-            else -> null
-        }
+    // Standard 5x7 glyphs, cached in the companion object.
+    private fun glyph(ch: Char): IntArray? = when (ch) {
+        '0' -> GLYPH_0
+        '1' -> GLYPH_1
+        '2' -> GLYPH_2
+        '3' -> GLYPH_3
+        '4' -> GLYPH_4
+        '5' -> GLYPH_5
+        '6' -> GLYPH_6
+        '7' -> GLYPH_7
+        '8' -> GLYPH_8
+        '9' -> GLYPH_9
+        else -> null
     }
+
 }

@@ -357,7 +357,7 @@ object Prefs {
      *  15 stacked iPhone, 16 analog iPhone, 17 float iPhone, 18 solar iPhone,
      *  19 world iPhone, 20 minimal mono.
      *  Default: premium (the new default look). */
-    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 20)
+    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 30) // keep in sync with ClockView.MAX_CLOCK_STYLE
     fun setClockStyle(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_STYLE, v.coerceIn(0, 20))
 
     /** Line thickness (dp) for the outline clock, 1..30. */

@@ -67,6 +67,16 @@
         <item>Солнце (iPhone)</item>
         <item>Карта мира (iPhone)</item>
         <item>Минимал моно</item>
+        <item>Флип-карточки (Fliqlo)</item>
+        <item>Никсие (лампы)</item>
+        <item>Ретро ЖК</item>
+        <item>Понг</item>
+        <item>Словесные часы</item>
+        <item>Двоичные</item>
+        <item>Полярные кольца</item>
+        <item>Дрейф</item>
+        <item>Глитч</item>
+        <item>Дождь «Матрицы»</item>
     </string-array>
     <string name="clock_color_title">Цвет часов</string>
     <string-array name="clock_color_entries">

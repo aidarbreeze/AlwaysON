@@ -67,6 +67,16 @@
         <item>Solar (iPhone)</item>
         <item>World map (iPhone)</item>
         <item>Minimal mono</item>
+        <item>Fliqlo</item>
+        <item>Nixie tubes</item>
+        <item>Retro LCD</item>
+        <item>Pong clock</item>
+        <item>Word clock</item>
+        <item>Binary</item>
+        <item>Polar rings</item>
+        <item>Drift</item>
+        <item>Glitch</item>
+        <item>Matrix rain</item>
     </string-array>
     <string name="clock_color_title">Clock color</string>
     <string-array name="clock_color_entries">
