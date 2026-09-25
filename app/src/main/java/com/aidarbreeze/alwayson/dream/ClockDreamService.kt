@@ -203,6 +203,13 @@ class ClockDreamService : DreamService() {
         super.onDetachedFromWindow()
     }
 
+    // Deliberate legacy flags (deprecated since API 30): systemUiVisibility
+    // still works on every targeted ROM, some OEM builds ignore the modern
+    // insets API for dream windows (isFullscreen alone is not honoured here
+    // either — see the comment below), and swapping working fullscreen code
+    // for a replacement with its own OEM quirks is not worth the risk.
+    // Revisit only when a targetSdk bump actually removes these constants.
+    @Suppress("DEPRECATION")
     private fun hideSystemUi() {
         try {
             val decor = window.decorView

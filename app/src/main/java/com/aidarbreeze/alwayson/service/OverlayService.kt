@@ -762,6 +762,12 @@ class OverlayService : Service(), SensorEventListener {
         // player prev/next buttons need touches too. All of that is handled
         // by StandbyController's root gestures (an earlier FLAG_NOT_TOUCHABLE
         // here silently broke BOTH taps and the media buttons).
+        // FLAG_SHOW_WHEN_LOCKED is deprecated in favour of
+        // Activity.setShowWhenLocked() — which does not exist for a window
+        // owned by a service. For THIS overlay window the flag is the only
+        // way to be visible over the keyguard on pre-27-era OEM code paths,
+        // and it still works on all targeted APIs: deliberate suppression.
+        @Suppress("DEPRECATION")
         val flags =
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
