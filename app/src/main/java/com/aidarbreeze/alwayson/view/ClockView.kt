@@ -65,7 +65,7 @@ import kotlin.math.sqrt
  *  18 - SOLAR  : iPhone StandBy Solar — big time over the sun-path arc with
  *                real sunrise/sunset (from the weather cache when present).
  *  19 - WORLD  : iPhone StandBy World — dotted world map (with a "you are
- *                here" dot when the location is known), local time + UTC.
+ *                here" dot when the location is known), local time.
  *  20 - MIN_MONO: iPhone Minimal Mono — small calm letterspaced monospaced
  *                digits.
  *  21 - FLIQLO  : classic Fliqlo-like split-flap cards with individual digits.
@@ -221,6 +221,24 @@ class ClockView @JvmOverloads constructor(
         const val STYLE_RAILWAY = 46
         const val STYLE_BRAUN = 47
         const val MAX_CLOCK_STYLE = STYLE_BRAUN
+
+        /** Faces hidden by user request. Ids stay stable on purpose: saved
+         *  presets and the draw dispatch remain valid; the settings, the
+         *  rotation picker and the thumbnails simply never offer them. */
+        val REMOVED_STYLES = setOf(
+            3, 6, 7, 10, 11, 12, 14, 17, 18, 20, 23, 25,
+            28, 33, 34, 36, 38, 44, 45
+        )
+
+        /** The faces actually offered, in id order. */
+        fun keptStyles(): List<Int> = (0..MAX_CLOCK_STYLE).filter { it !in REMOVED_STYLES }
+
+        /** Nearest visible face for a removed id (saved presets, old pools). */
+        fun normalizeStyle(s: Int): Int {
+            if (s !in REMOVED_STYLES) return s
+            val kept = keptStyles()
+            return kept.firstOrNull { it > s } ?: kept.last()
+        }
 
         // Pong match (style 24): first to PONG_GAME_TO points wins the game,
         // then the scoreboard restarts. The ball pauses briefly per point.
@@ -390,7 +408,8 @@ class ClockView @JvmOverloads constructor(
             if (raw != rotPoolRaw) {
                 rotPoolRaw = raw
                 rotPool = raw.split(',').mapNotNull { it.trim().toIntOrNull() }
-                    .filter { it in 0..MAX_CLOCK_STYLE }.distinct()
+                    .filter { it in 0..MAX_CLOCK_STYLE && it !in REMOVED_STYLES }
+                    .distinct()
             }
             if (rotPool.isNotEmpty()) {
                 val every = Prefs.clockRotateEveryMin(context).coerceAtLeast(1)
@@ -398,7 +417,7 @@ class ClockView @JvmOverloads constructor(
                 return rotPool[idx % rotPool.size]
             }
         }
-        return Prefs.clockStyle(context)
+        return normalizeStyle(Prefs.clockStyle(context))
     }
 
     private fun thicknessPx(): Float {
@@ -1553,7 +1572,7 @@ class ClockView @JvmOverloads constructor(
         } catch (_: Exception) {
             // location is best-effort
         }
-        // Local time + a small UTC clock under the map.
+        // Local time under the map.
         paint.reset()
         paint.isAntiAlias = true
         paint.textSize = size
@@ -1564,20 +1583,6 @@ class ClockView @JvmOverloads constructor(
         val fm = paint.fontMetrics
         val tBase = mapHeight + size * 0.06f - fm.top
         canvas.drawText(timeText, w / 2f, tBase, paint)
-        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-        // Locale.US: Latin digits always, like every other numeric label —
-        // the default locale would render Arabic-Indic digits on ar/fa
-        // locales and break the monospace look.
-        val utcStr = "UTC %02d:%02d".format(
-            Locale.US, utc.get(Calendar.HOUR_OF_DAY), utc.get(Calendar.MINUTE)
-        )
-        paint.textSize = size * 0.30f
-        paint.letterSpacing = 0.10f
-        paint.color = dimmed(main, 0.65f)
-        val ufm = paint.fontMetrics
-        val uBase = tBase + fm.bottom + size * 0.10f - ufm.ascent
-        canvas.drawText(utcStr, w / 2f, uBase, paint)
-        paint.letterSpacing = 0f
     }
 
     // ---------- style 20: minimal mono (small, calm, letterspaced) ----------
