@@ -31,7 +31,9 @@ object WeatherRepository {
         val info: WeatherInfo?, // data to show (a live fetch or the last-known one)
         val fresh: Boolean,     // true when it came from a live (or still-fresh cache) fetch
         val stale: Boolean,     // true when showing last-known after a failed refresh
-        val offline: Boolean    // true when there is no usable network
+        val offline: Boolean,   // true when there is no usable network
+        val source: String = "", // provider that served the live data; "" = none
+        val fallback: Boolean = false // true when the backup provider served it
     )
 
     private const val FILE = "alwayson_weather_cache"
@@ -151,7 +153,8 @@ object WeatherRepository {
         executor.execute {
             try {
                 val offline = !isOnline(c)
-                val data: WeatherInfo? = if (offline) null else WeatherApi.fetch(lat, lon, city)
+                val outcome = if (offline) null else WeatherApi.fetch(lat, lon, city)
+                val data: WeatherInfo? = outcome?.info
                 val result = if (data != null) {
                     synchronized(lock) {
                         lastGood = data
@@ -161,7 +164,8 @@ object WeatherRepository {
                     }
                     persistFull(c, data, lat, lon)
                     WeatherSharedCache.save(c, data) // snapshot for the widget
-                    Result(data, fresh = true, stale = false, offline = false)
+                    Result(data, fresh = true, stale = false, offline = false,
+                        source = outcome.source, fallback = outcome.fallback)
                 } else {
                     val cur = synchronized(lock) { if (lastGoodKey == key) lastGood else null }
                     Result(cur, fresh = false, stale = cur != null, offline = offline)

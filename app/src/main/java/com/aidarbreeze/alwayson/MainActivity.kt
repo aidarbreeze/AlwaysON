@@ -1018,7 +1018,8 @@ class MainActivity : Activity() {
                 miniWeatherCached = res.info
                 val p = miniSeq.getOrNull(miniStep)
                 if (p != null && p.kind == 2) {
-                    miniWeather.show(res.info, Prefs.weatherStyle(this), res.stale)
+                    miniWeather.show(res.info, Prefs.weatherStyle(this), res.stale,
+                        res.source, res.fallback)
                 }
             } else {
                 val p = miniSeq.getOrNull(miniStep)

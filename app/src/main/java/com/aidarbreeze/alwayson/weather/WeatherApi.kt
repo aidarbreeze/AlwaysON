@@ -72,16 +72,62 @@ object WeatherApi {
         }
     }
 
-    /** Fetch the hourly + daily forecast for a point. Null on failure. */
-    fun fetch(lat: Double, lon: Double, city: String = ""): WeatherInfo? {
-        return try {
-            val url = buildUrl(lat, lon)
-            val body = httpGet(url) ?: return null
-            parse(body, city)
+    /** One fetch outcome: payload plus the provider that served it. */
+    class FetchOutcome(
+        val info: WeatherInfo?,
+        /** Label for the panel footer ("Open-Meteo", "MET Norway"); "" = none. */
+        val source: String,
+        /** True when the primary provider failed and the backup served. */
+        val fallback: Boolean
+    )
+
+    /** MET Norway requires an identifying User-Agent with real contact data;
+     *  this app's actual repository URL is used (never a generic library name). */
+    private const val BACKUP_USER_AGENT =
+        "AlwaysON/1.0 (https://github.com/aidarbreeze/AlwaysON)"
+
+    /**
+     * Fetch the hourly + daily forecast: Open-Meteo first, MET Norway
+     * Locationforecast 2.0 /compact as the automatic backup. info == null
+     * when both providers failed (the repository then serves its last-known
+     * forecast, marked stale). Two sequential network calls worst case, each
+     * with its own timeouts — must run on the caller's background thread.
+     */
+    fun fetch(lat: Double, lon: Double, city: String = ""): FetchOutcome {
+        try {
+            val info = fetchOpenMeteo(lat, lon, city)
+            if (info != null) return FetchOutcome(info, "Open-Meteo", false)
         } catch (_: Exception) {
-            null
+            // primary failed — fall through to the backup provider
+        }
+        return try {
+            val n = MetNorwayWeatherSource(BACKUP_USER_AGENT)
+                .load(WeatherRequest(lat, lon, city))
+            FetchOutcome(normalizedToInfo(n, city), "MET Norway", true)
+        } catch (_: Exception) {
+            FetchOutcome(null, "", false)
         }
     }
+
+    private fun fetchOpenMeteo(lat: Double, lon: Double, city: String): WeatherInfo? {
+        val url = buildUrl(lat, lon)
+        val body = httpGet(url) ?: return null
+        return parse(body, city)
+    }
+
+    /** Map the provider-neutral forecast onto the app's WeatherInfo. */
+    private fun normalizedToInfo(n: NormalizedWeather, fallbackCity: String): WeatherInfo =
+        WeatherInfo(
+            city = n.city.ifBlank { fallbackCity },
+            tempNowC = n.tempNowC,
+            codeNow = n.codeNow,
+            hours = n.hours.map { WeatherHour(it.timeMs, it.tempC, it.code) },
+            days = n.days.map { WeatherDay(it.timeMs, it.code, it.tMin, it.tMax) },
+            feelsNowC = n.feelsNowC,
+            sunriseMs = n.sunriseMs,
+            sunsetMs = n.sunsetMs,
+            timezoneId = n.timezoneId
+        )
 
     private fun buildUrl(lat: Double, lon: Double): String {
         // Round to ~2 decimals: plenty for weather, keeps URLs short.

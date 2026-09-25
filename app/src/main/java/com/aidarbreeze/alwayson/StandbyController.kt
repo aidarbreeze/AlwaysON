@@ -142,6 +142,8 @@ class StandbyController(context: Context, private val root: View) {
     private val stockFreshMs = 60_000L
     private var weatherCached: WeatherInfo? = null
     private var weatherStale = false
+    private var weatherSource = ""
+    private var weatherFallback = false
     private var panelSeq: List<Panel> = emptyList()
     private var panelStep = 0
     // Long-press in the preview pins the current window (pauses rotation).
@@ -906,7 +908,8 @@ class StandbyController(context: Context, private val root: View) {
             weatherView.setStatus(appContext.getString(R.string.overlay_weather_no_data))
             return
         }
-        weatherView.show(data, Prefs.weatherStyle(appContext), weatherStale)
+        weatherView.show(data, Prefs.weatherStyle(appContext), weatherStale,
+            weatherSource, weatherFallback)
     }
 
     /**
@@ -928,6 +931,8 @@ class StandbyController(context: Context, private val root: View) {
             if (res.info != null) {
                 weatherCached = res.info
                 weatherStale = res.stale
+                weatherSource = res.source
+                weatherFallback = res.fallback
                 Prefs.setLastWeatherUpdateMs(appContext, System.currentTimeMillis())
                 Prefs.setLastWeatherError(appContext, "")
                 if (weatherView.visibility == View.VISIBLE) renderWeather()
@@ -935,6 +940,8 @@ class StandbyController(context: Context, private val root: View) {
                 // Nothing at all (never fetched for this location): a clear
                 // state, not a stale forecast of another city.
                 weatherStale = false
+                weatherSource = ""
+                weatherFallback = false
                 val err = if (res.offline) appContext.getString(R.string.overlay_weather_no_network)
                 else appContext.getString(R.string.overlay_weather_no_data)
                 weatherView.setStatus(err)

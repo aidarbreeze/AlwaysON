@@ -455,8 +455,8 @@ object Prefs {
     /** Weather panel style: 0 classic, 1 curve, 2 minimal, 3 forecast strip,
      *  4 daily, 5 hero temperature, 6 monochrome, 7 weather+sun, 8 split,
      *  9 premium card (default). */
-    fun weatherStyle(ctx: Context): Int = i(ctx, KEY_WEATHER_STYLE, 9).coerceIn(0, 9)
-    fun setWeatherStyle(ctx: Context, v: Int) = setI(ctx, KEY_WEATHER_STYLE, v.coerceIn(0, 9))
+    fun weatherStyle(ctx: Context): Int = i(ctx, KEY_WEATHER_STYLE, 9).coerceIn(0, 12)
+    fun setWeatherStyle(ctx: Context, v: Int) = setI(ctx, KEY_WEATHER_STYLE, v.coerceIn(0, 12))
 
     /** How long (seconds) each window type stays on screen. Default 10. */
     fun panelDurationCal(ctx: Context): Int = i(ctx, KEY_DUR_CAL, 10).coerceIn(5, 120)

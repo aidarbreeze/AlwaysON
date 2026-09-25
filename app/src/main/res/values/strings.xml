@@ -173,8 +173,12 @@
         <item>Weather + Sun Cycle</item>
         <item>Compact Split</item>
         <item>Premium Card</item>
+        <item>Compact Card</item>
+        <item>Week Grid</item>
+        <item>Terminal</item>
     </string-array>
     <string name="weather_geo_button">Use the device location</string>
+    <string name="weather_attribution">Weather data: Open-Meteo (primary), MET Norway Locationforecast (backup). MET Norway is a service of the Norwegian Meteorological Institute.</string>
     <string name="weather_city_label">…or type a city instead:</string>
     <string name="weather_city_hint">City, e.g. Moscow</string>
     <string name="weather_loc_granted">Location found: %s</string>

@@ -173,8 +173,12 @@
         <item>Погода + солнце</item>
         <item>Компактный сплит</item>
         <item>Премиум-карточка</item>
+        <item>Компактная карточка</item>
+        <item>Сетка недели</item>
+        <item>Терминал</item>
     </string-array>
     <string name="weather_geo_button">Определить по геолокации</string>
+    <string name="weather_attribution">Данные погоды: Open-Meteo (основной источник), MET Norway Locationforecast (резервный). MET Norway — сервис Норвежского метеорологического института.</string>
     <string name="weather_city_label">…или введите город вручную:</string>
     <string name="weather_city_hint">Город, напр. Москва</string>
     <string name="weather_loc_granted">Местоположение: %s</string>
