@@ -42,9 +42,22 @@ class WakeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // No window animation: an open animation would briefly flash whatever
-        // is behind (the keyguard) on the way to relighting the screen.
+        // Kill the OPEN transition by every available means. An animated
+        // window enter FADES this (opaque black) window in over the keyguard,
+        // and during the fade the keyguard shows through the semi-transparent
+        // window — the user saw "the clock and the lock screen blended".
+        // With a snap-in window the black curtain covers the keyguard in a
+        // single frame, and only then does the content reveal begin.
+        // windowAnimationStyle=@null in the theme is NOT enough: MIUI/HyperOS
+        // runs its own task-enter animation, so override both the classic
+        // (pre-34) and the API 34+ transition APIs.
         window.setWindowAnimations(0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
         // Show above the keyguard and light the screen on launch. The manifest
         // attributes only exist since API 27: on the minimum SDK 26 the
         // equivalent (deprecated) window flags are required.

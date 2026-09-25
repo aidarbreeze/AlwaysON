@@ -584,15 +584,18 @@ class OverlayService : Service(), SensorEventListener {
         if (now - hostLaunchAt < HOST_LAUNCH_THROTTLE_MS) return
         hostLaunchAt = now
         try {
+            // Explicit zero-length open animation (plus NO_ANIMATION and the
+            // overrides inside WakeActivity): a fading window enter would
+            // blend the keyguard with the clock for a moment.
+            val opts = android.app.ActivityOptions.makeCustomAnimation(this, 0, 0)
             startActivity(
                 Intent(this, com.aidarbreeze.alwayson.WakeActivity::class.java)
                     .addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                            // No task-open transition: the clock must simply
-                            // BE there (over the keyguard), not fly in.
                             Intent.FLAG_ACTIVITY_NO_ANIMATION
-                    )
+                    ),
+                opts.toBundle()
             )
         } catch (_: Exception) {
             // Background start blocked: the old overlay path.
