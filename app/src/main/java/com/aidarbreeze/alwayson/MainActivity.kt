@@ -141,6 +141,10 @@ class MainActivity : Activity() {
 
     // Time rotation of clock faces: minute intervals offered in the settings.
     private val rotateMinutes = intArrayOf(1, 5, 15, 30, 60)
+
+    // Faces the user removed from the app: hidden everywhere, ids stable.
+    private var clockKept: List<Int> = ClockView.keptStyles()
+    private var clockVisibleEntries: Array<String> = emptyArray()
     private lateinit var previewDate: TextView
     private lateinit var brightnessRow: View
     private val previewHandler = Handler(Looper.getMainLooper())
@@ -269,10 +273,12 @@ class MainActivity : Activity() {
         // through with a swipe right on the live preview. The array index
         // equals the style code.
         clockEntries = resources.getStringArray(R.array.clock_style_entries)
+        clockKept = ClockView.keptStyles()
+        clockVisibleEntries = clockKept.map { clockEntries[it] }.toTypedArray()
         bindCarousel(
-            clockPrev, clockNext, clockStyleName, clockEntries,
-            get = { Prefs.clockStyle(this) },
-            set = { applyClockStyle(it) }
+            clockPrev, clockNext, clockStyleName, clockVisibleEntries,
+            get = { clockKept.indexOf(Prefs.clockStyle(this)).coerceAtLeast(0) },
+            set = { applyClockStyle(clockKept[it]) }
         )
         attachClockSwipe()
         setupSettingsTabs()
@@ -1099,7 +1105,7 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 5101)
         }
         Prefs.setClockStyle(this, pos)
-        updateCarouselLabel(clockStyleName, clockEntries, pos)
+        updateCarouselLabel(clockStyleName, clockVisibleEntries, clockKept.indexOf(pos))
         clockStyleName.announceForAccessibility(clockStyleName.text)
         updateOutlineThicknessRow()
         previewClock.refresh() // a new face can need a new size
@@ -1197,7 +1203,7 @@ class MainActivity : Activity() {
         val dm = resources.displayMetrics.density
         val thumbW = (96f * dm).toInt().coerceAtLeast(1)
         val thumbH = (58f * dm).toInt().coerceAtLeast(1)
-        for (st in 0..ClockView.MAX_CLOCK_STYLE) {
+        for (st in ClockView.keptStyles()) {
             val row = android.widget.LinearLayout(this)
             row.orientation = android.widget.LinearLayout.HORIZONTAL
             row.gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1263,9 +1269,9 @@ class MainActivity : Activity() {
                     if (e1 == null) return false
                     if (!isHorizontalFling(e1, e2, velocityX, velocityY)) return false
                     cycleCarousel(
-                        clockEntries,
-                        get = { Prefs.clockStyle(this@MainActivity) },
-                        set = { applyClockStyle(it) },
+                        clockVisibleEntries,
+                        get = { clockKept.indexOf(Prefs.clockStyle(this@MainActivity)).coerceAtLeast(0) },
+                        set = { applyClockStyle(clockKept[it]) },
                         delta = if (e2.x < e1.x) +1 else -1
                     )
                     return true
