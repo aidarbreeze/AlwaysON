@@ -68,6 +68,10 @@ class StandbyController(context: Context, private val root: View) {
     private val monthView: MonthCalendarView = root.findViewById(R.id.monthView)
     private val stockView: StockChartView = root.findViewById(R.id.stockView)
     private val weatherView: WeatherPanelView = root.findViewById(R.id.weatherView)
+    // The lower info panel (month calendar / stock chart / weather pages
+    // cycle INSIDE it) — one cascade stage of the entry reveal; animating
+    // the container leaves the panel's own page-crossfade alphas untouched.
+    private val infoPanel: View = root.findViewById(R.id.infoPanel)
     private val content: View = root.findViewById(R.id.standbyContent)
     // Dedicated black backdrop: on entry it is opaque from the very first
     // frame (see enter()) and the data is revealed over it.
@@ -81,6 +85,17 @@ class StandbyController(context: Context, private val root: View) {
     private val notifDateText: TextView = root.findViewById(R.id.notifDateText)
     private val notifList: LinearLayout = root.findViewById(R.id.notifList)
     private val notifEmpty: TextView = root.findViewById(R.id.notifEmpty)
+
+    // Staged ("cascade") entry: the info blocks appear one after another —
+    // big clock first, then the date, the info panel, the battery, the
+    // media controls — each with a slow fade and a small rise into place.
+    // A sequential reveal reads far richer than one big crossfade (user
+    // request), and every stage keeps its share of the pure-black curtain
+    // until its own turn comes. Blocks that are hidden at entry (media
+    // group with no playback, battery without a reading) simply skip
+    // their stage.
+    private val cascadeStages: List<View> =
+        listOf(clockView, dateText, infoPanel, batteryText, mediaGroup)
 
     private val mediaWatcher = MediaWatcher(appContext)
 
@@ -226,9 +241,6 @@ class StandbyController(context: Context, private val root: View) {
     private var manualAlpha = 1f
     private val sensorHandler = Handler(Looper.getMainLooper())
     private val minAlpha = 0.22f // lowest: dim but clearly visible in the dark
-    // Entry progress (0..1): the data is only revealed after the black
-    // backdrop has fully faded in.
-    private var entranceAlpha = 1f
     // Optional pure-black hold BEFORE the content reveal starts. The
     // locked-screen host sets it: while the user sees only black, the
     // system's keyguard transition finishes underneath the opaque black
@@ -267,12 +279,14 @@ class StandbyController(context: Context, private val root: View) {
 
     /**
      * The single place that writes the content alpha:
-     * brightness level × OLED dim cap × entry progress.
+     * brightness level × OLED dim cap. (The entry reveal no longer fades
+     * the container — the individual cascade stages fade in instead, see
+     * [enter].)
      */
     private fun refreshContentAlpha() {
         val base = if (autoBrightness && currentAlpha >= 0f) currentAlpha
         else manualAlpha.coerceIn(minAlpha, 1f)
-        content.alpha = base * dimFactor() * entranceAlpha
+        content.alpha = base * dimFactor()
     }
 
     private val tick = object : Runnable {
@@ -381,41 +395,65 @@ class StandbyController(context: Context, private val root: View) {
      * frame — fading it in from transparent used to let the system lock
      * screen flash through the half-transparent window at every StandBy
      * on/off transition (the visible "blink" between the keyguard and the
-     * clock). Only the data fades in now, over pure black — after an
+     * clock). Only the data appears now, over pure black — after an
      * optional [entryDelayMs] all-black hold (the locked-screen host uses
-     * it so the keyguard closes UNDER the black screen first). Driven
+     * it so the keyguard closes UNDER the black screen first) — and it
+     * appears STAGED, block by block (see the cascade below). Driven
      * on the main handler with the shared generation counter, so a teardown
      * mid-entry can never leave the screen half-covered.
      */
     private fun enter() {
         aodBg.alpha = 1f
-        entranceAlpha = 0f
         content.scaleX = 0.992f
         content.scaleY = 0.992f
         refreshContentAlpha()
         transitionGen++
         val gen = transitionGen
         val start = System.currentTimeMillis()
-        // ~1.3 s ease-out reveal — slow, cinematic, deliberate (together
-        // with the locked-screen host's 1.2 s black hold the full entry is
-        // ~2.5 s, per the user request; a 0.8% settle-in scale rides along,
-        // its edge gap is black over the black root - invisible).
+        // Staging rhythm: a new stage starts every 170 ms, each stage takes
+        // 620 ms to fade + rise, and the settle scale always spans at least
+        // 1300 ms — so with the locked-screen host's 1.2 s black hold the
+        // full entry stays ~2.5 s and never drops under the 2 s the user
+        // asked for, no matter how many stages are visible. A 0.8%
+        // settle-in scale rides along on the whole content block (its edge
+        // gap is black over the black root — invisible).
+        val staggerMs = 170L
+        val stageMs = 620L
+        val rise = 12f * appContext.resources.displayMetrics.density
+        // Only blocks actually on screen take part: the media group hides
+        // when nothing plays, the battery when the reading is unknown —
+        // the cascade adapts to what is visible.
+        val stages = cascadeStages.filter { it.visibility == View.VISIBLE }
+        stages.forEach {
+            it.alpha = 0f
+            it.translationY = rise
+        }
+        val spanMs = maxOf(1300L, (stages.size - 1) * staggerMs + stageMs)
         val frame = object : Runnable {
             override fun run() {
                 if (gen != transitionGen) return
-                val t = ((System.currentTimeMillis() - start).toDouble() / 1300.0)
-                    .coerceIn(0.0, 1.0)
-                val e = 1.0 - (1.0 - t) * (1.0 - t)
-                entranceAlpha = e.toFloat()
-                val sc = (0.992 + 0.008 * e).toFloat()
+                val el = System.currentTimeMillis() - start
+                // Whole-content settle scale: ease-out across the full span.
+                val ts = (el.toDouble() / spanMs).coerceIn(0.0, 1.0)
+                val es = 1.0 - (1.0 - ts) * (1.0 - ts)
+                val sc = (0.992 + 0.008 * es).toFloat()
                 content.scaleX = sc
                 content.scaleY = sc
-                refreshContentAlpha()
-                if (t < 1.0) {
-                    handler.postDelayed(this, 16)
-                } else {
+                var done = ts >= 1.0
+                stages.forEachIndexed { i, v ->
+                    val lt = ((el - i * staggerMs).toDouble() / stageMs)
+                        .coerceIn(0.0, 1.0)
+                    val le = 1.0 - (1.0 - lt) * (1.0 - lt)
+                    v.alpha = le.toFloat()
+                    v.translationY = ((1.0 - le) * rise).toFloat()
+                    if (lt < 1.0) done = false
+                }
+                if (done) {
                     content.scaleX = 1f
                     content.scaleY = 1f
+                    stages.forEach { it.translationY = 0f }
+                } else {
+                    handler.postDelayed(this, 16)
                 }
             }
         }
@@ -437,11 +475,15 @@ class StandbyController(context: Context, private val root: View) {
         handler.removeCallbacksAndMessages(null)
         root.setOnTouchListener(null)
         onTapExit = null
-        // Clean entry state: the next start() animates from scratch.
+        // Clean entry state: the next start() animates from scratch —
+        // every cascade stage back to opaque and in place.
         aodBg.alpha = 1f
-        entranceAlpha = 1f
         content.scaleX = 1f
         content.scaleY = 1f
+        cascadeStages.forEach {
+            it.alpha = 1f
+            it.translationY = 0f
+        }
         monthView.alpha = 1f
         stockView.alpha = 1f
         weatherView.alpha = 1f

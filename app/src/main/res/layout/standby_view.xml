@@ -140,6 +140,7 @@
             <!-- Lower panel: alternates month calendar and a stock chart
                  (black & white) when the stocks mode is enabled. -->
             <FrameLayout
+                android:id="@+id/infoPanel"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="2"
