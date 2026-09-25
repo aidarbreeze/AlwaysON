@@ -125,6 +125,21 @@ class OverlayService : Service(), SensorEventListener {
                 null
             }
         }
+
+        /** Makes the standby hosts step aside for the bypass choreography:
+         *  stops the WakeActivity host and latches re-hosting (the same
+         *  latch a dream tap sets) until the sequence ends. */
+        fun makeWayForBypass(context: Context) {
+            StandbyUiState.dreamDismissedAt = android.os.SystemClock.elapsedRealtime()
+            context.sendBroadcast(Intent(ACTION_STOP_HOST).setPackage(context.packageName))
+        }
+
+        /** The choreography is over: unlock re-hosting and re-evaluate so
+         *  the standby clock comes back over the keyguard. */
+        fun clearBypassWay(context: Context) {
+            StandbyUiState.dreamDismissedAt = 0L
+            requestReevaluate(context)
+        }
         // If the OEM ignores the wake notification, do not leave it in the
         // shade forever.
         const val WAKE_TIMEOUT_MS = 20_000L
@@ -316,10 +331,15 @@ class OverlayService : Service(), SensorEventListener {
                     // service was quiet, the cache may be stale.
                     screenOn = isScreenInteractive()
                     evaluateAndSync()
-                    // Semi-automatic bypass charging (see the function): the
-                    // switch itself is firmware-protected, we surface it in
-                    // one tap. Once per plug-in, self-expiring, silent.
-                    maybePostBypassReminder()
+                    // Bypass charging: with the accessibility service on,
+                    // the app pulls the control center and taps the user's
+                    // own bypass tile automatically (injected gestures, no
+                    // root); without it, the one-tap notification reminder
+                    // is the fallback.
+                    if (Prefs.bypassReminder(this)) {
+                        if (BypassAutomationService.isReady()) maybeRunBypassAutomation()
+                        else maybePostBypassReminder()
+                    }
                     // Plugged in with the screen dark: evaluateAndSync should
                     // have shown the clock; if the screen is still dark
                     // (an OEM that ignores FLAG_KEEP_SCREEN_ON) the
@@ -740,6 +760,16 @@ class OverlayService : Service(), SensorEventListener {
     /** Posts the one-tap bypass-charging reminder (respects the switch). */
     private fun maybePostBypassReminder() {
         if (Prefs.bypassReminder(this)) postBypassReminder(this)
+    }
+
+    /** Runs the tile choreography once the wake/clock has settled: our
+     *  hosts step aside, the gestures flip the user's bypass tile, then
+     *  the standby clock comes back. */
+    private fun maybeRunBypassAutomation() {
+        handler.postDelayed({
+            makeWayForBypass(this) // stop the WakeActivity host + latch
+            BypassAutomationService.runBypassSequence()
+        }, 1200L)
     }
 
     // ---------- "wake the screen" notification ----------

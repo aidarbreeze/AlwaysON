@@ -168,13 +168,16 @@
     <string name="notif_channel">Наложение StandBy</string>
     <string name="notif_wake_text">Включаю экран StandBy…</string>
     <string name="section_bypass">Обходная зарядка</string>
-    <string name="bypass_title">Напоминание об обходной зарядке</string>
-    <string name="bypass_summary">При подключении питания — уведомление одним нажатием открывает настройки батареи, где включается обходная зарядка. Сам переключатель из приложения включить нельзя: это защищённая функция прошивки.</string>
+    <string name="bypass_title">Автовключение обходной зарядки</string>
+    <string name="bypass_summary">При подключении питания AlwaysON сам развернёт шторку, нажмёт вашу плитку обходной зарядки и свернёт шторку. Один раз разрешите службу AlwaysON в специальных возможностях (кнопка «Включить сейчас» её откроет); пока она выключена — придёт уведомление-напоминание.</string>
     <string name="notif_bypass_channel">Обходная зарядка</string>
     <string name="notif_bypass_title">Обходная зарядка</string>
     <string name="notif_bypass_text">Питание подключено — нажмите, чтобы включить обходную зарядку в настройках батареи</string>
-    <string name="bypass_test_button">Показать напоминание сейчас</string>
     <string name="notif_bypass_denied">Уведомления запрещены для AlwaysON — разрешите их, чтобы видеть напоминание</string>
+    <string name="bypass_run_button">Включить сейчас</string>
+    <string name="bypass_toast_started">Открываю шторку и нажимаю плитку обходной зарядки…</string>
+    <string name="bypass_toast_not_ready">Сначала включите AlwaysON в специальных возможностях</string>
+    <string name="bypass_acc_description">Позволяет AlwaysON нажимать плитку обходной зарядки при подключении питания</string>
     <string name="notif_channel_wake">Пробуждение StandBy</string>
 
     <!-- Примечание -->

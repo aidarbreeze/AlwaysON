@@ -27,6 +27,7 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.aidarbreeze.alwayson.media.NowPlayingListenerService
+import com.aidarbreeze.alwayson.service.BypassAutomationService
 import com.aidarbreeze.alwayson.service.OverlayService
 import com.aidarbreeze.alwayson.stock.Candle
 import com.aidarbreeze.alwayson.stock.StockApi
@@ -418,13 +419,23 @@ class MainActivity : Activity() {
         bypassSwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.setBypassReminder(this, checked)
         }
-        // "Show the reminder now": verify the one-tap flow (notification ->
-        // vendor battery settings) without waiting for the next plug-in.
+        // "Run now": performs the full choreography immediately (also the
+        // setup entry point — without the accessibility service it opens
+        // the accessibility settings instead).
         findViewById<Button>(R.id.btnBypassTest).setOnClickListener {
-            if (!OverlayService.postBypassReminder(this)) {
+            if (!BypassAutomationService.isReady()) {
                 Toast.makeText(
-                    this, getString(R.string.notif_bypass_denied), Toast.LENGTH_LONG
+                    this, getString(R.string.bypass_toast_not_ready), Toast.LENGTH_LONG
                 ).show()
+                try {
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                } catch (_: Exception) {
+                }
+            } else {
+                Toast.makeText(
+                    this, getString(R.string.bypass_toast_started), Toast.LENGTH_SHORT
+                ).show()
+                BypassAutomationService.runBypassSequence()
             }
         }
         // The spinner index maps to the "макс." row count (3/5/7/10).
