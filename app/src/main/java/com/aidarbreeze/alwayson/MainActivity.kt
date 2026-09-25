@@ -578,7 +578,7 @@ class MainActivity : Activity() {
         btnRefreshData.setOnClickListener {
             // Force a fresh weather + chart fetch for the preview. The overlay
             // and the widget pick up the shared cache on their next update.
-            // force=true also bypasses StockApi's 60 s limiter, which would
+            // force=true also bypasses StockApi's rate limiter, which would
             // otherwise silently serve the old candles to the button.
             fetchMiniWeather(force = true)
             miniStockAttempt.clear()

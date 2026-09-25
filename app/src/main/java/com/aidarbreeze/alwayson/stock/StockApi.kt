@@ -46,10 +46,19 @@ object StockApi {
     private const val TZ = "Europe/Moscow"
     
     // Rate limiting: minimum interval between stock API calls for the SAME
-    // ticker+interval (1 minute). Per-key: the old single global timestamp
-    // blocked every OTHER ticker/interval for a minute, so a rotation with
-    // several windows showed "no data" for all but the first one.
-    private const val RATE_LIMIT_MS = 60L * 1000L
+    // ticker+interval. Per-key: the old single global timestamp blocked every
+    // OTHER ticker/interval for a minute, so a rotation with several windows
+    // showed "no data" for all but the first one.
+    //
+    // 55 s, NOT 60: the consumers (overlay controller + settings preview)
+    // refresh their charts every 60 s FROM THEIR OWN attempt stamp, while the
+    // limiter stamps at REQUEST start (on success). The constant network
+    // latency (~0.3-0.8 s) therefore kept every per-minute attempt inside the
+    // old 60 s window (59.x s < 60 s) and the charts froze after their first
+    // load. A 5 s margin guarantees a scheduled per-minute refresh always
+    // performs a real fetch — for EVERY candle interval (1/10/60 min) — while
+    // parallel consumers within the same minute still share one request.
+    private const val RATE_LIMIT_MS = 55L * 1000L
     private val lastFetchByKey = HashMap<String, Long>()
     // The last SUCCESSFUL result per key. The limiter is process-global while
     // every StandbyController / mini-preview keeps its own cache: a freshly
