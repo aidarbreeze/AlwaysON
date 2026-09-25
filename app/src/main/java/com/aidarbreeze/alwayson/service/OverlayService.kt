@@ -74,6 +74,9 @@ class OverlayService : Service(), SensorEventListener {
         const val RELIGHT_CHECK_MS = 3_000L
         // Period of the "is the clock supposed to be up right now?" re-check.
         const val WAKE_GUARD_PERIOD_MS = 60_000L
+        // How long our own relight counts as "no user activity" (see
+        // relightGraceUntil).
+        const val RELIGHT_GRACE_MS = 15_000L
         const val WAKE_MAX_ATTEMPTS = 3
 
         fun requestReevaluate(context: Context) {
@@ -120,6 +123,13 @@ class OverlayService : Service(), SensorEventListener {
     // added: FLAG_KEEP_SCREEN_ON only KEEPS an already-lit screen on, it
     // never wakes one (see showOverlay).
     private var screenWake: PowerManager.WakeLock? = null
+    // Until this moment the "screen on + keyguard NOT locked" state must not
+    // be read as active use: after OUR OWN relight nobody touched the phone,
+    // yet without the grace the SCREEN_ON evaluation removed the clock at
+    // once, the screen timed out, SCREEN_OFF re-added it, and the display
+    // looped dark/lit forever (observed on MIUI). A REAL user still exits
+    // immediately (tap on the clock / USER_PRESENT).
+    private var relightGraceUntil = 0L
     // Bounded retries: if the OEM ignores the notification (screen never
     // comes on), do not flash a new one forever — three attempts per
     // charge/session, then wait for a real event (plug, boot, screen).
@@ -513,8 +523,15 @@ class OverlayService : Service(), SensorEventListener {
         ) {
             showOverlay()
             cancelWake()
-        } else {
+        } else if (System.currentTimeMillis() >= relightGraceUntil) {
             removeOverlay()
+            cancelWake()
+        } else {
+            // Relight grace: the screen was lit by US seconds ago — an
+            // unlocked interactive device on the charger is the phone resting,
+            // not in use. Keep/show the clock; the next evaluation (per-minute
+            // tick) acts normally once the grace ends.
+            showOverlay()
             cancelWake()
         }
     }
@@ -667,6 +684,7 @@ class OverlayService : Service(), SensorEventListener {
         // it on at once; after the 10 s safety timeout the overlay's own
         // FLAG_KEEP_SCREEN_ON keeps it lit for as long as the clock shows.
         if (!isScreenInteractive()) {
+            relightGraceUntil = System.currentTimeMillis() + RELIGHT_GRACE_MS
             try {
                 @Suppress("DEPRECATION")
                 val wl = (getSystemService(POWER_SERVICE) as? PowerManager)
