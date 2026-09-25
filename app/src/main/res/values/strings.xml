@@ -173,6 +173,8 @@
     <string name="notif_bypass_channel">Bypass charging</string>
     <string name="notif_bypass_title">Bypass charging</string>
     <string name="notif_bypass_text">Power connected — tap to enable bypass charging in battery settings</string>
+    <string name="bypass_test_button">Show the reminder now</string>
+    <string name="notif_bypass_denied">Notifications are disabled for AlwaysON — allow them to see the reminder</string>
     <string name="notif_channel_wake">StandBy wake-up</string>
 
     <!-- Note -->

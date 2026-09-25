@@ -67,6 +67,64 @@ class OverlayService : Service(), SensorEventListener {
         const val CHANNEL_WAKE = "alwayson_wake"
         const val NOTIF_ID_BYPASS = 1003
         const val CHANNEL_BYPASS = "alwayson_bypass"
+
+        /** Posts the bypass reminder. Used on POWER_CONNECTED and from the
+         *  settings "show now" button (the service is not necessarily
+         *  running there). Returns false when notifications are not
+         *  allowed, so the caller can explain. */
+        fun postBypassReminder(context: Context): Boolean {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return false
+            val target = bypassChargingIntent(context) ?: return false
+            if (nm.getNotificationChannel(CHANNEL_BYPASS) == null) {
+                nm.createNotificationChannel(
+                    NotificationChannel(
+                        CHANNEL_BYPASS,
+                        context.getString(R.string.notif_bypass_channel),
+                        NotificationManager.IMPORTANCE_LOW // silent, no heads-up
+                    )
+                )
+            }
+            val pi = PendingIntent.getActivity(
+                context, 4, target,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val notif = Notification.Builder(context, CHANNEL_BYPASS)
+                .setSmallIcon(R.drawable.ic_stat_standby)
+                .setContentTitle(context.getString(R.string.notif_bypass_title))
+                .setContentText(context.getString(R.string.notif_bypass_text))
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .setCategory(Notification.CATEGORY_RECOMMENDATION)
+                .setTimeoutAfter(5 * 60_000L)
+                .build()
+            return try {
+                nm.notify(NOTIF_ID_BYPASS, notif)
+                true
+            } catch (_: SecurityException) {
+                // POST_NOTIFICATIONS denied: the reminder is simply skipped.
+                false
+            }
+        }
+
+        /** Best-effort jump to where the vendor's bypass-charging switch
+         *  lives: the OPPO/OnePlus/realme battery app when present (declared
+         *  in the manifest <queries>), else the system battery screen. Null
+         *  when neither resolves. */
+        private fun bypassChargingIntent(context: Context): Intent? {
+            for (pkg in listOf("com.oplus.battery", "com.oneplus.battery", "com.oppo.battery")) {
+                try {
+                    val i = context.packageManager.getLaunchIntentForPackage(pkg)
+                    if (i != null) return i
+                } catch (_: Exception) {
+                }
+            }
+            return try {
+                Intent(Intent.ACTION_POWER_USAGE_SUMMARY)
+            } catch (_: Exception) {
+                null
+            }
+        }
         // If the OEM ignores the wake notification, do not leave it in the
         // shade forever.
         const val WAKE_TIMEOUT_MS = 20_000L
@@ -681,56 +739,7 @@ class OverlayService : Service(), SensorEventListener {
 
     /** Posts the one-tap bypass-charging reminder (respects the switch). */
     private fun maybePostBypassReminder() {
-        if (!Prefs.bypassReminder(this)) return
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            ?: return
-        val target = bypassChargingIntent() ?: return
-        if (nm.getNotificationChannel(CHANNEL_BYPASS) == null) {
-            nm.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_BYPASS,
-                    getString(R.string.notif_bypass_channel),
-                    NotificationManager.IMPORTANCE_LOW // silent, no heads-up
-                )
-            )
-        }
-        val pi = PendingIntent.getActivity(
-            this, 4, target,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val notif = Notification.Builder(this, CHANNEL_BYPASS)
-            .setSmallIcon(R.drawable.ic_stat_standby)
-            .setContentTitle(getString(R.string.notif_bypass_title))
-            .setContentText(getString(R.string.notif_bypass_text))
-            .setContentIntent(pi)
-            .setAutoCancel(true)
-            .setCategory(Notification.CATEGORY_RECOMMENDATION)
-            .setTimeoutAfter(5 * 60_000L)
-            .build()
-        try {
-            nm.notify(NOTIF_ID_BYPASS, notif)
-        } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS denied: the reminder is simply skipped.
-        }
-    }
-
-    /** Best-effort jump to where the vendor's bypass-charging switch lives:
-     *  the OPPO/OnePlus/realme battery app when present (declared in the
-     *  manifest <queries>), else the system battery screen. Null when
-     *  neither resolves. */
-    private fun bypassChargingIntent(): Intent? {
-        for (pkg in listOf("com.oplus.battery", "com.oneplus.battery", "com.oppo.battery")) {
-            try {
-                val i = packageManager.getLaunchIntentForPackage(pkg)
-                if (i != null) return i
-            } catch (_: Exception) {
-            }
-        }
-        return try {
-            Intent(Intent.ACTION_POWER_USAGE_SUMMARY)
-        } catch (_: Exception) {
-            null
-        }
+        if (Prefs.bypassReminder(this)) postBypassReminder(this)
     }
 
     // ---------- "wake the screen" notification ----------

@@ -447,6 +447,17 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <Button
+                android:id="@+id/btnBypassTest"
+                style="@style/ActionButton"
+                android:text="@string/bypass_test_button" />
         </LinearLayout>
 
         <!-- ================= Messenger notifications page ================= -->

@@ -418,6 +418,15 @@ class MainActivity : Activity() {
         bypassSwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.setBypassReminder(this, checked)
         }
+        // "Show the reminder now": verify the one-tap flow (notification ->
+        // vendor battery settings) without waiting for the next plug-in.
+        findViewById<Button>(R.id.btnBypassTest).setOnClickListener {
+            if (!OverlayService.postBypassReminder(this)) {
+                Toast.makeText(
+                    this, getString(R.string.notif_bypass_denied), Toast.LENGTH_LONG
+                ).show()
+            }
+        }
         // The spinner index maps to the "макс." row count (3/5/7/10).
         val notifMaxValues = intArrayOf(3, 5, 7, 10)
         bindIntSpinner(

@@ -173,6 +173,8 @@
     <string name="notif_bypass_channel">Обходная зарядка</string>
     <string name="notif_bypass_title">Обходная зарядка</string>
     <string name="notif_bypass_text">Питание подключено — нажмите, чтобы включить обходную зарядку в настройках батареи</string>
+    <string name="bypass_test_button">Показать напоминание сейчас</string>
+    <string name="notif_bypass_denied">Уведомления запрещены для AlwaysON — разрешите их, чтобы видеть напоминание</string>
     <string name="notif_channel_wake">Пробуждение StandBy</string>
 
     <!-- Примечание -->
