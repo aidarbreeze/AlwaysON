@@ -8,7 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
-import com.aidarbreeze.alwayson.StandbyUiState
+import com.aidarbreeze.alwayson.ui.StandbyUiState
 
 /**
  * Performs the user-specified choreography that flips their own
