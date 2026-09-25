@@ -293,10 +293,17 @@ class StandbyController(context: Context, private val root: View) {
         override fun run() {
             driftTick++
             val t = driftTick.toDouble()
-            // ~7px wander in X, ~5px in Y, plus a small secondary term so the
-            // path is a drifting figure-eight rather than a simple back-and-forth.
-            val x = (7.0 * Math.sin(t * 0.71) + 3.0 * Math.sin(t * 0.17)).toInt().toFloat()
-            val y = (5.0 * Math.sin(t * 0.47) + 3.0 * Math.cos(t * 0.23)).toInt().toFloat()
+            // ~7dp wander in X, ~5dp in Y, plus a small secondary term so the
+            // path is a drifting figure-eight rather than a simple
+            // back-and-forth. The amplitudes are DENSITY-SCALED: raw pixels
+            // shrank the physical shift to ~3dp on modern 440+ dpi panels
+            // (and inflated it on old low-dpi ones), so the wear-spreading
+            // area was inconsistent across devices.
+            val d = appContext.resources.displayMetrics.density
+            val x = ((7.0 * Math.sin(t * 0.71) + 3.0 * Math.sin(t * 0.17)) * d)
+                .toInt().toFloat()
+            val y = ((5.0 * Math.sin(t * 0.47) + 3.0 * Math.cos(t * 0.23)) * d)
+                .toInt().toFloat()
             content.translationX = x
             content.translationY = y
             handler.postDelayed(this, 60_000) // shift content every minute
