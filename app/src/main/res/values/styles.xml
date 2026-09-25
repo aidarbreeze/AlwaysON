@@ -73,14 +73,15 @@
 
     <!-- Fully transparent, used only by the invisible WakeActivity. -->
     <style name="WakeTheme" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowContentOverlay">@null</item>
+        <!-- OPAQUE pure black: the system's starting window is black too,
+             so the launch shows black from the first frame instead of
+             flashing the keyguard through a transparent window. -->
+        <item name="android:windowBackground">@color/aod_background</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
         <item name="android:backgroundDimEnabled">false</item>
-        <!-- No starting-preview flash and no open/close animation: both
-             would blink the keyguard when the screen is relit. -->
-        <item name="android:windowDisablePreview">true</item>
+        <!-- Open/close animations would blink the keyguard during the
+             transition; the clock simply appears. -->
         <item name="android:windowAnimationStyle">@null</item>
     </style>
 </resources>

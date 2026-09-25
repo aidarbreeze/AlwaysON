@@ -80,6 +80,11 @@ class OverlayService : Service(), SensorEventListener {
         // How long a dismissed host stays dismissed: a tap on the clock must
         // not be undone by the very next evaluation.
         const val HOST_DISMISS_LATCH_MS = 60_000L
+        // Bursts of evaluations (SCREEN_ON from our own relight, the
+        // per-minute tick, sensor re-checks) must not launch a second host
+        // while the first startActivity is still in flight (before the host's
+        // onResume sets hostActive=true) — that raced as a visible flash.
+        const val HOST_LAUNCH_THROTTLE_MS = 1_500L
         // The service asks a running WakeActivity host to finish (feature
         // off, or active use on a keyguard-less device where no USER_PRESENT
         // will ever arrive).
@@ -140,6 +145,8 @@ class OverlayService : Service(), SensorEventListener {
     // added: FLAG_KEEP_SCREEN_ON only KEEPS an already-lit screen on, it
     // never wakes one (see showOverlay).
     private var screenWake: PowerManager.WakeLock? = null
+    // When the host activity was last requested (see HOST_LAUNCH_THROTTLE_MS).
+    private var hostLaunchAt = 0L
     // Until this moment the "screen on + keyguard NOT locked" state must not
     // be read as active use: after OUR OWN relight nobody touched the phone,
     // yet without the grace the SCREEN_ON evaluation removed the clock at
@@ -567,14 +574,24 @@ class OverlayService : Service(), SensorEventListener {
     private fun hostInActivity(needWake: Boolean) {
         if (System.currentTimeMillis() < hostDismissedUntil) return
         if (needWake) wakeDisplay()
+        // The host supersedes the one-shot wake notification (it cancels it
+        // again in onCreate); without this the full-screen intent could race
+        // the direct launch and double-flash the screen.
+        cancelWake()
         removeOverlay()
         if (hostActive) return // the host is already up
+        val now = System.currentTimeMillis()
+        if (now - hostLaunchAt < HOST_LAUNCH_THROTTLE_MS) return
+        hostLaunchAt = now
         try {
             startActivity(
                 Intent(this, com.aidarbreeze.alwayson.WakeActivity::class.java)
                     .addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                            // No task-open transition: the clock must simply
+                            // BE there (over the keyguard), not fly in.
+                            Intent.FLAG_ACTIVITY_NO_ANIMATION
                     )
             )
         } catch (_: Exception) {

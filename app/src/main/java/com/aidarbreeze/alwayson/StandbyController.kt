@@ -382,18 +382,32 @@ class StandbyController(context: Context, private val root: View) {
     private fun enter() {
         aodBg.alpha = 1f
         entranceAlpha = 0f
+        content.scaleX = 0.992f
+        content.scaleY = 0.992f
         refreshContentAlpha()
         transitionGen++
         val gen = transitionGen
         val start = System.currentTimeMillis()
+        // ~450 ms ease-out reveal: quick enough to feel instant, slow enough
+        // to read as a deliberate fade (plus a 0.8% settle-in scale; the gap
+        // it opens at the edges is black over the black root - invisible).
         val frame = object : Runnable {
             override fun run() {
                 if (gen != transitionGen) return
-                val t = ((System.currentTimeMillis() - start).toDouble() / 200.0)
+                val t = ((System.currentTimeMillis() - start).toDouble() / 450.0)
                     .coerceIn(0.0, 1.0)
-                entranceAlpha = t.toFloat()
+                val e = 1.0 - (1.0 - t) * (1.0 - t)
+                entranceAlpha = e.toFloat()
+                val sc = (0.992 + 0.008 * e).toFloat()
+                content.scaleX = sc
+                content.scaleY = sc
                 refreshContentAlpha()
-                if (t < 1.0) handler.postDelayed(this, 16)
+                if (t < 1.0) {
+                    handler.postDelayed(this, 16)
+                } else {
+                    content.scaleX = 1f
+                    content.scaleY = 1f
+                }
             }
         }
         handler.postDelayed(frame, 16)
@@ -417,6 +431,8 @@ class StandbyController(context: Context, private val root: View) {
         // Clean entry state: the next start() animates from scratch.
         aodBg.alpha = 1f
         entranceAlpha = 1f
+        content.scaleX = 1f
+        content.scaleY = 1f
         monthView.alpha = 1f
         stockView.alpha = 1f
         weatherView.alpha = 1f
