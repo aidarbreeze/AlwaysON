@@ -1186,6 +1186,21 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
+
+        <!-- Tab preview -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_card">
+
+            <com.aidarbreeze.alwayson.view.MonthCalendarView
+                android:id="@+id/tabCalendarPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
         <!-- ================= Calendar ================= -->
         <TextView
             style="@style/SettingHeader"
@@ -1301,6 +1316,21 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
+
+        <!-- Tab preview -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_card">
+
+            <com.aidarbreeze.alwayson.view.StockChartView
+                android:id="@+id/tabStocksPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
         <!-- ================= Stocks ================= -->
         <TextView
             style="@style/SettingHeader"
@@ -1506,6 +1536,21 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
+
+        <!-- Tab preview -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_card">
+
+            <com.aidarbreeze.alwayson.view.WeatherPanelView
+                android:id="@+id/tabWeatherPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
         <!-- ================= Weather ================= -->
         <TextView
             style="@style/SettingHeader"

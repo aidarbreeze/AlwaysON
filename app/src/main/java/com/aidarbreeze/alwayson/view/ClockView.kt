@@ -77,11 +77,10 @@ import kotlin.math.sqrt
  *                  solar horizon, orbits, day perimeter, outline type,
  *                  dayline (light/dark), neumorph (light), card deck,
     *                  odometer drums.
-    *  41..47       : the rest of the concept sheet - mic-reactive atom,
-    *                  real orrery (JPL elements), liquid glass, gradient
-    *                  mesh, frosted panel, Swiss railway dial (the seconds
-    *                  hand pauses at 12 at the end of each minute) and a
-    *                  Braun-style functional dial.
+    *  41..47       : more concepts - real orrery (JPL elements),
+    *                  gradient mesh, frosted panel, Swiss railway dial (the
+    *                  seconds hand pauses at 12 at the end of each minute)
+    *                  and a Braun-style functional dial.
  *  25 - WORD    : minimalist word-clock phrase (e.g. "TEN THIRTY TWO").
  *  26 - BINARY  : HH:MM:SS binary clock in six LED columns.
  *  27 - POLAR   : concentric progress-ring (Polar Clock) face.
@@ -227,7 +226,7 @@ class ClockView @JvmOverloads constructor(
          *  rotation picker and the thumbnails simply never offer them. */
         val REMOVED_STYLES = setOf(
             3, 6, 7, 10, 11, 12, 14, 17, 18, 20, 23, 25,
-            28, 33, 34, 36, 38, 44, 45
+            28, 33, 34, 36, 38, 41, 43, 44, 45
         )
 
         /** The faces actually offered, in id order. */
@@ -320,10 +319,6 @@ class ClockView @JvmOverloads constructor(
         // when the text itself hides them, so they redraw on every tick —
         // the 1-second ticker calls setTime() regardless.
         val s = style() // single prefs read (the style was queried twice)
-        // The mic-reactive face (41) is the only consumer of the microphone;
-        // thumbnails pass a styleOverride and never touch it.
-        if (s == STYLE_ATOMIC && styleOverride == null) MicLevel.start(context)
-        else MicLevel.stop()
         val live = s == 16 || s == 18 || s == STYLE_PONG || s == STYLE_BINARY ||
             s == STYLE_POLAR || s == STYLE_DRIFT || s == STYLE_GLITCH ||
             s == STYLE_MATRIX_RAIN || s == STYLE_ORBIT || s == STYLE_PERIMETER ||
@@ -346,7 +341,6 @@ class ClockView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        MicLevel.stop()
         neonBmp?.recycle()
         neonBmp = null
         neonKey = ""
@@ -560,9 +554,7 @@ class ClockView @JvmOverloads constructor(
         STYLE_NEUMO -> min(availW * 0.45f, capPx * 1.40f).coerceAtLeast(dp(104f))
         STYLE_DECK -> min(availW * 0.50f, capPx * 1.50f).coerceAtLeast(dp(120f))
         STYLE_ODO -> min(availW * 0.42f, capPx * 1.40f).coerceAtLeast(dp(96f))
-        STYLE_ATOMIC -> min(availW * 0.90f, capPx * 1.70f).coerceAtLeast(dp(150f))
         STYLE_ORRERY -> min(availW * 0.95f, capPx * 1.80f).coerceAtLeast(dp(150f))
-        STYLE_GLASS -> min(availW * 0.60f, capPx * 1.60f).coerceAtLeast(dp(120f))
         STYLE_MESH -> min(availW * 0.60f, capPx * 1.60f).coerceAtLeast(dp(120f))
         STYLE_FROST -> min(availW * 0.55f, capPx * 1.50f).coerceAtLeast(dp(110f))
         STYLE_RAILWAY -> min(availW * 0.92f, capPx * 1.75f).coerceAtLeast(dp(150f))
@@ -712,9 +704,7 @@ class ClockView @JvmOverloads constructor(
             STYLE_NEUMO -> drawNeumo(canvas, w, h)
             STYLE_DECK -> drawDeck(canvas, w, h)
             STYLE_ODO -> drawOdometer(canvas, w, h)
-            STYLE_ATOMIC -> drawAtomicLab(canvas, w, h)
             STYLE_ORRERY -> drawRealOrrery(canvas, w, h)
-            STYLE_GLASS -> drawLiquidGlass(canvas, w, h)
             STYLE_MESH -> drawGradientMesh(canvas, w, h)
             STYLE_FROST -> drawFrosted(canvas, w, h)
             STYLE_RAILWAY -> drawRailway(canvas, w, h)
@@ -2240,9 +2230,6 @@ class ClockView @JvmOverloads constructor(
     private val ruTens = arrayOf("", "ДЕСЯТЬ", "ДВАДЦАТЬ", "ТРИДЦАТЬ", "СОРОК", "ПЯТЬДЕСЯТ")
     private val ruHourNom = arrayOf("ДВЕНАДЦАТЬ", "ЧАС", "ДВА", "ТРИ", "ЧЕТЫРЕ", "ПЯТЬ", "ШЕСТЬ", "СЕМЬ", "ВОСЕМЬ", "ДЕВЯТЬ", "ДЕСЯТЬ", "ОДИННАДЦАТЬ", "ДВЕНАДЦАТЬ")
     private val ruHourGen = arrayOf("ДВЕНАДЦАТОГО", "ПЕРВОГО", "ВТОРОГО", "ТРЕТЬЕГО", "ЧЕТВЁРТОГО", "ПЯТОГО", "ШЕСТОГО", "СЕДЬМОГО", "ВОСЬМОГО", "ДЕВЯТОГО", "ДЕСЯТОГО", "ОДИННАДЦАТОГО", "ДВЕНАДЦАТОГО")
-    private val ruWeek = arrayOf("ВОСКРЕСЕНЬЕ", "ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА")
-    private val ruMonthGen = arrayOf("ЯНВАРЯ", "ФЕВРАЛЯ", "МАРТА", "АПРЕЛЯ", "МАЯ", "ИЮНЯ", "ИЮЛЯ", "АВГУСТА", "СЕНТЯБРЯ", "ОКТЯБРЯ", "НОЯБРЯ", "ДЕКАБРЯ")
-    private val ruDayOrd = arrayOf("ПЕРВОГО", "ВТОРОГО", "ТРЕТЬЕГО", "ЧЕТВЁРТОГО", "ПЯТОГО", "ШЕСТОГО", "СЕДЬМОГО", "ВОСЬМОГО", "ДЕВЯТОГО", "ДЕСЯТОГО", "ОДИННАДЦАТОГО", "ДВЕНАДЦАТОГО", "ТРИНАДЦАТОГО", "ЧЕТЫРНАДЦАТОГО", "ПЯТНАДЦАТОГО", "ШЕСТНАДЦАТОГО", "СЕМНАДЦАТОГО", "ВОСЕМНАДЦАТОГО", "ДЕВЯТНАДЦАТОГО", "ДВАДЦАТОГО", "ДВАДЦАТЬ ПЕРВОГО", "ДВАДЦАТЬ ВТОРОГО", "ДВАДЦАТЬ ТРЕТЬЕГО", "ДВАДЦАТЬ ЧЕТВЁРТОГО", "ДВАДЦАТЬ ПЯТОГО", "ДВАДЦАТЬ ШЕСТОГО", "ДВАДЦАТЬ СЕДЬМОГО", "ДВАДЦАТЬ ВОСЬМОГО", "ДВАДЦАТЬ ДЕВЯТОГО", "ТРИДЦАТОГО", "ТРИДЦАТЬ ПЕРВОГО")
     private val ruGenOnes = arrayOf("", "ОДНОЙ", "ДВУХ", "ТРЁХ", "ЧЕТЫРЁХ", "ПЯТИ", "ШЕСТИ", "СЕМИ", "ВОСЬМИ", "ДЕВЯТИ")
     private val ruGenTeens = arrayOf("ДЕСЯТИ", "ОДИННАДЦАТИ", "ДВЕНАДЦАТИ", "ТРИНАДЦАТИ", "ЧЕТЫРНАДЦАТИ", "ПЯТНАДЦАТИ", "ШЕСТНАДЦАТИ", "СЕМНАДЦАТИ", "ВОСЕМНАДЦАТИ", "ДЕВЯТНАДЦАТИ")
     private val ruGenTens = arrayOf("", "", "ДВАДЦАТИ", "ТРИДЦАТИ", "СОРОКА", "ПЯТИДЕСЯТИ")
@@ -2299,9 +2286,6 @@ class ClockView @JvmOverloads constructor(
     private fun drawWordRu(canvas: Canvas, w: Float, h: Float) {
         val (h24, m, _) = wallTime()
         val (a, b) = ruWordTime(h24, m)
-        val cal = Calendar.getInstance()
-        val dateLine = "СЕГОДНЯ " + ruWeek[cal.get(Calendar.DAY_OF_WEEK) - 1] + ", " +
-            ruDayOrd[cal.get(Calendar.DAY_OF_MONTH) - 1] + " " + ruMonthGen[cal.get(Calendar.MONTH)]
         val main = ink()
 
         paint.reset()
@@ -2319,10 +2303,6 @@ class ClockView @JvmOverloads constructor(
         drawCenteredAt(canvas, a, w / 2f, centerY - lineStep / 2f, paint)
         paint.color = dimmed(main, 0.80f)
         drawCenteredAt(canvas, b, w / 2f, centerY + lineStep / 2f, paint)
-        paint.typeface = Typeface.MONOSPACE
-        paint.textSize = min(h * 0.05f, w * 0.038f)
-        paint.color = dimmed(main, 0.55f)
-        drawCenteredAt(canvas, dateLine, w / 2f, h - h * 0.06f, paint)
     }
 
     // ---- 32: moon phase (Meeus phase angle) ----
@@ -2417,11 +2397,7 @@ class ClockView @JvmOverloads constructor(
         drawCenteredAt(canvas, mi.name, tx, h * 0.45f, paint)
         drawCenteredAt(canvas, "освещено " + (mi.illum * 100).toInt() + "%", tx, h * 0.54f, paint)
         drawCenteredAt(canvas, "возраст " + String.format(Locale.US, "%.1f", mi.ageDays) + " сут", tx, h * 0.63f, paint)
-        drawCenteredAt(canvas, dateShortLine(), tx, h * 0.76f, paint)
     }
-
-    private fun dateShortLine(): String =
-        SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(Date())
 
     // ---- 33: solar horizon (NOAA-style approximation) ----
 
@@ -2526,7 +2502,6 @@ class ClockView @JvmOverloads constructor(
         paint.color = dimmed(inkColor, 0.9f)
         canvas.drawText(String.format(Locale.US, "ALT %+.1f\u00b0  AZ %.0f\u00b0", alt, az), dp(10f), topY + h * 0.16f, paint)
         paint.textAlign = Paint.Align.RIGHT
-        canvas.drawText(dateShortLine(), w - dp(10f), h - dp(8f), paint)
     }
 
     // ---- 34: orbits ----
@@ -2601,7 +2576,6 @@ class ClockView @JvmOverloads constructor(
         paint.textSize = min(h * 0.06f, w * 0.045f)
         paint.color = dimmed(main, 0.7f)
         drawCenteredAt(canvas, (prog * 100).toInt().toString() + "% суток", w / 2f, h * 0.62f, paint)
-        drawCenteredAt(canvas, dateShortLine(), w / 2f, h * 0.72f, paint)
     }
 
     // ---- 36: outline type + filled seconds ----
@@ -2624,7 +2598,6 @@ class ClockView @JvmOverloads constructor(
         drawCenteredAt(canvas, "%02d".format(s), w * 0.78f, h * 0.78f, paint)
         paint.textSize = min(h * 0.05f, w * 0.04f)
         paint.color = dimmed(main, 0.65f)
-        drawCenteredAt(canvas, dateShortLine(), w * 0.75f, h * 0.88f, paint)
     }
 
     // ---- 37: dayline - light top / dark bottom ----
@@ -2655,7 +2628,6 @@ class ClockView @JvmOverloads constructor(
         canvas.restore()
         paint.textSize = ts * 0.22f
         paint.color = 0xB315191D.toInt()
-        drawCenteredAt(canvas, dateShortLine(), w * 0.72f, h * 0.14f, paint)
     }
 
     // ---- 38: neumorphism (a light face - carries into the screensaver) ----
@@ -2683,7 +2655,6 @@ class ClockView @JvmOverloads constructor(
         paint.textAlign = Paint.Align.CENTER
         paint.textSize = min(h * 0.055f, w * 0.045f)
         paint.color = 0xFF8A94A0.toInt()
-        drawCenteredAt(canvas, dateShortLine(), w / 2f, t + h * 0.13f, paint)
         paint.textSize = min(h * 0.20f, w * 0.13f)
         paint.color = 0xFF2B333B.toInt()
         drawCenteredAt(canvas, hourMinuteText(), w / 2f, h * 0.40f, paint)
@@ -2797,72 +2768,6 @@ class ClockView @JvmOverloads constructor(
 
     // ---------- styles 41-47: the rest of the concept sheet ----------
 
-    // ---- 41: atomic lab; the orbit lines wobble with real mic sound ----
-
-    private fun drawAtomicLab(canvas: Canvas, w: Float, h: Float) {
-        MicLevel.poll()
-        val level = MicLevel.level
-        val phase = SystemClock.uptimeMillis() / 900f
-        val cx = w / 2f
-        val cy = h * 0.44f
-        val base = min(w, h) * 0.33f
-        val wave = MicLevel.wave
-        val colors = intArrayOf(0xFF65E8FF.toInt(), 0xFFFF5DA2.toInt(), 0xFF9AF2FF.toInt())
-        val paths = Array(3) { Path() }
-        val n = 48
-        for (o in 0 until 3) {
-            val rot = o * (PI.toFloat() / 3f) + phase * 0.02f * (o + 1)
-            val a = base * (1f + o * 0.04f)
-            val b = base * 0.64f * (1f + o * 0.04f)
-            val pt = Path()
-            for (i in 0..n) {
-                val t = i / n.toFloat() * 2f * PI.toFloat()
-                var k = 1f + 0.022f * sin(t * 3f + phase + o) +
-                    0.016f * sin(t * 5f - phase * 1.3f + o)
-                if (level > 0.01f) {
-                    val s = wave[(i * wave.size / (n + 1)) % wave.size]
-                    k += s * (0.14f + 0.6f * level)
-                }
-                val x0 = cos(t) * a * k
-                val y0 = sin(t) * b * k
-                val x = cx + x0 * cos(rot) - y0 * sin(rot)
-                val y = cy + x0 * sin(rot) + y0 * cos(rot)
-                if (i == 0) pt.moveTo(x, y) else pt.lineTo(x, y)
-            }
-            pt.close()
-            paths[o] = pt
-        }
-        for (o in 0 until 3) {
-            strokePaint.color = colors[o]
-            strokePaint.strokeWidth = dp(1.3f)
-            canvas.drawPath(paths[o], strokePaint)
-        }
-        if (level > 0.01f) {
-            fillPaint.shader = RadialGradient(
-                cx, cy, dp(18f) + dp(40f) * level,
-                0x889FF0FF.toInt(), 0x00000000, Shader.TileMode.CLAMP
-            )
-            canvas.drawCircle(cx, cy, dp(18f) + dp(40f) * level, fillPaint)
-            fillPaint.shader = null
-        }
-        fillPaint.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(cx, cy, dp(3.2f), fillPaint)
-
-        paint.reset()
-        paint.isAntiAlias = true
-        paint.typeface = tfSans
-        paint.textAlign = Paint.Align.LEFT
-        paint.textSize = min(h * 0.11f, w * 0.085f)
-        paint.color = ink()
-        canvas.drawText(hourMinuteText(), dp(10f), h - dp(12f), paint)
-        paint.typeface = Typeface.MONOSPACE
-        paint.textSize = min(h * 0.04f, w * 0.032f)
-        paint.color = dimmed(ink(), 0.7f)
-        canvas.drawText(dateShortLine(), dp(10f), h - dp(12f) - h * 0.12f, paint)
-
-        postInvalidateDelayed(50L)
-    }
-
     // ---- 42: real orrery; heliocentric longitudes from JPL elements ----
 
     private class PlanetEl(
@@ -2957,7 +2862,7 @@ class ClockView @JvmOverloads constructor(
         canvas.drawText("долготы JPL", w - dp(10f), h - dp(8f), paint)
     }
 
-    // ---- 43: liquid glass; slow flowing gradient under a frosted lens ----
+    // ---- shared: soft radial blob (gradient mesh / frosted) ----
 
     private fun drawBlob(
         canvas: Canvas, w: Float, h: Float,
@@ -2966,46 +2871,6 @@ class ClockView @JvmOverloads constructor(
         fillPaint.shader = RadialGradient(cx, cy, rad, color, 0x00000000, Shader.TileMode.CLAMP)
         canvas.drawCircle(cx, cy, rad, fillPaint)
         fillPaint.shader = null
-    }
-
-    private fun drawLiquidGlass(canvas: Canvas, w: Float, h: Float) {
-        val t = SystemClock.uptimeMillis() / 1000f
-        fillPaint.shader = LinearGradient(
-            0f, 0f, w, h,
-            0xFF061119.toInt(), 0xFF3A1147.toInt(), Shader.TileMode.CLAMP
-        )
-        canvas.drawRect(0f, 0f, w, h, fillPaint)
-        fillPaint.shader = null
-        drawBlob(canvas, w, h, w * (0.15f + 0.12f * sin(t * 0.21f)), h * (0.25f + 0.10f * cos(t * 0.17f)), w * 0.55f, 0xAA43E6CF.toInt())
-        drawBlob(canvas, w, h, w * (0.85f + 0.10f * cos(t * 0.15f)), h * (0.30f + 0.14f * sin(t * 0.19f)), w * 0.55f, 0xAA7357FF.toInt())
-        drawBlob(canvas, w, h, w * (0.55f + 0.15f * sin(t * 0.13f + 2f)), h * (0.88f + 0.08f * cos(t * 0.16f)), w * 0.60f, 0x99FF6DBE.toInt())
-
-        val pl = w * 0.11f
-        val pt = h * 0.18f
-        val pr = w - pl
-        val pb = h - pt
-        val rad = dp(26f)
-        fillPaint.color = 0x18FFFFFF.toInt()
-        canvas.drawRoundRect(pl, pt, pr, pb, rad, rad, fillPaint)
-        strokePaint.color = 0x45FFFFFF.toInt()
-        strokePaint.strokeWidth = dp(1f)
-        canvas.drawRoundRect(pl, pt, pr, pb, rad, rad, strokePaint)
-        fillPaint.color = 0x50FFFFFF.toInt()
-        canvas.drawRoundRect(pl + dp(2f), pt + dp(2f), pr - dp(2f), pt + dp(5f), dp(2f), dp(2f), fillPaint)
-
-        paint.reset()
-        paint.isAntiAlias = true
-        paint.typeface = Typeface.MONOSPACE
-        paint.textAlign = Paint.Align.CENTER
-        paint.textSize = min(h * 0.055f, w * 0.042f)
-        paint.color = 0xB8FFFFFF.toInt()
-        drawCenteredAt(canvas, dateShortLine(), w / 2f, pt + h * 0.10f, paint)
-        paint.typeface = tfSans
-        paint.textSize = min(h * 0.20f, w * 0.13f)
-        paint.color = 0xFFF5F7FB.toInt()
-        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h * 0.55f, paint)
-
-        postInvalidateDelayed(100L)
     }
 
     // ---- 44: gradient mesh; slow color field + huge type ----
@@ -3033,7 +2898,6 @@ class ClockView @JvmOverloads constructor(
         paint.textSize = min(h * 0.042f, w * 0.034f)
         paint.textAlign = Paint.Align.RIGHT
         paint.color = 0xC8FFFFFF.toInt()
-        canvas.drawText(dateShortLine(), w - dp(10f), h * 0.10f, paint)
 
         postInvalidateDelayed(100L)
     }
@@ -3072,7 +2936,6 @@ class ClockView @JvmOverloads constructor(
         paint.typeface = Typeface.MONOSPACE
         paint.textSize = min(h * 0.045f, w * 0.036f)
         paint.color = 0xB80F1822.toInt()
-        drawCenteredAt(canvas, dateShortLine(), w / 2f, h * 0.68f, paint)
 
         // seconds dot with a ring that grows through the second
         val secMs = (System.currentTimeMillis() % 1000L) / 1000f
@@ -3151,14 +3014,6 @@ class ClockView @JvmOverloads constructor(
         fillPaint.color = 0xFF111111.toInt()
         canvas.drawCircle(cx, cy, dp(2.5f), fillPaint)
 
-        paint.reset()
-        paint.isAntiAlias = true
-        paint.typeface = Typeface.MONOSPACE
-        paint.textAlign = Paint.Align.RIGHT
-        paint.textSize = min(h * 0.045f, w * 0.036f)
-        paint.color = 0xFF222222.toInt()
-        canvas.drawText(dateShortLine(), cx + r * 0.72f, cy + r * 0.72f, paint)
-
         postInvalidateDelayed(100L)
     }
 
@@ -3222,90 +3077,8 @@ class ClockView @JvmOverloads constructor(
         fillPaint.color = 0xFF191919.toInt()
         canvas.drawCircle(cx, cy, dp(2.5f), fillPaint)
 
-        val dy = cy + r * 0.70f
-        strokePaint.color = 0xFF1D1D1B.toInt()
-        strokePaint.strokeWidth = dp(1.6f)
-        canvas.drawLine(cx + r * 0.30f, dy - dp(8f), cx + r * 0.92f, dy - dp(8f), strokePaint)
-        paint.reset()
-        paint.isAntiAlias = true
-        paint.typeface = Typeface.MONOSPACE
-        paint.textAlign = Paint.Align.RIGHT
-        paint.textSize = min(h * 0.045f, w * 0.036f)
-        paint.color = 0xFF1D1D1B.toInt()
-        canvas.drawText(dateShortLine(), cx + r * 0.92f, dy + dp(4f), paint)
 
         postInvalidateDelayed(100L)
     }
 
-}
-
-/** Microphone meter for style 41. Started only while that face is shown,
- *  only when RECORD_AUDIO was granted; silent no-op otherwise. */
-private object MicLevel {
-    private var rec: android.media.AudioRecord? = null
-    private val buf = ShortArray(1024)
-    val wave = FloatArray(64)
-    var level = 0f
-        private set
-    private var peak = 0f
-
-    fun start(ctx: android.content.Context) {
-        if (rec != null) return
-        if (ctx.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) !=
-            android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) return
-        try {
-            val sr = 16000
-            val minBuf = android.media.AudioRecord.getMinBufferSize(
-                sr, android.media.AudioFormat.CHANNEL_IN_MONO,
-                android.media.AudioFormat.ENCODING_PCM_16BIT
-            )
-            val r = android.media.AudioRecord(
-                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                sr, android.media.AudioFormat.CHANNEL_IN_MONO,
-                android.media.AudioFormat.ENCODING_PCM_16BIT,
-                maxOf(minBuf, 4096) * 2
-            )
-            if (r.state != android.media.AudioRecord.STATE_INITIALIZED) {
-                r.release(); return
-            }
-            r.startRecording()
-            rec = r
-        } catch (_: Throwable) {
-            rec?.release()
-            rec = null
-        }
-    }
-
-    fun stop() {
-        rec?.let {
-            try { it.stop() } catch (_: Exception) {}
-            it.release()
-        }
-        rec = null
-        level = 0f
-    }
-
-    fun poll() {
-        val r = rec ?: return
-        val n = try { r.read(buf, 0, buf.size) } catch (_: Exception) { 0 }
-        java.util.Arrays.fill(wave, 0f)
-        if (n <= 0) return
-        var sum = 0.0
-        var count = 0
-        var k = 0
-        while (k < n) {
-            val v = buf[k] / 32768.0
-            sum += v * v
-            count++
-            val slot = (k * wave.size / n).coerceIn(0, wave.size - 1)
-            val av = kotlin.math.abs(v).toFloat()
-            if (av > wave[slot]) wave[slot] = av
-            k += 2
-        }
-        val rms = kotlin.math.sqrt(sum / count.toDouble()).toFloat()
-        peak = maxOf(rms, peak * 0.995f)
-        val ref = maxOf(0.02f, peak * 0.55f)
-        level = (rms / ref).coerceIn(0f, 1f)
-    }
 }

@@ -111,6 +111,9 @@ class MainActivity : Activity() {
     private lateinit var miniMonth: MonthCalendarView
     private lateinit var miniStock: StockChartView
     private lateinit var miniWeather: WeatherPanelView
+    private lateinit var tabCalendarPreview: MonthCalendarView
+    private lateinit var tabStocksPreview: StockChartView
+    private lateinit var tabWeatherPreview: WeatherPanelView
 
     // Cached formatters for the 1-second preview tick (a fresh
     // SimpleDateFormat pair was allocated every second before).
@@ -174,6 +177,9 @@ class MainActivity : Activity() {
         miniMonth = findViewById(R.id.miniMonth)
         miniStock = findViewById(R.id.miniStock)
         miniWeather = findViewById(R.id.miniWeather)
+        tabCalendarPreview = findViewById(R.id.tabCalendarPreview)
+        tabStocksPreview = findViewById(R.id.tabStocksPreview)
+        tabWeatherPreview = findViewById(R.id.tabWeatherPreview)
         scheduleRow = findViewById(R.id.scheduleRow)
         schedGroup = findViewById(R.id.schedGroup)
         schedHoursRow = findViewById(R.id.schedHoursRow)
@@ -985,6 +991,7 @@ class MainActivity : Activity() {
                 val data = res.candles
                 if (data != null && data.size >= 2) {
                     miniStockCached[key] = data
+                    updateTabStocksPreview()
                     miniStockActual[key] = res.actualCode
                     miniStockLastError.remove(key)
                     Prefs.setLastStockUpdateMs(this, System.currentTimeMillis())
@@ -1028,6 +1035,9 @@ class MainActivity : Activity() {
             if (isFinishing || isDestroyed) return@get
             if (res.info != null) {
                 miniWeatherCached = res.info
+                tabWeatherPreview.show(
+                    res.info, Prefs.weatherStyle(this), res.stale, res.source, res.fallback
+                )
                 val p = miniSeq.getOrNull(miniStep)
                 if (p != null && p.kind == 2) {
                     miniWeather.show(res.info, Prefs.weatherStyle(this), res.stale,
@@ -1094,16 +1104,34 @@ class MainActivity : Activity() {
         label.text = "${entries[p]} • ${p + 1}/${entries.size}"
     }
 
-    private fun applyClockStyle(pos: Int) {
-        // Style 41 reacts to microphone sound; ask for the permission the
-        // moment the user picks it. Without the grant the face still works
-        // with a gentle idle animation.
-        if (pos == 41 &&
-            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) !=
-            android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 5101)
+    /** Stocks-tab preview: same shared cache the mini panel uses. */
+    private fun updateTabStocksPreview() {
+        val p = miniSeq.firstOrNull { it.kind == 1 }
+        val cached = p?.let { miniStockCached["${it.symbol}-${it.interval}"] }
+        if (p != null && cached != null && cached.size >= 2) {
+            val useCode = miniStockActual["${p.symbol}-${p.interval}"] ?: p.interval
+            tabStocksPreview.setData(
+                p.symbol, Prefs.stockReference(this), miniIntervalLabel(useCode),
+                cached, useCode * 60
+            )
+        } else {
+            tabStocksPreview.setStatus(getString(R.string.overlay_loading))
+            if (p != null) fetchMiniStock(p.symbol, p.interval)
         }
+    }
+
+    /** Weather-tab preview: same shared cache the mini panel uses. */
+    private fun updateTabWeatherPreview() {
+        val data = miniWeatherCached
+        if (data != null) {
+            tabWeatherPreview.show(data, Prefs.weatherStyle(this))
+        } else {
+            tabWeatherPreview.setStatus(getString(R.string.overlay_weather_loading))
+            fetchMiniWeather()
+        }
+    }
+
+    private fun applyClockStyle(pos: Int) {
         Prefs.setClockStyle(this, pos)
         updateCarouselLabel(clockStyleName, clockVisibleEntries, clockKept.indexOf(pos))
         clockStyleName.announceForAccessibility(clockStyleName.text)
@@ -1122,6 +1150,7 @@ class MainActivity : Activity() {
         Prefs.setCalendarStyle(this, pos)
         updateCarouselLabel(calStyleName, calEntries, pos)
         calStyleName.announceForAccessibility(calStyleName.text)
+        tabCalendarPreview.refresh()
         miniJumpTo(0) // show the calendar window at once
     }
 
@@ -1129,6 +1158,7 @@ class MainActivity : Activity() {
         Prefs.setWeatherStyle(this, pos)
         updateCarouselLabel(weatherStyleName, weatherEntries, pos)
         weatherStyleName.announceForAccessibility(weatherStyleName.text)
+        updateTabWeatherPreview()
         miniJumpTo(2) // show the weather window at once (when present)
     }
 
@@ -1166,6 +1196,11 @@ class MainActivity : Activity() {
                     if (visible) android.view.View.VISIBLE else android.view.View.GONE
             }
             findViewById<Button>(btns[i]).alpha = if (visible) 1f else 0.45f
+        }
+        when (index) {
+            1 -> tabCalendarPreview.refresh()
+            2 -> updateTabStocksPreview()
+            3 -> updateTabWeatherPreview()
         }
     }
 
