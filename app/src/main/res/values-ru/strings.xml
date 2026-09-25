@@ -167,6 +167,12 @@
     <string name="notif_hide">Скрыть</string>
     <string name="notif_channel">Наложение StandBy</string>
     <string name="notif_wake_text">Включаю экран StandBy…</string>
+    <string name="section_bypass">Обходная зарядка</string>
+    <string name="bypass_title">Напоминание об обходной зарядке</string>
+    <string name="bypass_summary">При подключении питания — уведомление одним нажатием открывает настройки батареи, где включается обходная зарядка. Сам переключатель из приложения включить нельзя: это защищённая функция прошивки.</string>
+    <string name="notif_bypass_channel">Обходная зарядка</string>
+    <string name="notif_bypass_title">Обходная зарядка</string>
+    <string name="notif_bypass_text">Питание подключено — нажмите, чтобы включить обходную зарядку в настройках батареи</string>
     <string name="notif_channel_wake">Пробуждение StandBy</string>
 
     <!-- Примечание -->

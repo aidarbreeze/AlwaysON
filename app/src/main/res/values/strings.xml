@@ -167,6 +167,12 @@
     <string name="notif_hide">Hide now</string>
     <string name="notif_channel">StandBy overlay</string>
     <string name="notif_wake_text">Turning on the StandBy screen…</string>
+    <string name="section_bypass">Bypass charging</string>
+    <string name="bypass_title">Bypass-charging reminder</string>
+    <string name="bypass_summary">When power is connected, show a one-tap notification that opens the battery settings where bypass charging is switched on. The app cannot flip that switch itself — it is a firmware-protected feature.</string>
+    <string name="notif_bypass_channel">Bypass charging</string>
+    <string name="notif_bypass_title">Bypass charging</string>
+    <string name="notif_bypass_text">Power connected — tap to enable bypass charging in battery settings</string>
     <string name="notif_channel_wake">StandBy wake-up</string>
 
     <!-- Note -->

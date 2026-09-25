@@ -17,6 +17,15 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- Bypass-charging reminder: see (and open) the vendor battery app
+         that hosts the "bypass charging" switch on OPPO/OnePlus/realme
+         builds (package visibility, Android 11+). -->
+    <queries>
+        <package android:name="com.oplus.battery" />
+        <package android:name="com.oneplus.battery" />
+        <package android:name="com.oppo.battery" />
+    </queries>
+
     <!-- All app state is either re-fetchable (weather/stock cache) or
          user-entered settings stored in EncryptedSharedPreferences: the
          master key lives in the non-backup-able Android Keystore, so a

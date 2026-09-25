@@ -102,6 +102,7 @@ class MainActivity : Activity() {
     private lateinit var durStockSpinner: Spinner
     private lateinit var durWeatherSpinner: Spinner
     private lateinit var notifSwitch: Switch
+    private lateinit var bypassSwitch: Switch
     private lateinit var notifMaxSpinner: Spinner
 
     // Full-StandBy mini preview (calendar / chart / weather windows).
@@ -174,6 +175,7 @@ class MainActivity : Activity() {
         durStockSpinner = findViewById(R.id.durStockSpinner)
         durWeatherSpinner = findViewById(R.id.durWeatherSpinner)
         notifSwitch = findViewById(R.id.notifSwitch)
+        bypassSwitch = findViewById(R.id.bypassSwitch)
         notifMaxSpinner = findViewById(R.id.notifMaxSpinner)
 
         autoSwitch = findViewById(R.id.autoSwitch)
@@ -408,6 +410,13 @@ class MainActivity : Activity() {
         notifSwitch.isChecked = Prefs.notifPageEnabled(this)
         notifSwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.setNotifPageEnabled(this, checked)
+        }
+
+        // --- Bypass-charging reminder (semi-automatic: the vendor's switch
+        // is firmware-protected; the app can only surface it in one tap) ---
+        bypassSwitch.isChecked = Prefs.bypassReminder(this)
+        bypassSwitch.setOnCheckedChangeListener { _, checked ->
+            Prefs.setBypassReminder(this, checked)
         }
         // The spinner index maps to the "макс." row count (3/5/7/10).
         val notifMaxValues = intArrayOf(3, 5, 7, 10)

@@ -84,6 +84,7 @@ object Prefs {
     // MOEX watchlist: comma separated, up to 3 tickers (e.g. "ISS,TATN").
     private const val KEY_STOCK_TICKERS = "stock_tickers"
     // Auto-standby schedule: 0 = always (while charging), 1 = custom hours.
+    private const val KEY_BYPASS_REMINDER = "bypass_reminder"
     private const val KEY_STANDBY_SCHEDULE = "standby_schedule"
     private const val KEY_STANDBY_FROM_HOUR = "standby_from_hour"
     private const val KEY_STANDBY_TO_HOUR = "standby_to_hour"
@@ -315,6 +316,13 @@ object Prefs {
         }
     }
     fun setNotifMax(ctx: Context, v: Int) = setI(ctx, KEY_NOTIF_MAX, v.coerceIn(1, 10))
+
+    /** Bypass-charging reminder on power connect. Semi-automatic by
+     *  necessity: the vendor's bypass switch is a firmware-protected
+     *  kernel node (root only, no public API) — the app cannot flip it
+     *  itself, so it surfaces a one-tap notification instead. */
+    fun bypassReminder(ctx: Context): Boolean = b(ctx, KEY_BYPASS_REMINDER, true)
+    fun setBypassReminder(ctx: Context, v: Boolean) = setB(ctx, KEY_BYPASS_REMINDER, v)
 
     fun lastWeatherUpdateMs(ctx: Context): Long = l(ctx, KEY_LAST_WEATHER_MS, 0L)
     fun setLastWeatherUpdateMs(ctx: Context, v: Long) = setL(ctx, KEY_LAST_WEATHER_MS, v)
