@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import com.aidarbreeze.alwayson.service.OverlayService
 
 /**
@@ -30,10 +31,19 @@ class WakeActivity : Activity() {
         // would briefly flash whatever is behind it (the keyguard) on the
         // way to relighting the screen.
         window.setWindowAnimations(0)
-        // Keep the keyguard up; we only need the screen lit.
+        // Keep the keyguard up; we only need the screen lit. The manifest
+        // attributes only exist since API 27: on the minimum SDK 26 the
+        // equivalent (deprecated) window flags are required, or the wake-up
+        // never lights the screen over the keyguard at all.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
         }
         // The overlay service re-evaluates on start and shows the clock now
         // that the screen is on (and still locked). If the service was killed

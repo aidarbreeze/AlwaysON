@@ -45,6 +45,9 @@ object Prefs {
     private const val KEY_NIGHT_MODE = "night_mode"
     // Calendar <-> stock chart alternation mode.
     private const val KEY_STOCKS_ENABLED = "stocks_enabled"
+    /** Legacy single-ticker storage: superseded by [stockTickers]; the key is
+     *  still READ as the fallback for old installs (see stockTickers), but no
+     *  code writes it anymore. */
     private const val KEY_STOCK_TICKER = "stock_ticker"
     private const val KEY_STOCK_REF = "stock_reference"
     // Exact (double-bit) storage of the reference price; the legacy float
@@ -378,9 +381,7 @@ object Prefs {
     fun stocksEnabled(ctx: Context): Boolean = b(ctx, KEY_STOCKS_ENABLED, false)
     fun setStocksEnabled(ctx: Context, on: Boolean) = setB(ctx, KEY_STOCKS_ENABLED, on)
 
-    /** Stock ticker symbol, e.g. "AAPL" or "SBER.ME". */
-    fun stockTicker(ctx: Context): String = s(ctx, KEY_STOCK_TICKER, "").trim().uppercase()
-    fun setStockTicker(ctx: Context, v: String) = setS(ctx, KEY_STOCK_TICKER, v.trim().uppercase())
+    /** Stocks settings are managed only through the [stockTickers] list API. */
 
     /** User-entered reference price the change percentage is computed from. */
     fun stockReference(ctx: Context): Double =

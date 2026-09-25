@@ -480,16 +480,29 @@ class MainActivity : Activity() {
         }
         schedFromSpinner.setSelection(Prefs.standbyFromHour(this))
         schedToSpinner.setSelection(Prefs.standbyToHour(this))
+        // The first callback is the initial layout selection, not the user:
+        // ignore it so setup does not write prefs from a layout pass (the
+        // duration/units spinners below use the same guard).
+        var fromFirst = true
         schedFromSpinner.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    if (fromFirst) {
+                        fromFirst = false
+                        return
+                    }
                     Prefs.setStandbyFromHour(this@MainActivity, pos)
                 }
                 override fun onNothingSelected(p: AdapterView<*>?) {}
             }
+        var toFirst = true
         schedToSpinner.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    if (toFirst) {
+                        toFirst = false
+                        return
+                    }
                     Prefs.setStandbyToHour(this@MainActivity, pos)
                 }
                 override fun onNothingSelected(p: AdapterView<*>?) {}
@@ -908,15 +921,22 @@ class MainActivity : Activity() {
                             miniIntervalLabel(useCode), data, useCode * 60
                         )
                     }
-                } else if (p != null && p.kind == 1 && p.symbol == symbol &&
-                    p.interval == code && miniStockCached[key] == null
-                ) {
-                    // Only show the error when we have nothing to show at all.
+                } else {
+                    // Remember the failure per key even when its panel is NOT
+                    // on screen right now: when the user flips to it, the
+                    // remembered error is shown instead of a fake "Загрузка…"
+                    // that nothing retries for the next 60 s. The view itself
+                    // is only touched when this panel is the visible one and
+                    // we have nothing better to show at all.
                     val msg = miniStockErrorText(res)
                     if (msg != null) {
                         miniStockLastError[key] = msg
-                        miniStock.setStatus(msg)
-                        Prefs.setLastStockError(this, msg)
+                        val visible = p != null && p.kind == 1 && p.symbol == symbol &&
+                            p.interval == code && miniStockCached[key] == null
+                        if (visible) {
+                            miniStock.setStatus(msg)
+                            Prefs.setLastStockError(this, msg)
+                        }
                     }
                 }
             }
@@ -1161,7 +1181,17 @@ class MainActivity : Activity() {
                 }
                 override fun onNothingSelected(p: AdapterView<*>?) {}
             }
-        spinner.setSelection(values.indexOf(current).coerceAtLeast(0))
+        // A persisted value outside the offered set (an old preset, a manual
+        // migration) would leave the spinner on "5 с" while the rotation
+        // silently used the raw value: snap it to the closest offered value
+        // >= it (or the largest) and write that back, so UI == behavior.
+        var idx = values.indexOf(current)
+        if (idx < 0) {
+            idx = values.indexOfFirst { it >= current }
+            if (idx < 0) idx = values.size - 1
+            onSet(values[idx])
+        }
+        spinner.setSelection(idx)
     }
 
     /** Spinner for a simple int setting where the array index IS the stored
