@@ -450,20 +450,6 @@ class MainActivity : Activity() {
             }
         }
 
-    /** True when the gesture service is enabled in the accessibility
-     *  settings but not connected to this process — the post-reinstall
-     *  state on this ROM, fixed by a manual off/on toggle. */
-    private fun bypassAccessibilityEnabled(): Boolean {
-        return try {
-            val enabled = Settings.Secure.getString(
-                contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            ).orEmpty()
-            enabled.contains(packageName) &&
-                enabled.contains("BypassAutomationService")
-        } catch (_: Exception) {
-            false
-        }
-    }
         // The spinner index maps to the "макс." row count (3/5/7/10).
         val notifMaxValues = intArrayOf(3, 5, 7, 10)
         bindIntSpinner(
@@ -651,6 +637,21 @@ class MainActivity : Activity() {
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
+        }
+    }
+
+    /** True when the gesture service is enabled in the accessibility
+     *  settings but not connected to this process — the post-reinstall
+     *  state on this ROM, fixed by a manual off/on toggle. */
+    private fun bypassAccessibilityEnabled(): Boolean {
+        return try {
+            val enabled = Settings.Secure.getString(
+                contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ).orEmpty()
+            enabled.contains(packageName) &&
+                enabled.contains("BypassAutomationService")
+        } catch (_: Exception) {
+            false
         }
     }
 
