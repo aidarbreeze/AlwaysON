@@ -10,6 +10,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import com.aidarbreeze.alwayson.Prefs
+import com.aidarbreeze.alwayson.R
 import com.aidarbreeze.alwayson.stock.Candle
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -321,10 +322,11 @@ class StockChartView @JvmOverloads constructor(
         // "day" = vs the previous session close, "base" = vs your reference.
         val changes = buildString {
             val day = dayChangePct()
-            if (day != null) append(pct(day)).append(" день")
+            if (day != null) append(pct(day)).append(' ').append(context.getString(R.string.chart_day))
             if (refPrice > 0.0) {
                 if (isNotEmpty()) append("  ")
-                append(pct((last - refPrice) / refPrice * 100.0)).append(" база")
+                append(pct((last - refPrice) / refPrice * 100.0))
+                    .append(' ').append(context.getString(R.string.chart_base))
             }
         }
         if (changes.isNotEmpty()) {
@@ -382,7 +384,7 @@ class StockChartView @JvmOverloads constructor(
         canvas.drawText(shortDate(), padL, axisBaseline, labelPaint)
         labelPaint.textAlign = Paint.Align.RIGHT
         val intervalText = if (marketOpenNow()) intervalLabel
-        else "$intervalLabel · закрыт · ${nextOpenLabel()}"
+        else "$intervalLabel · ${context.getString(R.string.chart_closed)} · ${nextOpenLabel()}"
         canvas.drawText(intervalText, w - padR, axisBaseline, labelPaint)
     }
 

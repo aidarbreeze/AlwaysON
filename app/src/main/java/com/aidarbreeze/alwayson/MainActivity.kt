@@ -866,7 +866,7 @@ class MainActivity : Activity() {
                 } else {
                     // An already-known failure is more honest than a
                     // perpetual "Загрузка…" shown until the next attempt.
-                    miniStock.setStatus(miniStockLastError[key] ?: "Загрузка…")
+                    miniStock.setStatus(miniStockLastError[key] ?: getString(R.string.overlay_loading))
                 }
                 val age = System.currentTimeMillis() - (miniStockAttempt[key] ?: 0L)
                 if (age >= miniStockFreshMs) fetchMiniStock(p.symbol, p.interval)
@@ -876,7 +876,7 @@ class MainActivity : Activity() {
                 if (data != null) {
                     miniWeather.show(data, Prefs.weatherStyle(this))
                 } else {
-                    miniWeather.setStatus("Погода: загрузка…")
+                    miniWeather.setStatus(getString(R.string.overlay_weather_loading))
                 }
                 // The shared repository dedupes in-flight fetches and applies a
                 // TTL, so this is a no-op (no network) while the forecast is
@@ -890,7 +890,7 @@ class MainActivity : Activity() {
      *  silent, keep showing "Загрузка…" — the retry comes by itself).
      *  Delegates to the single shared mapping in [StockApi.errorText]. */
     private fun miniStockErrorText(res: StockApi.FetchResult): String? =
-        StockApi.errorText(res)
+        StockApi.errorText(this, res)
 
     private fun fetchMiniStock(symbol: String, code: Int, force: Boolean = false) {
         if (symbol.isEmpty()) return
@@ -959,7 +959,8 @@ class MainActivity : Activity() {
                 val p = miniSeq.getOrNull(miniStep)
                 if (p != null && p.kind == 2) {
                     miniWeather.setStatus(
-                        if (res.offline) "Погода: нет сети" else "Погода: нет данных"
+                        if (res.offline) getString(R.string.overlay_weather_no_network)
+                        else getString(R.string.overlay_weather_no_data)
                     )
                 }
             }

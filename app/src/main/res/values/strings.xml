@@ -241,4 +241,19 @@
     <string name="diag_never">never</string>
     <string name="diag_err">last error</string>
 
+    <!-- Overlay/chart one-liners (the always-on screens draw them on the
+         canvas, so they live here instead of being hardcoded): RU texts are
+         kept identical to the previously hardcoded ones. -->
+    <string name="overlay_loading">Loading…</string>
+    <string name="overlay_weather_loading">Weather: loading…</string>
+    <string name="overlay_weather_no_network">Weather: no network</string>
+    <string name="overlay_weather_no_data">Weather: no data</string>
+    <string name="chart_day">day</string>
+    <string name="chart_base">base</string>
+    <string name="chart_closed">closed</string>
+    <string name="chart_err_not_found">ticker not found</string>
+    <string name="chart_err_closed_empty">market closed</string>
+    <string name="chart_err_network">no network</string>
+    <string name="chart_err_network_http">no network (HTTP %1$d)</string>
+
 </resources>

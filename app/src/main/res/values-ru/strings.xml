@@ -241,4 +241,19 @@
     <string name="diag_never">никогда</string>
     <string name="diag_err">последняя ошибка</string>
 
+    <!-- Надписи оверлея/графиков (рисуются на canvas, поэтому вынесены в
+         ресурсы вместо жёсткого кода): русские тексты идентичны прежним
+         захардкоженным. -->
+    <string name="overlay_loading">Загрузка…</string>
+    <string name="overlay_weather_loading">Погода: загрузка…</string>
+    <string name="overlay_weather_no_network">Погода: нет сети</string>
+    <string name="overlay_weather_no_data">Погода: нет данных</string>
+    <string name="chart_day">день</string>
+    <string name="chart_base">база</string>
+    <string name="chart_closed">закрыт</string>
+    <string name="chart_err_not_found">тикер не найден</string>
+    <string name="chart_err_closed_empty">торги закрыты</string>
+    <string name="chart_err_network">нет сети</string>
+    <string name="chart_err_network_http">нет сети (HTTP %1$d)</string>
+
 </resources>

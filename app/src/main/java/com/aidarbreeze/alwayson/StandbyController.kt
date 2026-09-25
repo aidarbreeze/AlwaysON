@@ -732,7 +732,9 @@ class StandbyController(context: Context, private val root: View) {
         } else {
             // An already-known failure is more honest than a perpetual
             // "Загрузка…" shown until the next attempt.
-            stockView.setStatus(stockLastError[key] ?: "Загрузка…")
+            stockView.setStatus(
+                stockLastError[key] ?: appContext.getString(R.string.overlay_loading)
+            )
         }
         val age = System.currentTimeMillis() - (stockAttemptAt[key] ?: 0L)
         if (age >= stockFreshMs) {
@@ -744,7 +746,7 @@ class StandbyController(context: Context, private val root: View) {
      *  keep showing "Загрузка…" — the retry comes with the next cycle).
      *  Delegates to the single shared mapping in [StockApi.errorText]. */
     private fun stockErrorText(res: StockApi.FetchResult): String? =
-        StockApi.errorText(res)
+        StockApi.errorText(appContext, res)
 
     /** Fetch candles for a ticker+interval; apply the result only when it is
      *  still the freshest attempt for that key AND the chart still shows it. */
@@ -802,7 +804,7 @@ class StandbyController(context: Context, private val root: View) {
     private fun renderWeather() {
         val data = weatherCached
         if (data == null) {
-            weatherView.setStatus("Погода: нет данных")
+            weatherView.setStatus(appContext.getString(R.string.overlay_weather_no_data))
             return
         }
         weatherView.show(data, Prefs.weatherStyle(appContext), weatherStale)
@@ -819,7 +821,7 @@ class StandbyController(context: Context, private val root: View) {
         if (!weatherReady()) return
         val loc = Prefs.weatherLocation(appContext) ?: return
         if (weatherCached == null && weatherView.visibility == View.VISIBLE) {
-            weatherView.setStatus("Погода: загрузка…")
+            weatherView.setStatus(appContext.getString(R.string.overlay_weather_loading))
         }
         WeatherRepository.get(
             appContext, loc.first, loc.second, Prefs.weatherCity(appContext), force
@@ -834,8 +836,9 @@ class StandbyController(context: Context, private val root: View) {
                 // Nothing at all (never fetched for this location): a clear
                 // state, not a stale forecast of another city.
                 weatherStale = false
-                val err = if (res.offline) "нет сети" else "нет данных"
-                weatherView.setStatus("Погода: $err")
+                val err = if (res.offline) appContext.getString(R.string.overlay_weather_no_network)
+                else appContext.getString(R.string.overlay_weather_no_data)
+                weatherView.setStatus(err)
                 Prefs.setLastWeatherError(appContext, err)
             }
         }

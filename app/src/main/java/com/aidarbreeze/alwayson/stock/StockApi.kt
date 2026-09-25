@@ -1,5 +1,7 @@
 package com.aidarbreeze.alwayson.stock
 
+import android.content.Context
+import com.aidarbreeze.alwayson.R
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -99,17 +101,19 @@ object StockApi {
 
     /**
      * Human-readable one-line status for a failed fetch, shown under the
-     * chart (Russian, like the other chart labels). null = stay silent and
-     * keep "Загрузка…" — the retry comes with the next cycle. Single source
-     * of truth: the overlay controller and the settings mini-preview used
-     * to keep two copies of this mapping that had started to drift.
+     * chart. Localized: the overlay labels are string resources now (they
+     * used to be hardcoded Russian). null = stay silent and keep "Загрузка…"
+     * — the retry comes with the next cycle. Single source of truth: the
+     * overlay controller and the settings mini-preview delegate here.
      */
-    fun errorText(res: FetchResult): String? = when (res.error) {
+    fun errorText(ctx: Context, res: FetchResult): String? = when (res.error) {
         null, FetchError.RATE_LIMITED -> null
-        FetchError.BAD_TICKER, FetchError.NOT_FOUND -> "тикер не найден"
-        FetchError.CLOSED_EMPTY -> "торги закрыты"
+        FetchError.BAD_TICKER, FetchError.NOT_FOUND ->
+            ctx.getString(R.string.chart_err_not_found)
+        FetchError.CLOSED_EMPTY -> ctx.getString(R.string.chart_err_closed_empty)
         FetchError.NETWORK ->
-            if (res.httpCode > 0) "нет сети (HTTP ${res.httpCode})" else "нет сети"
+            if (res.httpCode > 0) ctx.getString(R.string.chart_err_network_http, res.httpCode)
+            else ctx.getString(R.string.chart_err_network)
     }
 
     /**
