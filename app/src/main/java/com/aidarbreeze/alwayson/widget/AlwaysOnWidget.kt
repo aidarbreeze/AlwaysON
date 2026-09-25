@@ -34,13 +34,16 @@ class AlwaysOnWidget : AppWidgetProvider() {
     companion object {
         private const val ACTION_TICK = "com.aidarbreeze.alwayson.WIDGET_TICK"
         private const val TICK_MS = 60_000L
-        // Shared formatters: update() used to allocate a new pair on every
-        // refresh. All widget updates run on the main thread, so reuse is
-        // safe (SimpleDateFormat is not thread-safe).
-        private val timeFmt24 = SimpleDateFormat("HH:mm", Locale.getDefault())
-        private val timeFmt12 = SimpleDateFormat("h:mm", Locale.getDefault())
-        private val dateFmtRu = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault())
-        private val dateFmtEn = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
+        // Keyed formatter cache (pattern|locale): update() used to allocate a
+        // new pair on every refresh, and fixed companions would have kept the
+        // FIRST process locale's weekday/month names after a language switch
+        // that did not kill the process. All widget updates run on the main
+        // thread, so reuse is safe (SimpleDateFormat is not thread-safe).
+        private val fmtCache = HashMap<String, SimpleDateFormat>()
+        private fun fmt(pattern: String): SimpleDateFormat =
+            fmtCache.getOrPut(pattern + '|' + Locale.getDefault().toLanguageTag()) {
+                SimpleDateFormat(pattern, Locale.getDefault())
+            }
     }
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
@@ -104,7 +107,7 @@ class AlwaysOnWidget : AppWidgetProvider() {
         val use24 = Prefs.force24h(context) || DateFormat.is24HourFormat(context)
         views.setTextViewText(
             R.id.widgetTime,
-            (if (use24) timeFmt24 else timeFmt12).format(Date(millis))
+            fmt(if (use24) "HH:mm" else "h:mm").format(Date(millis))
         )
 
         val locale = Locale.getDefault()
@@ -112,8 +115,7 @@ class AlwaysOnWidget : AppWidgetProvider() {
             "EEEE, d MMMM" else "EEEE, MMMM d"
         views.setTextViewText(
             R.id.widgetDate,
-            (if (locale.language.equals("ru", ignoreCase = true)) dateFmtRu else dateFmtEn)
-                .format(Date(millis))
+            fmt(datePattern).format(Date(millis))
         )
 
         // Status line: battery + last known weather (shared cache).

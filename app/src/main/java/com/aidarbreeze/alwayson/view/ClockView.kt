@@ -1197,6 +1197,12 @@ class ClockView @JvmOverloads constructor(
         return rise to c.timeInMillis
     }
 
+    // Cached solar-label formatter: drawSolar formats BOTH labels on every
+    // 1-second tick while style 18 is up — a fresh SimpleDateFormat pair per
+    // tick was constant GC churn on the always-on screen. Keyed by
+    // pattern+locale+zone like the fmt() caches elsewhere.
+    private val solarFmtCache = HashMap<String, SimpleDateFormat>()
+
     private fun solarLabel(ms: Long): String {
         val use24 = Prefs.force24h(context) ||
             android.text.format.DateFormat.is24HourFormat(context)
@@ -1205,9 +1211,12 @@ class ClockView @JvmOverloads constructor(
         // in another timezone).
         val tz = sunCacheTz?.takeIf { it.isNotBlank() }
             ?.let { TimeZone.getTimeZone(it) } ?: TimeZone.getDefault()
-        return SimpleDateFormat(
-            if (use24) "HH:mm" else "h:mm", Locale.getDefault()
-        ).apply { timeZone = tz }.format(Date(ms))
+        val pattern = if (use24) "HH:mm" else "h:mm"
+        val key = pattern + '|' + Locale.getDefault().toLanguageTag() + '|' + tz.id
+        val f = solarFmtCache.getOrPut(key) {
+            SimpleDateFormat(pattern, Locale.getDefault()).apply { timeZone = tz }
+        }
+        return f.format(Date(ms))
     }
 
     private fun drawSolar(canvas: Canvas, w: Float, h: Float) {
