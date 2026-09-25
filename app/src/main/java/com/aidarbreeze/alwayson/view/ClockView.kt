@@ -194,6 +194,7 @@ class ClockView @JvmOverloads constructor(
         private const val PONG_GAME_TO = 11
         private const val PONG_SERVE_PAUSE_MS = 900L
         private const val PONG_PADDLE_H = 0.24f // paddle length, share of court height
+        private const val PONG_BOTTOM_BAND = 0.17f // score strip below the court, share of view height
 
         // Reused 5x7 glyph rows. Keeping these as IntArray constants removes
         // dozens of Array<Int> allocations per frame in DOTS/MATRIX faces.
@@ -1718,6 +1719,7 @@ class ClockView @JvmOverloads constructor(
 
         val w = pongW
         val h = pongH
+        val courtH = h * (1f - PONG_BOTTOM_BAND)
         val margin = min(w, h) * 0.06f
         val paddleH = h * PONG_PADDLE_H
         val half = paddleH / 2f
@@ -1730,8 +1732,8 @@ class ClockView @JvmOverloads constructor(
         if (pongServeAt != 0L) {
             if (now < pongServeAt) {
                 val home = h * 0.85f * dt
-                pongLeftY = approachPong(pongLeftY, h / 2f, home)
-                pongRightY = approachPong(pongRightY, h / 2f, home)
+                pongLeftY = approachPong(pongLeftY, courtH / 2f, home)
+                pongRightY = approachPong(pongRightY, courtH / 2f, home)
                 return
             }
             pongServe(now)
@@ -1739,15 +1741,15 @@ class ClockView @JvmOverloads constructor(
         }
 
         val step = h * 0.85f * dt
-        val targetL = if (pongBallVx < 0f) (pongBallY + pongLeftErr).coerceIn(half, h - half) else h / 2f
-        val targetR = if (pongBallVx > 0f) (pongBallY + pongRightErr).coerceIn(half, h - half) else h / 2f
+        val targetL = if (pongBallVx < 0f) (pongBallY + pongLeftErr).coerceIn(half, courtH - half) else courtH / 2f
+        val targetR = if (pongBallVx > 0f) (pongBallY + pongRightErr).coerceIn(half, courtH - half) else courtH / 2f
         pongLeftY = approachPong(pongLeftY, targetL, step)
         pongRightY = approachPong(pongRightY, targetR, step)
 
         pongBallX += pongBallVx * dt
         pongBallY += pongBallVy * dt
         if (pongBallY < ballR) { pongBallY = ballR; pongBallVy = abs(pongBallVy) }
-        if (pongBallY > h - ballR) { pongBallY = h - ballR; pongBallVy = -abs(pongBallVy) }
+        if (pongBallY > courtH - ballR) { pongBallY = courtH - ballR; pongBallVy = -abs(pongBallVy) }
 
         // Paddle faces: reflect while the ball is still in front of them.
         val reach = half + ballR
@@ -1791,6 +1793,7 @@ class ClockView @JvmOverloads constructor(
 
         val main = ink()
         val margin = min(w, h) * 0.06f
+        val courtH = h * (1f - PONG_BOTTOM_BAND)
         val paddleH = h * PONG_PADDLE_H
         val paddleW = maxOf(dp(4f), w * 0.012f)
         val ballR = maxOf(dp(3f), min(w, h) * 0.022f)
@@ -1799,7 +1802,7 @@ class ClockView @JvmOverloads constructor(
         strokePaint.color = dimmed(main, 0.32f)
         strokePaint.strokeWidth = dp(1.2f)
         var y = margin
-        while (y < h - margin) {
+        while (y < courtH - margin) {
             canvas.drawLine(w / 2f, y, w / 2f, min(y + dp(6f), h - margin), strokePaint)
             y += dp(13f)
         }
@@ -1816,16 +1819,15 @@ class ClockView @JvmOverloads constructor(
         )
         if (pongServeAt == 0L) canvas.drawCircle(pongBallX, pongBallY, ballR, fillPaint)
 
-        // The clock is the headline: big, bright, top center (the same size
-        // and place the original pong-clock face used), so the face still
-        // reads as a clock at a glance.
+        // The clock is the headline: big, bright, top center, above the
+        // court, so the face still reads as a clock at a glance.
         paint.reset()
         paint.isAntiAlias = true
         paint.typeface = Typeface.MONOSPACE
         paint.textAlign = Paint.Align.CENTER
-        paint.textSize = min(h * 0.30f, w * 0.13f)
+        paint.textSize = min(h * 0.32f, w * 0.15f)
         paint.color = main
-        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h * 0.23f, paint)
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h * 0.19f, paint)
 
         // The running match score below the court, secondary but readable:
         // "3 : 7", game to 11.
@@ -1834,7 +1836,7 @@ class ClockView @JvmOverloads constructor(
         drawCenteredAt(
             canvas,
             pongScoreLeft.toString() + " : " + pongScoreRight.toString(),
-            w / 2f, h - margin * 0.5f, paint
+            w / 2f, courtH + (h - courtH) / 2f, paint
         )
 
         // 20 fps is smooth enough for a screensaver but much cheaper than 60 fps.
