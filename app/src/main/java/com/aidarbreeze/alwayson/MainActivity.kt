@@ -1089,6 +1089,15 @@ class MainActivity : Activity() {
     }
 
     private fun applyClockStyle(pos: Int) {
+        // Style 41 reacts to microphone sound; ask for the permission the
+        // moment the user picks it. Without the grant the face still works
+        // with a gentle idle animation.
+        if (pos == 41 &&
+            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 5101)
+        }
         Prefs.setClockStyle(this, pos)
         updateCarouselLabel(clockStyleName, clockEntries, pos)
         clockStyleName.announceForAccessibility(clockStyleName.text)

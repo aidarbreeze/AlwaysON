@@ -87,6 +87,13 @@
         <item>Neumorph</item>
         <item>Card Deck</item>
         <item>Odometer</item>
+        <item>Atomic Lab</item>
+        <item>Real Orrery</item>
+        <item>Liquid Glass</item>
+        <item>Gradient Mesh</item>
+        <item>Frosted Glass</item>
+        <item>Railway</item>
+        <item>Braun</item>
     </string-array>
     <string name="clock_color_title">Clock color</string>
     <string-array name="clock_color_entries">

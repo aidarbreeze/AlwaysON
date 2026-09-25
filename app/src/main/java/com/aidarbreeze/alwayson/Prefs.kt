@@ -360,8 +360,8 @@ object Prefs {
      *  15 stacked iPhone, 16 analog iPhone, 17 float iPhone, 18 solar iPhone,
      *  19 world iPhone, 20 minimal mono.
      *  Default: premium (the new default look). */
-    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 40) // keep in sync with ClockView.MAX_CLOCK_STYLE
-    fun setClockStyle(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_STYLE, v.coerceIn(0, 40))
+    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 47) // keep in sync with ClockView.MAX_CLOCK_STYLE
+    fun setClockStyle(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_STYLE, v.coerceIn(0, 47))
 
     /** Time-based clock face rotation: when enabled, the standby screen
      *  cycles through the faces listed in [clockRotatePool] every
