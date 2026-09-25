@@ -769,16 +769,22 @@ class StandbyController(context: Context, private val root: View) {
                         val useCode = res.actualCode
                         stockView.setData(symbol, ref, intervalLabel(useCode), data, useCode * 60)
                     }
-                } else if (currentStock == symbol to code &&
-                    stockCached[key] == null
-                ) {
-                    // Only show the error when we have nothing to show at all —
-                    // a transient network hiccup must not wipe an older chart.
+                } else {
+                    // Remember the failure per key even when its chart is NOT
+                    // on screen right now: when the cycle flips to it, the
+                    // remembered error is shown instead of a fake "Загрузка…"
+                    // that nothing retries for the next 60 s. The view itself
+                    // is only touched when this chart is the visible one and
+                    // we have nothing better to show at all.
                     val msg = stockErrorText(res)
                     if (msg != null) {
                         stockLastError[key] = msg
-                        stockView.setStatus(msg)
-                        Prefs.setLastStockError(appContext, msg)
+                        val visible = currentStock == symbol to code &&
+                            stockCached[key] == null
+                        if (visible) {
+                            stockView.setStatus(msg)
+                            Prefs.setLastStockError(appContext, msg)
+                        }
                     }
                 }
             }

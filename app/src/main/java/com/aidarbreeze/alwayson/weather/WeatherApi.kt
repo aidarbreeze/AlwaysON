@@ -152,7 +152,12 @@ object WeatherApi {
             val hCode = hourly.optJSONArray("weather_code")
             val hFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).apply { timeZone = zone }
             val hours = ArrayList<WeatherHour>()
-            for (i in 0 until hTimes.length()) {
+            // Bound by the SHORTEST of the parallel arrays: a truncated
+            // temperature array must not throw isNull(i) past its end and
+            // kill the whole parse from the outer catch (same class of bug
+            // the weather_code length guards below already fix).
+            val hBound = minOf(hTimes.length(), hTemp.length())
+            for (i in 0 until hBound) {
                 if (hTemp.isNull(i)) continue
                 val timeMs = parseIso(hFmt, hTimes.getString(i))
                 if (timeMs < 0L) continue

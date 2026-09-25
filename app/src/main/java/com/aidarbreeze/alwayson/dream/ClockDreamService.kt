@@ -171,11 +171,15 @@ class ClockDreamService : DreamService() {
 
     /** Picks the layout that matches the current orientation and (re)shows it. */
     private fun relayoutIfNeeded() {
+        // Before onDreamingStarted the final layout is chosen by
+        // showLayout() anyway: an early sensor/config callback would only
+        // inflate the layout twice (and create a throwaway controller).
+        if (!dreaming) return
         val landscape =
             resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         if (landscape == shownLandscape) return
         showLayout()
-        if (dreaming) controller?.start()
+        controller?.start()
     }
 
     /** Inflate R.layout.standby_view (auto-resolves to portrait/landscape for

@@ -33,7 +33,7 @@ data class Candle(
  * 
  * Security features:
  * - Input validation for ticker symbols (alphanumeric only)
- * - Rate limiting via cache (see StockRepository if exists)
+ * - Rate limiting via the per-key cache below
  * - Data validation for OHLC values
  */
 object StockApi {
@@ -294,6 +294,10 @@ object StockApi {
                         0L
                     }
                 }
+                // A row whose open time failed to parse is dropped, not kept
+                // with timeMs=0: an epoch-1970 candle would stretch the chart's
+                // time axis by 55+ years and squash the real data to nothing.
+                if (timeMs <= 0L) continue
                 list.add(Candle(open, high, low, close, timeMs))
             }
             if (list.size < 2) null else list
