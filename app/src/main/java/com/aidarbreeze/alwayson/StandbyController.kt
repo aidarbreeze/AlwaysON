@@ -410,16 +410,17 @@ class StandbyController(context: Context, private val root: View) {
         transitionGen++
         val gen = transitionGen
         val start = System.currentTimeMillis()
-        // Staging rhythm: a new stage starts every 170 ms, each stage takes
-        // 620 ms to fade + rise, and the settle scale always spans at least
-        // 1300 ms — so with the locked-screen host's 1.2 s black hold the
-        // full entry stays ~2.5 s and never drops under the 2 s the user
-        // asked for, no matter how many stages are visible. A 0.8%
-        // settle-in scale rides along on the whole content block (its edge
-        // gap is black over the black root — invisible).
-        val staggerMs = 170L
-        val stageMs = 620L
-        val rise = 12f * appContext.resources.displayMetrics.density
+        // Staging rhythm (user: "make the info appear even longer"): a new
+        // stage starts every 350 ms, each stage takes a full second to
+        // fade + rise, and the settle scale always spans at least 2400 ms —
+        // so with the locked-screen host's 1.2 s black hold the full entry
+        // is ~3.6 s and the reveal alone never drops under 2.4 s, no matter
+        // how many stages are visible. A 0.8% settle-in scale rides along
+        // on the whole content block (its edge gap is black over the black
+        // root — invisible).
+        val staggerMs = 350L
+        val stageMs = 1000L
+        val rise = 18f * appContext.resources.displayMetrics.density
         // Only blocks actually on screen take part: the media group hides
         // when nothing plays, the battery when the reading is unknown —
         // the cascade adapts to what is visible.
@@ -428,7 +429,7 @@ class StandbyController(context: Context, private val root: View) {
             it.alpha = 0f
             it.translationY = rise
         }
-        val spanMs = maxOf(1300L, (stages.size - 1) * staggerMs + stageMs)
+        val spanMs = maxOf(2400L, (stages.size - 1) * staggerMs + stageMs)
         val frame = object : Runnable {
             override fun run() {
                 if (gen != transitionGen) return

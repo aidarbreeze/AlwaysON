@@ -24,19 +24,57 @@ class MediaWatcher(private val context: Context) {
     // call once per second, forever. One fallback attempt per 3 s is plenty.
     private var lastFallbackAttempt = 0L
 
+    // Last positively-confirmed "playing" snapshot and when it was seen.
+    // This is the hysteresis that keeps the card from BLINKING: the cache
+    // from the listener ages out between notification events while the
+    // fallback poll may only run once per 3 s, so the old logic returned
+    // null for two seconds out of every three — the card showed for a
+    // second, vanished for two, and repeated. Within [GRACE_MS] of the last
+    // positive sighting the card is held stable; music that really stops
+    // hides the card at most [GRACE_MS] later (an explicit fresh "paused"
+    // from the listener hides it immediately).
+    private var lastPlaying: NowPlaying? = null
+    private var lastPlayingAt = 0L
+
     fun current(): NowPlaying? {
-        // Preferred path: what the notification listener just saw. Only trust
-        // it while it is fresh AND reported as actually playing.
+        val now = System.currentTimeMillis()
+        // Preferred path: what the notification listener just saw. The
+        // listener only rewrites the snapshot on notification events, so a
+        // quietly playing track lets it age — trust it for 10 s now (5 s
+        // before, which is what started the blinking). A fresh, explicit
+        // "not playing" still hides the card immediately.
         val cached = NowPlayingCache.current
-        if (cached != null && cached.playing &&
-            System.currentTimeMillis() - NowPlayingCache.updatedAt < 5_000
-        ) {
+        if (cached != null && now - NowPlayingCache.updatedAt < 10_000) {
+            if (!cached.playing) {
+                lastPlaying = null
+                return null
+            }
+            lastPlaying = cached
+            lastPlayingAt = now
             return cached
         }
-        val now = System.currentTimeMillis()
-        if (now - lastFallbackAttempt < 3_000) return null
-        lastFallbackAttempt = now
-        // Fallback: poll media sessions directly (playing ones only).
+        // Fallback: poll media sessions directly (playing ones only), at
+        // most once per 3 s. While the gate blocks — or the poll comes up
+        // empty — the grace anchor keeps the card on screen instead of
+        // hiding it for two seconds out of every three.
+        var polled: NowPlaying? = null
+        if (now - lastFallbackAttempt >= 3_000) {
+            lastFallbackAttempt = now
+            polled = pollSessions()
+        }
+        if (polled != null) {
+            lastPlaying = polled
+            lastPlayingAt = now
+            return polled
+        }
+        if (lastPlaying != null && now - lastPlayingAt < GRACE_MS) return lastPlaying
+        lastPlaying = null
+        return null
+    }
+
+    /** One direct poll of the active media sessions; null when nothing is
+     *  positively playing (or the access is missing/revoked). */
+    private fun pollSessions(): NowPlaying? {
         return try {
             val manager =
                 context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
@@ -76,5 +114,12 @@ class MediaWatcher(private val context: Context) {
         } catch (_: Exception) {
             null
         }
+    }
+
+    private companion object {
+        /** How long the card is held stable after the last positive
+         *  "playing" sighting before it may hide (polls miss, caches age —
+         *  12 s = four consecutive failed fallback polls). */
+        const val GRACE_MS = 12_000L
     }
 }
