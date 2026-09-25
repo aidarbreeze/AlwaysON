@@ -662,7 +662,7 @@ class ClockView @JvmOverloads constructor(
             STYLE_SOLAR -> drawSolarHorizon(canvas, w, h)
             STYLE_ORBIT -> drawOrbitClock(canvas, w, h)
             STYLE_PERIMETER -> drawPerimeter(canvas, w, h)
-            STYLE_OUTLINE -> drawOutline(canvas, w, h)
+            STYLE_OUTLINE -> drawOutlineType(canvas, w, h)
             STYLE_DAYLINE -> drawDayline(canvas, w, h)
             STYLE_NEUMO -> drawNeumo(canvas, w, h)
             STYLE_DECK -> drawDeck(canvas, w, h)
@@ -2303,14 +2303,14 @@ class ClockView @JvmOverloads constructor(
         val d = 297.8501921 + 445267.1114034 * t
         val ms = 357.5291092 + 35999.0502909 * t
         val mp = 134.9633964 + 477198.8675055 * t
-        var i = 180.0 - d - 6.289 * kotlin.math.sin(kotlin.math.toRadians(mp)) +
-            2.1 * kotlin.math.sin(kotlin.math.toRadians(ms)) -
-            1.274 * kotlin.math.sin(kotlin.math.toRadians(2 * d - mp)) -
-            0.658 * kotlin.math.sin(kotlin.math.toRadians(2 * d)) -
-            0.214 * kotlin.math.sin(kotlin.math.toRadians(2 * mp)) -
-            0.11 * kotlin.math.sin(kotlin.math.toRadians(d))
+        var i = 180.0 - d - 6.289 * kotlin.math.sin(Math.toRadians(mp)) +
+            2.1 * kotlin.math.sin(Math.toRadians(ms)) -
+            1.274 * kotlin.math.sin(Math.toRadians(2 * d - mp)) -
+            0.658 * kotlin.math.sin(Math.toRadians(2 * d)) -
+            0.214 * kotlin.math.sin(Math.toRadians(2 * mp)) -
+            0.11 * kotlin.math.sin(Math.toRadians(d))
         i = (i % 360.0 + 360.0) % 360.0
-        val illum = ((1 + kotlin.math.cos(kotlin.math.toRadians(i))) / 2).toFloat()
+        val illum = ((1 + kotlin.math.cos(Math.toRadians(i))) / 2).toFloat()
         val waxing = i < 180.0
         val age = (((180 - i) % 360 + 360) % 360) / 360.0 * 29.530588
         val name = when {
@@ -2332,7 +2332,7 @@ class ClockView @JvmOverloads constructor(
         val p = Path()
         val waning = i > 180.0
         val xarc = ((if (waning) 1.0 else -1.0) *
-            kotlin.math.cos(kotlin.math.toRadians(i)) * r).toFloat()
+            kotlin.math.cos(Math.toRadians(i)) * r).toFloat()
         val rx = kotlin.math.max(kotlin.math.abs(xarc), r * 0.02f)
         val disc = RectF(-r, -r, r, r)
         if (waning) p.arcTo(disc, -90f, 180f) else p.arcTo(disc, -90f, -180f)
@@ -2402,30 +2402,30 @@ class ClockView @JvmOverloads constructor(
         val t = n / 36525.0
         val l0 = 280.46646 + 36000.76983 * t + 0.0003032 * t * t
         val mm = 357.52911 + 35999.05029 * t - 0.0001537 * t * t
-        val c = 1.914602 * kotlin.math.sin(kotlin.math.toRadians(mm)) +
-            0.019993 * kotlin.math.sin(kotlin.math.toRadians(2 * mm)) +
-            0.000289 * kotlin.math.sin(kotlin.math.toRadians(3 * mm))
+        val c = 1.914602 * kotlin.math.sin(Math.toRadians(mm)) +
+            0.019993 * kotlin.math.sin(Math.toRadians(2 * mm)) +
+            0.000289 * kotlin.math.sin(Math.toRadians(3 * mm))
         val omega = 125.04 - 1934.136 * t
-        val lambda = l0 + c - 0.00569 - 0.00478 * kotlin.math.sin(kotlin.math.toRadians(omega))
+        val lambda = l0 + c - 0.00569 - 0.00478 * kotlin.math.sin(Math.toRadians(omega))
         val eps = 23.439291 - 0.0000004 * t
         val dec = kotlin.math.asin(
-            kotlin.math.sin(kotlin.math.toRadians(eps)) * kotlin.math.sin(kotlin.math.toRadians(lambda))
+            kotlin.math.sin(Math.toRadians(eps)) * kotlin.math.sin(Math.toRadians(lambda))
         )
         val ra = kotlin.math.atan2(
-            kotlin.math.cos(kotlin.math.toRadians(eps)) * kotlin.math.sin(kotlin.math.toRadians(lambda)),
-            kotlin.math.cos(kotlin.math.toRadians(lambda))
+            kotlin.math.cos(Math.toRadians(eps)) * kotlin.math.sin(Math.toRadians(lambda)),
+            kotlin.math.cos(Math.toRadians(lambda))
         )
         val gmst = (18.697374558 + 24.06570982441908 * n) % 24.0
         var hh = (gmst * 15.0 + lon) - Math.toDegrees(ra)
         hh = (hh % 360.0 + 540.0) % 360.0 - 180.0
-        val latR = kotlin.math.toRadians(lat)
+        val latR = Math.toRadians(lat)
         val alt = kotlin.math.asin(
             kotlin.math.sin(latR) * kotlin.math.sin(dec) +
-                kotlin.math.cos(latR) * kotlin.math.cos(dec) * kotlin.math.cos(kotlin.math.toRadians(hh))
+                kotlin.math.cos(latR) * kotlin.math.cos(dec) * kotlin.math.cos(Math.toRadians(hh))
         )
         val azRaw = kotlin.math.atan2(
-            kotlin.math.sin(kotlin.math.toRadians(hh)),
-            kotlin.math.cos(kotlin.math.toRadians(hh)) * kotlin.math.sin(latR) -
+            kotlin.math.sin(Math.toRadians(hh)),
+            kotlin.math.cos(Math.toRadians(hh)) * kotlin.math.sin(latR) -
                 kotlin.math.tan(dec) * kotlin.math.cos(latR)
         ) + Math.PI
         val az = (Math.toDegrees(azRaw) % 360.0 + 360.0) % 360.0
@@ -2568,7 +2568,7 @@ class ClockView @JvmOverloads constructor(
 
     // ---- 36: outline type + filled seconds ----
 
-    private fun drawOutline(canvas: Canvas, w: Float, h: Float) {
+    private fun drawOutlineType(canvas: Canvas, w: Float, h: Float) {
         val (_, _, s) = wallTime()
         val main = ink()
         paint.reset()
