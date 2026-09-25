@@ -4,8 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PathMeasure
+import android.graphics.RadialGradient
+import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.util.AttributeSet
 import android.os.SystemClock
@@ -66,6 +71,10 @@ import kotlin.math.sin
  *  23 - LCD     : retro LCD panel with ghost + active seven-segment strokes.
  *  24 - PONG    : a real self-playing Pong match (AI paddles, real
  *                  bounces, running score to 11) plus a small clock line.
+ *  31..40       : newer concepts - spoken-RU word clock, moon phase,
+ *                  solar horizon, orbits, day perimeter, outline type,
+ *                  dayline (light/dark), neumorph (light), card deck,
+ *                  odometer drums.
  *  25 - WORD    : minimalist word-clock phrase (e.g. "TEN THIRTY TWO").
  *  26 - BINARY  : HH:MM:SS binary clock in six LED columns.
  *  27 - POLAR   : concentric progress-ring (Polar Clock) face.
@@ -187,7 +196,17 @@ class ClockView @JvmOverloads constructor(
         const val STYLE_DRIFT = 28
         const val STYLE_GLITCH = 29
         const val STYLE_MATRIX_RAIN = 30
-        const val MAX_CLOCK_STYLE = STYLE_MATRIX_RAIN
+        const val STYLE_WORD_RU = 31
+        const val STYLE_MOON = 32
+        const val STYLE_SOLAR = 33
+        const val STYLE_ORBIT = 34
+        const val STYLE_PERIMETER = 35
+        const val STYLE_OUTLINE = 36
+        const val STYLE_DAYLINE = 37
+        const val STYLE_NEUMO = 38
+        const val STYLE_DECK = 39
+        const val STYLE_ODO = 40
+        const val MAX_CLOCK_STYLE = STYLE_ODO
 
         // Pong match (style 24): first to PONG_GAME_TO points wins the game,
         // then the scoreboard restarts. The ball pauses briefly per point.
@@ -195,6 +214,22 @@ class ClockView @JvmOverloads constructor(
         private const val PONG_SERVE_PAUSE_MS = 900L
         private const val PONG_PADDLE_H = 0.24f // paddle length, share of court height
         private const val PONG_BOTTOM_BAND = 0.17f // score strip below the court, share of view height
+
+        /** Renders one style into a small offscreen bitmap for the settings
+         *  list. Safe off the window: no attach needed for measure+draw. */
+        fun drawStyleThumbnail(ctx: android.content.Context, style: Int, wPx: Int, hPx: Int): Bitmap {
+            val v = ClockView(ctx)
+            v.styleOverride = style
+            v.setTime(android.text.format.DateFormat.format(
+                "HH:mm", java.lang.System.currentTimeMillis()).toString())
+            val wm = View.MeasureSpec.makeMeasureSpec(wPx, View.MeasureSpec.EXACTLY)
+            val hm = View.MeasureSpec.makeMeasureSpec(hPx, View.MeasureSpec.EXACTLY)
+            v.measure(wm, hm)
+            v.layout(0, 0, wPx, hPx)
+            val bmp = Bitmap.createBitmap(wPx.coerceAtLeast(1), hPx.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            v.draw(Canvas(bmp))
+            return bmp
+        }
 
         // Reused 5x7 glyph rows. Keeping these as IntArray constants removes
         // dozens of Array<Int> allocations per frame in DOTS/MATRIX faces.
@@ -255,7 +290,13 @@ class ClockView @JvmOverloads constructor(
         val s = style() // single prefs read (the style was queried twice)
         val live = s == 16 || s == 18 || s == STYLE_PONG || s == STYLE_BINARY ||
             s == STYLE_POLAR || s == STYLE_DRIFT || s == STYLE_GLITCH ||
-            s == STYLE_MATRIX_RAIN
+            s == STYLE_MATRIX_RAIN || s == STYLE_ORBIT || s == STYLE_PERIMETER ||
+            s == STYLE_OUTLINE
+        if (s != lastStyleApplied) {
+            // Time rotation switched the face: heights differ per style.
+            lastStyleApplied = s
+            requestLayout()
+        }
         if (text == timeText && !live) return
         // "9:59" -> "10:00" changes the fitted size and needs a re-measure;
         // same-length ticks ("10:00" -> "10:01") only need a redraw. Calling
@@ -311,7 +352,35 @@ class ClockView @JvmOverloads constructor(
         return Triple(hh.toString(), "%02d".format(Locale.US, m), "")
     }
 
-    private fun style(): Int = Prefs.clockStyle(context)
+    /** Preview override (settings thumbnails); null = follow prefs/rotation. */
+    var styleOverride: Int? = null
+
+    private var rotPoolRaw = "\u0000"
+    private var rotPool: List<Int> = emptyList()
+    private var lastStyleApplied = -1
+
+    /**
+     * The effective style. When the user enabled the time rotation and
+     * picked at least one face, the style cycles deterministically by wall
+     * clock - no timers, every consumer (overlay, dream, previews) agrees.
+     */
+    private fun style(): Int {
+        styleOverride?.let { return it }
+        if (Prefs.clockRotateEnabled(context)) {
+            val raw = Prefs.clockRotatePool(context)
+            if (raw != rotPoolRaw) {
+                rotPoolRaw = raw
+                rotPool = raw.split(',').mapNotNull { it.trim().toIntOrNull() }
+                    .filter { it in 0..MAX_CLOCK_STYLE }.distinct()
+            }
+            if (rotPool.isNotEmpty()) {
+                val every = Prefs.clockRotateEveryMin(context).coerceAtLeast(1)
+                val idx = ((System.currentTimeMillis() / 60000L) / every).toInt()
+                return rotPool[idx % rotPool.size]
+            }
+        }
+        return Prefs.clockStyle(context)
+    }
 
     private fun thicknessPx(): Float {
         val dp = Prefs.clockThickness(context).toFloat()
@@ -325,7 +394,7 @@ class ClockView @JvmOverloads constructor(
         7 -> tfSerif
         8 -> tfBoldItalic
         10, 13, 14 -> tfSans
-        12, 20, STYLE_LCD, STYLE_NIXIE, STYLE_MATRIX_RAIN -> Typeface.MONOSPACE
+        12, 20, STYLE_LCD, STYLE_NIXIE, STYLE_MATRIX_RAIN, STYLE_ODO -> Typeface.MONOSPACE
         15, 17, STYLE_FLIQLO, STYLE_GLITCH -> tfBlack
         else -> tfBold
     }
@@ -443,6 +512,16 @@ class ClockView @JvmOverloads constructor(
         STYLE_BINARY -> min(availW * 0.48f, capPx * 1.35f).coerceAtLeast(dp(104f))
         STYLE_POLAR -> min(availW * 0.76f, capPx * 2.05f).coerceAtLeast(dp(150f))
         STYLE_MATRIX_RAIN -> min(availW * 0.58f, capPx * 1.70f).coerceAtLeast(dp(128f))
+        STYLE_WORD_RU -> min(availW * 0.55f, capPx * 1.45f).coerceAtLeast(dp(120f))
+        STYLE_MOON -> min(availW * 0.60f, capPx * 1.55f).coerceAtLeast(dp(132f))
+        STYLE_SOLAR -> min(availW * 0.62f, capPx * 1.80f).coerceAtLeast(dp(132f))
+        STYLE_ORBIT -> min(availW, capPx * 1.60f).coerceAtLeast(dp(150f))
+        STYLE_PERIMETER -> min(availW * 0.55f, capPx * 1.70f).coerceAtLeast(dp(124f))
+        STYLE_OUTLINE -> min(availW * 0.50f, capPx * 1.40f).coerceAtLeast(dp(104f))
+        STYLE_DAYLINE -> min(availW * 0.50f, capPx * 1.60f).coerceAtLeast(dp(110f))
+        STYLE_NEUMO -> min(availW * 0.45f, capPx * 1.40f).coerceAtLeast(dp(104f))
+        STYLE_DECK -> min(availW * 0.50f, capPx * 1.50f).coerceAtLeast(dp(120f))
+        STYLE_ODO -> min(availW * 0.42f, capPx * 1.40f).coerceAtLeast(dp(96f))
         else -> 0f
     }
 
@@ -578,6 +657,16 @@ class ClockView @JvmOverloads constructor(
             STYLE_DRIFT -> drawDrift(canvas, w, h)
             STYLE_GLITCH -> drawGlitch(canvas, w, h)
             STYLE_MATRIX_RAIN -> drawMatrixRain(canvas, w, h)
+            STYLE_WORD_RU -> drawWordRu(canvas, w, h)
+            STYLE_MOON -> drawMoonPhase(canvas, w, h)
+            STYLE_SOLAR -> drawSolarHorizon(canvas, w, h)
+            STYLE_ORBIT -> drawOrbitClock(canvas, w, h)
+            STYLE_PERIMETER -> drawPerimeter(canvas, w, h)
+            STYLE_OUTLINE -> drawOutline(canvas, w, h)
+            STYLE_DAYLINE -> drawDayline(canvas, w, h)
+            STYLE_NEUMO -> drawNeumo(canvas, w, h)
+            STYLE_DECK -> drawDeck(canvas, w, h)
+            STYLE_ODO -> drawOdometer(canvas, w, h)
             else -> drawNormal(canvas, w, h)
         }
         if (sc < 1f) canvas.restore()
@@ -2101,6 +2190,570 @@ class ClockView @JvmOverloads constructor(
         '8' -> GLYPH_8
         '9' -> GLYPH_9
         else -> null
+    }
+
+
+    // ---------- styles 31-40: newer time visualizations ----------
+
+    // ---- 31: word clock, spoken Russian ----
+
+    private val ruOnes = arrayOf("НОЛЬ", "ОДИН", "ДВА", "ТРИ", "ЧЕТЫРЕ", "ПЯТЬ", "ШЕСТЬ", "СЕМЬ", "ВОСЕМЬ", "ДЕВЯТЬ")
+    private val ruTeens = arrayOf("ДЕСЯТЬ", "ОДИННАДЦАТЬ", "ДВЕНАДЦАТЬ", "ТРИНАДЦАТЬ", "ЧЕТЫРНАДЦАТЬ", "ПЯТНАДЦАТЬ", "ШЕСТНАДЦАТЬ", "СЕМНАДЦАТЬ", "ВОСЕМНАДЦАТЬ", "ДЕВЯТНАДЦАТЬ")
+    private val ruTens = arrayOf("", "ДЕСЯТЬ", "ДВАДЦАТЬ", "ТРИДЦАТЬ", "СОРОК", "ПЯТЬДЕСЯТ")
+    private val ruHourNom = arrayOf("ДВЕНАДЦАТЬ", "ЧАС", "ДВА", "ТРИ", "ЧЕТЫРЕ", "ПЯТЬ", "ШЕСТЬ", "СЕМЬ", "ВОСЕМЬ", "ДЕВЯТЬ", "ДЕСЯТЬ", "ОДИННАДЦАТЬ", "ДВЕНАДЦАТЬ")
+    private val ruHourGen = arrayOf("ДВЕНАДЦАТОГО", "ПЕРВОГО", "ВТОРОГО", "ТРЕТЬЕГО", "ЧЕТВЁРТОГО", "ПЯТОГО", "ШЕСТОГО", "СЕДЬМОГО", "ВОСЬМОГО", "ДЕВЯТОГО", "ДЕСЯТОГО", "ОДИННАДЦАТОГО", "ДВЕНАДЦАТОГО")
+    private val ruWeek = arrayOf("ВОСКРЕСЕНЬЕ", "ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА")
+    private val ruMonthGen = arrayOf("ЯНВАРЯ", "ФЕВРАЛЯ", "МАРТА", "АПРЕЛЯ", "МАЯ", "ИЮНЯ", "ИЮЛЯ", "АВГУСТА", "СЕНТЯБРЯ", "ОКТЯБРЯ", "НОЯБРЯ", "ДЕКАБРЯ")
+    private val ruDayOrd = arrayOf("ПЕРВОГО", "ВТОРОГО", "ТРЕТЬЕГО", "ЧЕТВЁРТОГО", "ПЯТОГО", "ШЕСТОГО", "СЕДЬМОГО", "ВОСЬМОГО", "ДЕВЯТОГО", "ДЕСЯТОГО", "ОДИННАДЦАТОГО", "ДВЕНАДЦАТОГО", "ТРИНАДЦАТОГО", "ЧЕТЫРНАДЦАТОГО", "ПЯТНАДЦАТОГО", "ШЕСТНАДЦАТОГО", "СЕМНАДЦАТОГО", "ВОСЕМНАДЦАТОГО", "ДЕВЯТНАДЦАТОГО", "ДВАДЦАТОГО", "ДВАДЦАТЬ ПЕРВОГО", "ДВАДЦАТЬ ВТОРОГО", "ДВАДЦАТЬ ТРЕТЬЕГО", "ДВАДЦАТЬ ЧЕТВЁРТОГО", "ДВАДЦАТЬ ПЯТОГО", "ДВАДЦАТЬ ШЕСТОГО", "ДВАДЦАТЬ СЕДЬМОГО", "ДВАДЦАТЬ ВОСЬМОГО", "ДВАДЦАТЬ ДЕВЯТОГО", "ТРИДЦАТОГО", "ТРИДЦАТЬ ПЕРВОГО")
+    private val ruGenOnes = arrayOf("", "ОДНОЙ", "ДВУХ", "ТРЁХ", "ЧЕТЫРЁХ", "ПЯТИ", "ШЕСТИ", "СЕМИ", "ВОСЬМИ", "ДЕВЯТИ")
+    private val ruGenTeens = arrayOf("ДЕСЯТИ", "ОДИННАДЦАТИ", "ДВЕНАДЦАТИ", "ТРИНАДЦАТИ", "ЧЕТЫРНАДЦАТИ", "ПЯТНАДЦАТИ", "ШЕСТНАДЦАТИ", "СЕМНАДЦАТИ", "ВОСЕМНАДЦАТИ", "ДЕВЯТНАДЦАТИ")
+    private val ruGenTens = arrayOf("", "", "ДВАДЦАТИ", "ТРИДЦАТИ", "СОРОКА", "ПЯТИДЕСЯТИ")
+
+    private fun ruMinWord(n: Int): String = when {
+        n < 10 -> ruOnes[n]
+        n < 20 -> ruTeens[n - 10]
+        n % 10 == 0 -> ruTens[n / 10]
+        else -> ruTens[n / 10] + " " + ruOnes[n % 10]
+    }
+
+    private fun ruFemMin(n: Int): String = when (n) {
+        1 -> "ОДНА"
+        2 -> "ДВЕ"
+        21 -> "ДВАДЦАТЬ ОДНА"
+        22 -> "ДВАДЦАТЬ ДВЕ"
+        else -> ruMinWord(n)
+    }
+
+    private fun ruPlural(n: Int, one: String, few: String, many: String): String {
+        val a = n % 10
+        val b = n % 100
+        return if (a == 1 && b != 11) one
+        else if (a in 2..4 && !(b in 12..14)) few
+        else many
+    }
+
+    private fun ruGenNum(n: Int): String = when {
+        n < 10 -> ruGenOnes[n]
+        n < 20 -> ruGenTeens[n - 10]
+        n % 10 == 0 -> ruGenTens[n / 10]
+        else -> ruGenTens[n / 10] + " " + ruGenOnes[n % 10]
+    }
+
+    /** «без пятнадцати два», «пол первого», «ровно пять часов». */
+    private fun ruWordTime(h: Int, m: Int): Pair<String, String> {
+        val h12 = h % 12
+        val gen = ruHourGen[h12 + 1]
+        val nom = ruHourNom[h12 + 1]
+        return when {
+            m == 0 -> (ruMinWord(if (h12 == 0) 12 else h12) + " " +
+                ruPlural(h, "ЧАС", "ЧАСА", "ЧАСОВ")) to "РОВНО"
+            m <= 24 -> (ruFemMin(m) + " " + ruPlural(m, "МИНУТА", "МИНУТЫ", "МИНУТ")) to gen
+            m <= 34 -> "ПОЛ" to gen
+            60 - m == 15 -> "БЕЗ ЧЕТВЕРТИ" to nom
+            else -> {
+                val left = 60 - m
+                val tail = if (left < 5) (if (left == 1) " МИНУТЫ" else " МИНУТ") else ""
+                ("БЕЗ " + ruGenNum(left) + tail) to nom
+            }
+        }
+    }
+
+    private fun drawWordRu(canvas: Canvas, w: Float, h: Float) {
+        val (h24, m, _) = wallTime()
+        val (a, b) = ruWordTime(h24, m)
+        val cal = Calendar.getInstance()
+        val dateLine = "СЕГОДНЯ " + ruWeek[cal.get(Calendar.DAY_OF_WEEK) - 1] + ", " +
+            ruDayOrd[cal.get(Calendar.DAY_OF_MONTH) - 1] + " " + ruMonthGen[cal.get(Calendar.MONTH)]
+        val main = ink()
+
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfBold
+        paint.textAlign = Paint.Align.CENTER
+        paint.color = main
+        var ts = min(h * 0.15f, w * 0.10f)
+        paint.textSize = ts
+        val need = maxOf(paint.measureText(a), paint.measureText(b))
+        if (need > w * 0.94f && need > 0f) ts *= (w * 0.94f) / need
+        paint.textSize = ts
+        val lineStep = ts * 1.3f
+        val centerY = (h - h * 0.10f) / 2f
+        drawCenteredAt(canvas, a, w / 2f, centerY - lineStep / 2f, paint)
+        paint.color = dimmed(main, 0.80f)
+        drawCenteredAt(canvas, b, w / 2f, centerY + lineStep / 2f, paint)
+        paint.typeface = Typeface.MONOSPACE
+        paint.textSize = min(h * 0.05f, w * 0.038f)
+        paint.color = dimmed(main, 0.55f)
+        drawCenteredAt(canvas, dateLine, w / 2f, h - h * 0.06f, paint)
+    }
+
+    // ---- 32: moon phase (Meeus phase angle) ----
+
+    private data class MoonPhaseInfo(
+        val illum: Float,
+        val ageDays: Float,
+        val waxing: Boolean,
+        val name: String,
+        val angleDeg: Double
+    )
+
+    private fun moonPhaseInfo(nowMs: Long): MoonPhaseInfo {
+        val jd = nowMs / 86400000.0 + 2440587.5
+        val t = (jd - 2451545.0) / 36525.0
+        val d = 297.8501921 + 445267.1114034 * t
+        val ms = 357.5291092 + 35999.0502909 * t
+        val mp = 134.9633964 + 477198.8675055 * t
+        var i = 180.0 - d - 6.289 * kotlin.math.sin(kotlin.math.toRadians(mp)) +
+            2.1 * kotlin.math.sin(kotlin.math.toRadians(ms)) -
+            1.274 * kotlin.math.sin(kotlin.math.toRadians(2 * d - mp)) -
+            0.658 * kotlin.math.sin(kotlin.math.toRadians(2 * d)) -
+            0.214 * kotlin.math.sin(kotlin.math.toRadians(2 * mp)) -
+            0.11 * kotlin.math.sin(kotlin.math.toRadians(d))
+        i = (i % 360.0 + 360.0) % 360.0
+        val illum = ((1 + kotlin.math.cos(kotlin.math.toRadians(i))) / 2).toFloat()
+        val waxing = i < 180.0
+        val age = (((180 - i) % 360 + 360) % 360) / 360.0 * 29.530588
+        val name = when {
+            age < 1.0 || age > 28.53 -> "Новолуние"
+            age < 6.38 -> "Растущий серп"
+            age < 8.38 -> "Первая четверть"
+            age < 13.77 -> "Растущая луна"
+            age < 15.77 -> "Полнолуние"
+            age < 21.15 -> "Убывающая луна"
+            age < 23.15 -> "Последняя четверть"
+            else -> "Убывающий серп"
+        }
+        return MoonPhaseInfo(illum, age.toFloat(), waxing, name, i)
+    }
+
+    /** Shadow region: limb semicircle + elliptical terminator (as in the
+     *  reference sheet); i in degrees, 0 = full, 180 = new. */
+    private fun moonShadowPath(i: Double, r: Float): Path {
+        val p = Path()
+        val waning = i > 180.0
+        val xarc = ((if (waning) 1.0 else -1.0) *
+            kotlin.math.cos(kotlin.math.toRadians(i)) * r).toFloat()
+        val rx = kotlin.math.max(kotlin.math.abs(xarc), r * 0.02f)
+        val disc = RectF(-r, -r, r, r)
+        if (waning) p.arcTo(disc, -90f, 180f) else p.arcTo(disc, -90f, -180f)
+        val term = RectF(-rx, -r, rx, r)
+        if (xarc > 0f) p.arcTo(term, 90f, -180f) else p.arcTo(term, 90f, 180f)
+        p.close()
+        return p
+    }
+
+    private fun drawMoonPhase(canvas: Canvas, w: Float, h: Float) {
+        val now = System.currentTimeMillis()
+        val mi = moonPhaseInfo(now)
+        val main = ink()
+        val r = min(h * 0.30f, w * 0.22f)
+        val cx = w * 0.28f
+        val cy = h * 0.46f
+        fillPaint.color = 0xFFE4E9F4.toInt()
+        canvas.drawCircle(cx, cy, r, fillPaint)
+        fillPaint.color = 0x2E93A0BD.toInt()
+        canvas.drawCircle(cx - r * 0.35f, cy - r * 0.25f, r * 0.18f, fillPaint)
+        canvas.drawCircle(cx + r * 0.28f, cy + r * 0.30f, r * 0.24f, fillPaint)
+        canvas.drawCircle(cx - r * 0.10f, cy + r * 0.48f, r * 0.12f, fillPaint)
+        canvas.drawCircle(cx + r * 0.50f, cy - r * 0.38f, r * 0.10f, fillPaint)
+        canvas.save()
+        canvas.translate(cx, cy)
+        fillPaint.color = 0xFF070A12.toInt()
+        canvas.drawPath(moonShadowPath(mi.angleDeg, r), fillPaint)
+        canvas.restore()
+        strokePaint.color = dimmed(main, 0.25f)
+        strokePaint.strokeWidth = dp(1f)
+        canvas.drawCircle(cx, cy, r, strokePaint)
+
+        val tx = w * 0.52f + w * 0.22f
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfSans
+        paint.textAlign = Paint.Align.CENTER
+        paint.color = main
+        paint.textSize = min(h * 0.20f, w * 0.115f)
+        drawCenteredAt(canvas, hourMinuteText(), tx, h * 0.22f, paint)
+        paint.typeface = Typeface.MONOSPACE
+        paint.textSize = min(h * 0.055f, w * 0.042f)
+        paint.color = dimmed(main, 0.75f)
+        drawCenteredAt(canvas, mi.name, tx, h * 0.45f, paint)
+        drawCenteredAt(canvas, "освещено " + (mi.illum * 100).toInt() + "%", tx, h * 0.54f, paint)
+        drawCenteredAt(canvas, "возраст " + String.format(Locale.US, "%.1f", mi.ageDays) + " сут", tx, h * 0.63f, paint)
+        drawCenteredAt(canvas, dateShortLine(), tx, h * 0.76f, paint)
+    }
+
+    private fun dateShortLine(): String =
+        SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(Date())
+
+    // ---- 33: solar horizon (NOAA-style approximation) ----
+
+    /** Sun altitude/azimuth in degrees for the saved weather point
+     *  (or Amsterdam when none). */
+    private fun sunAltAz(nowMs: Long): Pair<Double, Double> {
+        val loc = try {
+            Prefs.weatherLocation(context)
+        } catch (_: Exception) {
+            null
+        }
+        val lat = loc?.first?.toDouble() ?: 52.3676
+        val lon = loc?.second?.toDouble() ?: 4.9041
+        val jd = nowMs / 86400000.0 + 2440587.5
+        val n = jd - 2451545.0
+        val t = n / 36525.0
+        val l0 = 280.46646 + 36000.76983 * t + 0.0003032 * t * t
+        val mm = 357.52911 + 35999.05029 * t - 0.0001537 * t * t
+        val c = 1.914602 * kotlin.math.sin(kotlin.math.toRadians(mm)) +
+            0.019993 * kotlin.math.sin(kotlin.math.toRadians(2 * mm)) +
+            0.000289 * kotlin.math.sin(kotlin.math.toRadians(3 * mm))
+        val omega = 125.04 - 1934.136 * t
+        val lambda = l0 + c - 0.00569 - 0.00478 * kotlin.math.sin(kotlin.math.toRadians(omega))
+        val eps = 23.439291 - 0.0000004 * t
+        val dec = kotlin.math.asin(
+            kotlin.math.sin(kotlin.math.toRadians(eps)) * kotlin.math.sin(kotlin.math.toRadians(lambda))
+        )
+        val ra = kotlin.math.atan2(
+            kotlin.math.cos(kotlin.math.toRadians(eps)) * kotlin.math.sin(kotlin.math.toRadians(lambda)),
+            kotlin.math.cos(kotlin.math.toRadians(lambda))
+        )
+        val gmst = (18.697374558 + 24.06570982441908 * n) % 24.0
+        var hh = (gmst * 15.0 + lon) - Math.toDegrees(ra)
+        hh = (hh % 360.0 + 540.0) % 360.0 - 180.0
+        val latR = kotlin.math.toRadians(lat)
+        val alt = kotlin.math.asin(
+            kotlin.math.sin(latR) * kotlin.math.sin(dec) +
+                kotlin.math.cos(latR) * kotlin.math.cos(dec) * kotlin.math.cos(kotlin.math.toRadians(hh))
+        )
+        val azRaw = kotlin.math.atan2(
+            kotlin.math.sin(kotlin.math.toRadians(hh)),
+            kotlin.math.cos(kotlin.math.toRadians(hh)) * kotlin.math.sin(latR) -
+                kotlin.math.tan(dec) * kotlin.math.cos(latR)
+        ) + Math.PI
+        val az = (Math.toDegrees(azRaw) % 360.0 + 360.0) % 360.0
+        return Math.toDegrees(alt) to az
+    }
+
+    private fun drawSolarHorizon(canvas: Canvas, w: Float, h: Float) {
+        val now = System.currentTimeMillis()
+        val (alt, az) = sunAltAz(now)
+        val horizonY = h * 0.80f
+        val topY = h * 0.08f
+        val day = alt > 12
+        val gold = alt > 0 && alt <= 12
+        val dusk = alt <= 0 && alt > -6
+        val topColor = when {
+            day -> 0xFF2B6FB5.toInt()
+            gold -> 0xFF16345A.toInt()
+            dusk -> 0xFF0A1330.toInt()
+            else -> 0xFF03060E.toInt()
+        }
+        val botColor = when {
+            day -> 0xFFCDE2F4.toInt()
+            gold -> 0xFFF2A45C.toInt()
+            dusk -> 0xFF7C4A62.toInt()
+            else -> 0xFF131A2C.toInt()
+        }
+        fillPaint.shader = LinearGradient(0f, topY - h * 0.06f, 0f, horizonY, topColor, botColor, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, w, horizonY, fillPaint)
+        fillPaint.shader = null
+        fillPaint.color = 0xFF0A0E14.toInt()
+        canvas.drawRect(0f, horizonY, w, h, fillPaint)
+        strokePaint.color = 0x40FFFFFF.toInt()
+        strokePaint.strokeWidth = dp(1f)
+        canvas.drawLine(0f, horizonY, w, horizonY, strokePaint)
+
+        var azOff = az - 180.0
+        if (azOff > 180.0) azOff -= 360.0
+        if (azOff < -180.0) azOff += 360.0
+        val sx = w * (0.5f + (azOff / 360.0)).toFloat()
+        val sy = horizonY - (kotlin.math.max(alt, -8.0) / 90.0).toFloat() * (horizonY - topY)
+        val r = min(w, h) * 0.045f
+        if (alt > -8.0) {
+            fillPaint.shader = RadialGradient(sx, sy, r * 3.2f, 0x66FFAE4E.toInt(), 0x00000000, Shader.TileMode.CLAMP)
+            canvas.drawCircle(sx, sy, r * 3.2f, fillPaint)
+            fillPaint.shader = null
+            fillPaint.color = if (day) 0xFFFFF4CD.toInt() else 0xFFFFD279.toInt()
+            canvas.drawCircle(sx, sy, r, fillPaint)
+        }
+
+        val inkColor = if (day) 0xFF10233C.toInt() else 0xFFF5F7FB.toInt()
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.textAlign = Paint.Align.LEFT
+        paint.typeface = tfBold
+        paint.textSize = min(h * 0.16f, w * 0.12f)
+        paint.color = inkColor
+        canvas.drawText(hourMinuteText(), dp(10f), topY + h * 0.10f, paint)
+        paint.typeface = Typeface.MONOSPACE
+        paint.textSize = min(h * 0.045f, w * 0.036f)
+        paint.color = dimmed(inkColor, 0.9f)
+        canvas.drawText(String.format(Locale.US, "ALT %+.1f\u00b0  AZ %.0f\u00b0", alt, az), dp(10f), topY + h * 0.16f, paint)
+        paint.textAlign = Paint.Align.RIGHT
+        canvas.drawText(dateShortLine(), w - dp(10f), h - dp(8f), paint)
+    }
+
+    // ---- 34: orbits ----
+
+    private fun drawOrbitClock(canvas: Canvas, w: Float, h: Float) {
+        val (h24, m, s) = wallTime()
+        val main = ink()
+        val cx = w / 2f
+        val cy = h * 0.52f
+        val r1 = min(w, h) * 0.40f
+        val r2 = r1 * 0.68f
+        val r3 = r1 * 0.40f
+        strokePaint.strokeWidth = dp(1f)
+        strokePaint.color = dimmed(main, 0.25f)
+        canvas.drawCircle(cx, cy, r1, strokePaint)
+        canvas.drawCircle(cx, cy, r2, strokePaint)
+        canvas.drawCircle(cx, cy, r3, strokePaint)
+        val tau = 2f * PI.toFloat()
+        val angH = ((h24 % 12) + m / 60f) / 12f * tau - PI.toFloat() / 2f
+        val angM = (m + s / 60f) / 60f * tau - PI.toFloat() / 2f
+        val angS = s / 60f * tau - PI.toFloat() / 2f
+        fillPaint.color = main
+        canvas.drawCircle(cx + r1 * cos(angH), cy + r1 * sin(angH), dp(4.5f), fillPaint)
+        fillPaint.color = 0xFF7DD3FC.toInt()
+        canvas.drawCircle(cx + r2 * cos(angM), cy + r2 * sin(angM), dp(3.6f), fillPaint)
+        fillPaint.color = 0xFFF472B6.toInt()
+        canvas.drawCircle(cx + r3 * cos(angS), cy + r3 * sin(angS), dp(2.8f), fillPaint)
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfSans
+        paint.textAlign = Paint.Align.CENTER
+        paint.color = main
+        paint.textSize = min(h * 0.14f, w * 0.10f)
+        drawCenteredAt(canvas, hourMinuteText(), cx, cy, paint)
+        paint.typeface = Typeface.MONOSPACE
+        paint.textSize *= 0.45f
+        paint.color = dimmed(main, 0.7f)
+        drawCenteredAt(canvas, ":%02d".format(s), cx, cy + h * 0.11f, paint)
+    }
+
+    // ---- 35: day progress along the perimeter ----
+
+    private fun drawPerimeter(canvas: Canvas, w: Float, h: Float) {
+        val (h24, m, s) = wallTime()
+        val main = ink()
+        val inset = dp(10f)
+        val rad = dp(14f)
+        val frame = Path().apply {
+            addRoundRect(inset, inset, w - inset, h - inset, rad, rad, Path.Direction.CW)
+        }
+        val pm = PathMeasure(frame, false)
+        val total = pm.length
+        strokePaint.color = dimmed(main, 0.22f)
+        strokePaint.strokeWidth = dp(3f)
+        strokePaint.strokeCap = Paint.Cap.ROUND
+        canvas.drawPath(frame, strokePaint)
+        val prog = ((h24 * 3600 + m * 60 + s) / 86400f).coerceIn(0f, 1f)
+        if (prog > 0.001f) {
+            val seg = Path()
+            pm.getSegment(0f, total * prog, seg, true)
+            strokePaint.color = main
+            canvas.drawPath(seg, strokePaint)
+        }
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfSans
+        paint.textAlign = Paint.Align.CENTER
+        paint.color = main
+        paint.textSize = min(h * 0.24f, w * 0.14f)
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h * 0.44f, paint)
+        paint.typeface = Typeface.MONOSPACE
+        paint.textSize = min(h * 0.06f, w * 0.045f)
+        paint.color = dimmed(main, 0.7f)
+        drawCenteredAt(canvas, (prog * 100).toInt().toString() + "% суток", w / 2f, h * 0.62f, paint)
+        drawCenteredAt(canvas, dateShortLine(), w / 2f, h * 0.72f, paint)
+    }
+
+    // ---- 36: outline type + filled seconds ----
+
+    private fun drawOutline(canvas: Canvas, w: Float, h: Float) {
+        val (_, _, s) = wallTime()
+        val main = ink()
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfBlack
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = min(h * 0.38f, w * 0.21f)
+        paint.color = main
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = dp(2f)
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h * 0.44f, paint)
+        paint.style = Paint.Style.FILL
+        paint.typeface = tfBold
+        paint.textSize = min(h * 0.12f, w * 0.08f)
+        drawCenteredAt(canvas, "%02d".format(s), w * 0.78f, h * 0.78f, paint)
+        paint.textSize = min(h * 0.05f, w * 0.04f)
+        paint.color = dimmed(main, 0.65f)
+        drawCenteredAt(canvas, dateShortLine(), w * 0.75f, h * 0.88f, paint)
+    }
+
+    // ---- 37: dayline - light top / dark bottom ----
+
+    private fun drawDayline(canvas: Canvas, w: Float, h: Float) {
+        val mid = h * 0.5f
+        fillPaint.color = 0xFFEDE7DA.toInt()
+        canvas.drawRect(0f, 0f, w, mid, fillPaint)
+        fillPaint.color = 0xFF171B20.toInt()
+        canvas.drawRect(0f, mid, w, h, fillPaint)
+        fillPaint.color = 0xFFFF5A34.toInt()
+        canvas.drawRect(0f, mid - dp(0.75f), w, mid + dp(0.75f), fillPaint)
+        val ts = min(w * 0.17f, h * 0.24f)
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfSans
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = ts
+        canvas.save()
+        canvas.clipRect(0f, 0f, w, mid)
+        paint.color = 0xFF15191D.toInt()
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, mid, paint)
+        canvas.restore()
+        canvas.save()
+        canvas.clipRect(0f, mid, w, h)
+        paint.color = 0xFFF5F7FB.toInt()
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, mid, paint)
+        canvas.restore()
+        paint.textSize = ts * 0.22f
+        paint.color = 0xB315191D.toInt()
+        drawCenteredAt(canvas, dateShortLine(), w * 0.72f, h * 0.14f, paint)
+    }
+
+    // ---- 38: neumorphism (a light face - carries into the screensaver) ----
+
+    private fun drawNeumo(canvas: Canvas, w: Float, h: Float) {
+        val m = wallTime().second
+        val bg = 0xFFDCE2E8.toInt()
+        fillPaint.color = bg
+        canvas.drawRect(0f, 0f, w, h, fillPaint)
+        val inset = dp(16f)
+        val rad = dp(26f)
+        val l = inset
+        val t = inset
+        val r0 = w - inset
+        val b0 = h * 0.86f
+        fillPaint.color = 0x50B8BDC2.toInt()
+        canvas.drawRoundRect(l + dp(5f), t + dp(5f), r0 + dp(5f), b0 + dp(5f), rad, rad, fillPaint)
+        fillPaint.color = 0x66FFFFFF.toInt()
+        canvas.drawRoundRect(l - dp(5f), t - dp(5f), r0 - dp(5f), b0 - dp(5f), rad, rad, fillPaint)
+        fillPaint.color = bg
+        canvas.drawRoundRect(l, t, r0, b0, rad, rad, fillPaint)
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = tfSans
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = min(h * 0.055f, w * 0.045f)
+        paint.color = 0xFF8A94A0.toInt()
+        drawCenteredAt(canvas, dateShortLine(), w / 2f, t + h * 0.13f, paint)
+        paint.textSize = min(h * 0.20f, w * 0.13f)
+        paint.color = 0xFF2B333B.toInt()
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h * 0.40f, paint)
+        val railL = l + dp(22f)
+        val railR = r0 - dp(22f)
+        val railY = b0 - dp(30f)
+        val railH = dp(10f)
+        fillPaint.color = 0xFFCFD5DB.toInt()
+        canvas.drawRoundRect(railL, railY, railR, railY + railH, railH / 2f, railH / 2f, fillPaint)
+        val frac = (m / 60f).coerceIn(0f, 1f)
+        fillPaint.color = 0xFF65717F.toInt()
+        if (frac > 0.02f) {
+            canvas.drawRoundRect(railL, railY, railL + (railR - railL) * frac, railY + railH, railH / 2f, railH / 2f, fillPaint)
+        }
+    }
+
+    // ---- 39: card deck ----
+
+    private fun drawDeck(canvas: Canvas, w: Float, h: Float) {
+        val parts = hourMinuteText().split(":")
+        if (parts.size < 2) return
+        val digits = (parts[0].padStart(2, '0') + parts[1].padStart(2, '0')).toCharArray()
+        if (digits.size < 4) return
+        val cw = w * 0.24f
+        val ch = h * 0.66f
+        val cyc = h * 0.50f
+        val rots = floatArrayOf(-8f, -2.6f, 2.6f, 8f)
+        for (i in 0 until 4) {
+            val ccx = w * 0.5f + (i - 1.5f) * cw * 0.60f
+            canvas.save()
+            canvas.rotate(rots[i], ccx, cyc)
+            fillPaint.color = 0x59000000.toInt()
+            canvas.drawRoundRect(
+                ccx - cw / 2f + dp(3f), cyc - ch / 2f + dp(4f),
+                ccx + cw / 2f + dp(3f), cyc + ch / 2f + dp(4f), dp(8f), dp(8f), fillPaint
+            )
+            fillPaint.color = 0xFFF7F1E4.toInt()
+            canvas.drawRoundRect(ccx - cw / 2f, cyc - ch / 2f, ccx + cw / 2f, cyc + ch / 2f, dp(8f), dp(8f), fillPaint)
+            strokePaint.color = 0x33000000.toInt()
+            strokePaint.strokeWidth = dp(1f)
+            canvas.drawRoundRect(ccx - cw / 2f, cyc - ch / 2f, ccx + cw / 2f, cyc + ch / 2f, dp(8f), dp(8f), strokePaint)
+            paint.reset()
+            paint.isAntiAlias = true
+            paint.typeface = tfSerif
+            paint.textAlign = Paint.Align.CENTER
+            paint.textSize = ch * 0.42f
+            paint.color = 0xFF1B1720.toInt()
+            drawCenteredAt(canvas, digits[i].toString(), ccx, cyc, paint)
+            canvas.restore()
+        }
+    }
+
+    // ---- 40: odometer drums ----
+
+    private fun drawOdometer(canvas: Canvas, w: Float, h: Float) {
+        val parts = hourMinuteText().split(":")
+        if (parts.size < 2) return
+        val digits = (parts[0].padStart(2, '0') + parts[1].padStart(2, '0')).toCharArray()
+        if (digits.size < 4) return
+        val colonW = w * 0.08f
+        val gap = dp(5f)
+        val ww = (w - colonW - gap * 5f) / 4f
+        val wh = h * 0.64f
+        val top = (h - wh) / 2f
+        var x = gap
+        for (i in 0 until 4) {
+            drawOdoWheel(canvas, x, top, ww, wh, digits[i] - '0')
+            x += ww + gap
+            if (i == 1) {
+                paint.reset()
+                paint.isAntiAlias = true
+                paint.typeface = Typeface.MONOSPACE
+                paint.textAlign = Paint.Align.CENTER
+                paint.textSize = wh * 0.5f
+                paint.color = 0xFFC9C9C9.toInt()
+                drawCenteredAt(canvas, ":", x + colonW / 2f, h / 2f, paint)
+                x += colonW
+            }
+        }
+    }
+
+    private fun drawOdoWheel(canvas: Canvas, l: Float, t: Float, ww: Float, wh: Float, cur: Int) {
+        canvas.save()
+        val r = dp(4f)
+        val clip = Path().apply {
+            addRoundRect(l, t, l + ww, t + wh, r, r, Path.Direction.CW)
+        }
+        canvas.clipPath(clip)
+        fillPaint.color = 0xFF141414.toInt()
+        canvas.drawRect(l, t, l + ww, t + wh, fillPaint)
+        paint.reset()
+        paint.isAntiAlias = true
+        paint.typeface = Typeface.MONOSPACE
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = wh * 0.52f
+        paint.color = 0xFFF7EFE0.toInt()
+        val cx = l + ww / 2f
+        drawCenteredAt(canvas, ((cur + 9) % 10).toString(), cx, t - wh * 0.5f, paint)
+        drawCenteredAt(canvas, cur.toString(), cx, t + wh * 0.5f, paint)
+        drawCenteredAt(canvas, ((cur + 1) % 10).toString(), cx, t + wh * 1.5f, paint)
+        fillPaint.color = 0x59000000.toInt()
+        canvas.drawRect(l, t, l + ww, t + wh * 0.16f, fillPaint)
+        canvas.drawRect(l, t + wh * 0.84f, l + ww, t + wh, fillPaint)
+        fillPaint.color = 0x40FFFFFF.toInt()
+        canvas.drawRect(l, t + wh * 0.16f, l + ww, t + wh * 0.16f + dp(1f), fillPaint)
+        canvas.restore()
+        fillPaint.color = 0xFF8A8983.toInt()
+        canvas.drawRect(l, t + wh / 2f - dp(0.5f), l + ww, t + wh / 2f + dp(0.5f), fillPaint)
     }
 
 }

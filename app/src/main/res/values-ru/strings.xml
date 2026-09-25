@@ -77,6 +77,16 @@
         <item>Дрейф</item>
         <item>Глитч</item>
         <item>Дождь «Матрицы»</item>
+        <item>Словесные (по-русски)</item>
+        <item>Фаза Луны</item>
+        <item>Солнечный горизонт</item>
+        <item>Орбиты</item>
+        <item>Сутки по периметру</item>
+        <item>Контур</item>
+        <item>Свет и тьма</item>
+        <item>Неоморфизм</item>
+        <item>Карты веером</item>
+        <item>Барабаны-счётчик</item>
     </string-array>
     <string name="clock_color_title">Цвет часов</string>
     <string-array name="clock_color_entries">
@@ -178,6 +188,23 @@
         <item>Терминал</item>
     </string-array>
     <string name="weather_geo_button">Определить по геолокации</string>
+    <string name="tab_clock">Часы</string>
+    <string name="tab_calendar">Календарь</string>
+    <string name="tab_stocks">Графики</string>
+    <string name="tab_weather">Погода</string>
+    <string name="tab_general">Общие</string>
+    <string name="clock_rotate_title">Менять циферблат по времени</string>
+    <string name="clock_rotate_hint">Отметьте стили ниже — экран ожидания будет сменять их через заданный интервал. Светлые темы (Неоморфизм, Свет и тьма) так же светло выглядят и на заставке.</string>
+    <string name="clock_rotate_interval">Интервал смены</string>
+    <string name="clock_rotate_in_pool">в смене</string>
+    <string name="clock_style_list_title">Все циферблаты</string>
+    <string-array name="clock_rotate_intervals">
+        <item>1 мин</item>
+        <item>5 мин</item>
+        <item>15 мин</item>
+        <item>30 мин</item>
+        <item>1 час</item>
+    </string-array>
     <string name="weather_attribution">Данные погоды: Open-Meteo (основной источник), MET Norway Locationforecast (резервный). MET Norway — сервис Норвежского метеорологического института.</string>
     <string name="weather_city_label">…или введите город вручную:</string>
     <string name="weather_city_hint">Город, напр. Москва</string>

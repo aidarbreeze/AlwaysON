@@ -77,6 +77,16 @@
         <item>Drift</item>
         <item>Glitch</item>
         <item>Matrix rain</item>
+        <item>Word Clock RU</item>
+        <item>Moon Phase</item>
+        <item>Solar Horizon</item>
+        <item>Orbits</item>
+        <item>Day Perimeter</item>
+        <item>Outline</item>
+        <item>Day and Night</item>
+        <item>Neumorph</item>
+        <item>Card Deck</item>
+        <item>Odometer</item>
     </string-array>
     <string name="clock_color_title">Clock color</string>
     <string-array name="clock_color_entries">
@@ -178,6 +188,23 @@
         <item>Terminal</item>
     </string-array>
     <string name="weather_geo_button">Use the device location</string>
+    <string name="tab_clock">Clock</string>
+    <string name="tab_calendar">Calendar</string>
+    <string name="tab_stocks">Charts</string>
+    <string name="tab_weather">Weather</string>
+    <string name="tab_general">General</string>
+    <string name="clock_rotate_title">Rotate clock faces over time</string>
+    <string name="clock_rotate_hint">Check the faces below - the standby screen will cycle them at the set interval. Light faces (Neumorph, Day and Night) render light on the screensaver too.</string>
+    <string name="clock_rotate_interval">Rotation interval</string>
+    <string name="clock_rotate_in_pool">in rotation</string>
+    <string name="clock_style_list_title">All clock faces</string>
+    <string-array name="clock_rotate_intervals">
+        <item>1 min</item>
+        <item>5 min</item>
+        <item>15 min</item>
+        <item>30 min</item>
+        <item>1 hour</item>
+    </string-array>
     <string name="weather_attribution">Weather data: Open-Meteo (primary), MET Norway Locationforecast (backup). MET Norway is a service of the Norwegian Meteorological Institute.</string>
     <string name="weather_city_label">…or type a city instead:</string>
     <string name="weather_city_hint">City, e.g. Moscow</string>

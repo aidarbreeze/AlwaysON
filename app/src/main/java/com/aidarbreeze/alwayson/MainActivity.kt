@@ -138,6 +138,9 @@ class MainActivity : Activity() {
 
     // Live clock preview (top of the settings screen).
     private lateinit var previewClock: ClockView
+
+    // Time rotation of clock faces: minute intervals offered in the settings.
+    private val rotateMinutes = intArrayOf(1, 5, 15, 30, 60)
     private lateinit var previewDate: TextView
     private lateinit var brightnessRow: View
     private val previewHandler = Handler(Looper.getMainLooper())
@@ -272,6 +275,9 @@ class MainActivity : Activity() {
             set = { applyClockStyle(it) }
         )
         attachClockSwipe()
+        setupSettingsTabs()
+        setupClockRotationUi()
+        setupClockStyleList()
 
         // Clock accent color carousel (white by default = the old look).
         colorEntries = resources.getStringArray(R.array.clock_color_entries)
@@ -1109,6 +1115,127 @@ class MainActivity : Activity() {
         updateCarouselLabel(weatherStyleName, weatherEntries, pos)
         weatherStyleName.announceForAccessibility(weatherStyleName.text)
         miniJumpTo(2) // show the weather window at once (when present)
+    }
+
+    // ---- Settings tabs: Clock / Calendar / Charts / Weather / General ----
+
+    private fun tabButtonIds(): IntArray = intArrayOf(
+        R.id.tabBtnClock, R.id.tabBtnCalendar, R.id.tabBtnStocks,
+        R.id.tabBtnWeather, R.id.tabBtnGeneral
+    )
+
+    private fun tabContainerIds(): Array<IntArray> = arrayOf(
+        intArrayOf(R.id.tabClockContainer, R.id.tabClockContainer2),
+        intArrayOf(R.id.tabCalendarContainer),
+        intArrayOf(R.id.tabStocksContainer),
+        intArrayOf(R.id.tabWeatherContainer),
+        intArrayOf(R.id.tabGeneralContainer, R.id.tabGeneralContainer2)
+    )
+
+    private fun setupSettingsTabs() {
+        val btns = tabButtonIds()
+        for (i in btns.indices) {
+            val b = findViewById<Button>(btns[i])
+            b.setOnClickListener { showSettingsTab(i) }
+        }
+        showSettingsTab(0)
+    }
+
+    private fun showSettingsTab(index: Int) {
+        val btns = tabButtonIds()
+        val containers = tabContainerIds()
+        for (i in btns.indices) {
+            val visible = i == index
+            for (cid in containers[i]) {
+                findViewById<android.view.View>(cid).visibility =
+                    if (visible) android.view.View.VISIBLE else android.view.View.GONE
+            }
+            findViewById<Button>(btns[i]).alpha = if (visible) 1f else 0.45f
+        }
+    }
+
+    // ---- Time rotation of the clock face ----
+
+    private fun rotateIntervalIndex(): Int {
+        val idx = rotateMinutes.indexOf(Prefs.clockRotateEveryMin(this))
+        return if (idx >= 0) idx else 1
+    }
+
+    private fun setupClockRotationUi() {
+        val rot = findViewById<Switch>(R.id.clockRotateSwitch)
+        rot.isChecked = Prefs.clockRotateEnabled(this)
+        rot.setOnCheckedChangeListener { _, checked ->
+            Prefs.setClockRotateEnabled(this, checked)
+        }
+        bindCarousel(
+            findViewById(R.id.clockRotatePrev),
+            findViewById(R.id.clockRotateNext),
+            findViewById(R.id.clockRotateIntervalName),
+            resources.getStringArray(R.array.clock_rotate_intervals),
+            get = { rotateIntervalIndex() },
+            set = { Prefs.setClockRotateEveryMin(this, rotateMinutes[it]) }
+        )
+    }
+
+    // ---- Thumbnail list of every clock face + "in rotation" switches ----
+
+    private fun setupClockStyleList() {
+        val list = findViewById<android.widget.LinearLayout>(R.id.clockStyleList)
+        val entries = resources.getStringArray(R.array.clock_style_entries)
+        list.removeAllViews()
+        val pool = Prefs.clockRotatePool(this).split(',')
+            .mapNotNull { it.trim().toIntOrNull() }.toHashSet()
+        val dm = resources.displayMetrics.density
+        val thumbW = (96f * dm).toInt().coerceAtLeast(1)
+        val thumbH = (58f * dm).toInt().coerceAtLeast(1)
+        for (st in 0..ClockView.MAX_CLOCK_STYLE) {
+            val row = android.widget.LinearLayout(this)
+            row.orientation = android.widget.LinearLayout.HORIZONTAL
+            row.gravity = android.view.Gravity.CENTER_VERTICAL
+            row.setPadding(0, (6f * dm).toInt(), 0, (6f * dm).toInt())
+
+            val iv = android.widget.ImageView(this)
+            iv.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            iv.background = android.graphics.drawable.ColorDrawable(0xFF101216.toInt())
+            iv.layoutParams = android.widget.LinearLayout.LayoutParams(thumbW, thumbH)
+            try {
+                iv.setImageBitmap(ClockView.drawStyleThumbnail(this, st, thumbW, thumbH))
+            } catch (_: Throwable) {
+                // a broken face must never take the whole settings down
+            }
+            row.addView(iv)
+
+            val col = android.widget.LinearLayout(this)
+            col.orientation = android.widget.LinearLayout.VERTICAL
+            val nameTv = android.widget.TextView(this)
+            nameTv.text = entries.getOrElse(st) { "#$st" }
+            nameTv.textSize = 15f
+            nameTv.setTextColor(getColor(R.color.settings_text))
+            col.addView(nameTv)
+            val cb = android.widget.CheckBox(this)
+            cb.text = getString(R.string.clock_rotate_in_pool)
+            cb.textSize = 13f
+            cb.isChecked = st in pool
+            cb.setOnCheckedChangeListener { _, checked -> updateRotatePool(st, checked) }
+            col.addView(cb)
+
+            row.addView(
+                col,
+                android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+            )
+            list.addView(row)
+        }
+    }
+
+    private fun updateRotatePool(style: Int, on: Boolean) {
+        val set = Prefs.clockRotatePool(this).split(',')
+            .mapNotNull { it.trim().toIntOrNull() }.toHashSet()
+        if (on) set.add(style) else set.remove(style)
+        Prefs.setClockRotatePool(this, set.sorted().joinToString(","))
     }
 
     /** Swipe left/right on the live clock flips through the clock faces. */

@@ -37,6 +37,9 @@ object Prefs {
     // 4 = seven-segment LED, 5 = neon glow, 6 = rounded chips/blocks,
     // 7 = serif, 8 = heavy italic, 9 = square LED-matrix.
     private const val KEY_CLOCK_STYLE = "clock_style"
+    private const val KEY_CLOCK_ROTATE = "clock_rotate_enabled"
+    private const val KEY_CLOCK_ROTATE_MIN = "clock_rotate_every_min"
+    private const val KEY_CLOCK_ROTATE_POOL = "clock_rotate_pool"
     // Line/outline thickness in dp used by the outline style.
     private const val KEY_CLOCK_THICKNESS = "clock_thickness"
     // Clock accent color preset index (0 = white, see clockColorValue).
@@ -357,8 +360,22 @@ object Prefs {
      *  15 stacked iPhone, 16 analog iPhone, 17 float iPhone, 18 solar iPhone,
      *  19 world iPhone, 20 minimal mono.
      *  Default: premium (the new default look). */
-    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 30) // keep in sync with ClockView.MAX_CLOCK_STYLE
-    fun setClockStyle(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_STYLE, v.coerceIn(0, 30))
+    fun clockStyle(ctx: Context): Int = i(ctx, KEY_CLOCK_STYLE, 14).coerceIn(0, 40) // keep in sync with ClockView.MAX_CLOCK_STYLE
+    fun setClockStyle(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_STYLE, v.coerceIn(0, 40))
+
+    /** Time-based clock face rotation: when enabled, the standby screen
+     *  cycles through the faces listed in [clockRotatePool] every
+     *  [clockRotateEveryMin] minutes. Deterministic from the wall clock, so
+     *  every consumer switches in sync without timers. */
+    fun clockRotateEnabled(ctx: Context): Boolean = b(ctx, KEY_CLOCK_ROTATE, false)
+    fun setClockRotateEnabled(ctx: Context, v: Boolean) = setB(ctx, KEY_CLOCK_ROTATE, v)
+
+    fun clockRotateEveryMin(ctx: Context): Int = i(ctx, KEY_CLOCK_ROTATE_MIN, 15).coerceIn(1, 240)
+    fun setClockRotateEveryMin(ctx: Context, v: Int) = setI(ctx, KEY_CLOCK_ROTATE_MIN, v.coerceIn(1, 240))
+
+    /** Comma-separated style ids participating in the rotation. */
+    fun clockRotatePool(ctx: Context): String = s(ctx, KEY_CLOCK_ROTATE_POOL, "")
+    fun setClockRotatePool(ctx: Context, v: String) = setS(ctx, KEY_CLOCK_ROTATE_POOL, v)
 
     /** Line thickness (dp) for the outline clock, 1..30. */
     fun clockThickness(ctx: Context): Int = i(ctx, KEY_CLOCK_THICKNESS, 6).coerceIn(1, 30)
