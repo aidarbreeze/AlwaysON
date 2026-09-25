@@ -229,6 +229,12 @@ class StandbyController(context: Context, private val root: View) {
     // Entry progress (0..1): the data is only revealed after the black
     // backdrop has fully faded in.
     private var entranceAlpha = 1f
+    // Optional pure-black hold BEFORE the content reveal starts. The
+    // locked-screen host sets it: while the user sees only black, the
+    // system's keyguard transition finishes underneath the opaque black
+    // window (no keyguard/clock blend), then the clock fades in.
+    // 0 = reveal immediately (overlay / dream / preview hosts).
+    var entryDelayMs: Long = 0L
 
     // --- swipe paging (clock page <-> notifications page) ---
     /** Host hook: called on a single tap on a non-interactive area. The
@@ -375,7 +381,9 @@ class StandbyController(context: Context, private val root: View) {
      * frame — fading it in from transparent used to let the system lock
      * screen flash through the half-transparent window at every StandBy
      * on/off transition (the visible "blink" between the keyguard and the
-     * clock). Only the data fades in now, quickly, over pure black. Driven
+     * clock). Only the data fades in now, over pure black — after an
+     * optional [entryDelayMs] all-black hold (the locked-screen host uses
+     * it so the keyguard closes UNDER the black screen first). Driven
      * on the main handler with the shared generation counter, so a teardown
      * mid-entry can never leave the screen half-covered.
      */
@@ -410,7 +418,7 @@ class StandbyController(context: Context, private val root: View) {
                 }
             }
         }
-        handler.postDelayed(frame, 16)
+        handler.postDelayed(frame, 16 + entryDelayMs)
     }
 
     fun stop() {
