@@ -416,8 +416,8 @@ object Prefs {
      * 4 weekend accent, 5 monochrome OLED, 6 compact, 7 large numbers,
      * 8 premium card (default), 9 iPhone style (red title, red today disc).
      */
-    fun calendarStyle(ctx: Context): Int = i(ctx, KEY_CALENDAR_STYLE, 8).coerceIn(0, 9)
-    fun setCalendarStyle(ctx: Context, v: Int) = setI(ctx, KEY_CALENDAR_STYLE, v.coerceIn(0, 9))
+    fun calendarStyle(ctx: Context): Int = i(ctx, KEY_CALENDAR_STYLE, 8).coerceIn(0, 19) // keep in sync with MonthCalendarView styles
+    fun setCalendarStyle(ctx: Context, v: Int) = setI(ctx, KEY_CALENDAR_STYLE, v.coerceIn(0, 19))
 
     /** User asked to auto-show StandBy while charging in landscape. */
     fun autoStandby(ctx: Context): Boolean = b(ctx, KEY_AUTO_STANDBY, false)
