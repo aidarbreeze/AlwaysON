@@ -60,6 +60,14 @@ class ClockDreamService : DreamService() {
         com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
     }
     private var dreaming = false
+    // True until the first entry of a dream session completes. The SYSTEM
+    // adds the dream window with its own animation (ColorOS slides/fades it
+    // in over the keyguard — an app cannot disable that transition), so the
+    // window's first seconds must be PURE BLACK: the keyguard disappears
+    // under the black panel, and only then is the clock revealed. Later
+    // layout rebuilds (rotation mid-dream) reuse the running window and must
+    // not re-blacken it; the flag re-arms in onDetachedFromWindow.
+    private var curtainArmed = true
     // True when the user (or a call) made us finish() ourselves — the lock
     // screen must then be handed over CLEANLY (see onDreamingStopped).
     private var selfStopped = false
@@ -103,6 +111,7 @@ class ClockDreamService : DreamService() {
         StandbyUiState.dreaming = true
         showLayout()
         controller?.start()
+        curtainArmed = false // later rebuilds this session reveal instantly
         callMonitor.start()
         // Let the charging overlay step aside (no stacked blacks), but only
         // after the dream's first frames are on screen — both windows are
@@ -142,6 +151,7 @@ class ClockDreamService : DreamService() {
         controller = null
         orientationListener?.disable()
         orientationListener = null
+        curtainArmed = true // the next dream session gets the curtain again
         super.onDetachedFromWindow()
     }
 
@@ -192,6 +202,11 @@ class ClockDreamService : DreamService() {
         controller = null
         setContentView(view)
         controller = StandbyController(this, view).apply {
+            // Black curtain on the session's first entry (see curtainArmed):
+            // pure black while the SYSTEM animates the dream window in over
+            // the keyguard — no keyguard/clock blending — then the slow
+            // reveal. Rotation rebuilds skip it (the window is already up).
+            entryDelayMs = if (curtainArmed) 1200L else 0L
             // Tap anywhere on an empty area hands the screen back to the
             // keyguard (mirrors the old "touch stops the dream" behaviour);
             // swipes flip pages (handled inside the controller).
