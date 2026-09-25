@@ -1816,21 +1816,26 @@ class ClockView @JvmOverloads constructor(
         )
         if (pongServeAt == 0L) canvas.drawCircle(pongBallX, pongBallY, ballR, fillPaint)
 
-        // Player scores: points actually won by each side (game to 11).
+        // The clock is the headline: big, bright, top center (the same size
+        // and place the original pong-clock face used), so the face still
+        // reads as a clock at a glance.
         paint.reset()
         paint.isAntiAlias = true
         paint.typeface = Typeface.MONOSPACE
         paint.textAlign = Paint.Align.CENTER
-        paint.textSize = min(h * 0.22f, w * 0.11f)
+        paint.textSize = min(h * 0.30f, w * 0.13f)
         paint.color = main
-        drawCenteredAt(canvas, pongScoreLeft.toString(), w * 0.30f, h * 0.26f, paint)
-        drawCenteredAt(canvas, pongScoreRight.toString(), w * 0.70f, h * 0.26f, paint)
+        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h * 0.23f, paint)
 
-        // Small dim clock at the bottom: the match plays, the face still
-        // tells the time.
-        paint.textSize = min(h * 0.08f, w * 0.05f)
-        paint.color = dimmed(main, 0.45f)
-        drawCenteredAt(canvas, hourMinuteText(), w / 2f, h - margin * 0.4f, paint)
+        // The running match score below the court, secondary but readable:
+        // "3 : 7", game to 11.
+        paint.textSize = min(h * 0.12f, w * 0.065f)
+        paint.color = dimmed(main, 0.72f)
+        drawCenteredAt(
+            canvas,
+            pongScoreLeft.toString() + " : " + pongScoreRight.toString(),
+            w / 2f, h - margin * 0.5f, paint
+        )
 
         // 20 fps is smooth enough for a screensaver but much cheaper than 60 fps.
         postInvalidateDelayed(50L)
