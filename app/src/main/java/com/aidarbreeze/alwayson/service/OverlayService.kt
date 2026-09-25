@@ -480,10 +480,6 @@ class OverlayService : Service(), SensorEventListener {
         return pm?.isInteractive ?: false
     }
 
-    /** True while the SYSTEM daydream is up (ours included) — regardless of
-     *  whether our process has attached to it yet. */
-    private fun isSystemDreaming(): Boolean =
-        (getSystemService(POWER_SERVICE) as? PowerManager)?.isDreaming == true
 
     private fun evaluateAndSync() {
         // 1) The feature is off -> never show, and never keep the
@@ -537,13 +533,15 @@ class OverlayService : Service(), SensorEventListener {
         }
 
         // 6) The system daydream owns the screen (if the firmware honours it).
-        //    PowerManager.isDreaming is the SYSTEM's truth: it is already
-        //    true while our dream process is still booting. Without it this
-        //    service evaluated before ClockDreamService could set
-        //    StandbyUiState.dreaming and launched WakeActivity right next
-        //    to the starting dream — two hosts animating in over the
-        //    keyguard was exactly the "screensaver + lockscreen" mess.
-        if (StandbyUiState.dreaming || isSystemDreaming()) {
+        //    ClockDreamService raises StandbyUiState.dreaming in its own
+        //    onCreate — the earliest moment of its existence, while the dream
+        //    is still binding (onDreamingStarted comes much later, when the
+        //    window is up). The dream service runs in THIS process, so the
+        //    volatile is visible here; checking only the late flag lost the
+        //    boot race: this evaluation ran first and launched WakeActivity
+        //    right next to the starting dream — two hosts animating in over
+        //    the keyguard.
+        if (StandbyUiState.dreaming) {
             removeOverlay()
             return
         }

@@ -11,8 +11,11 @@ object StandbyUiState {
     @Volatile
     var previewVisible: Boolean = false
 
-    /** True while the system daydream (ClockDreamService) is showing. The
-     *  charging overlay must not stack on top of an active dream. */
+    /** True while the system daydream (ClockDreamService) exists — raised
+     *  in its onCreate (before the window is up, to close the boot race with
+     *  the overlay service), cleared in onDestroy / onDreamingStopped /
+     *  onDetachedFromWindow. The charging overlay must not stack on top of
+     *  an active or starting dream. */
     @Volatile
     var dreaming: Boolean = false
 

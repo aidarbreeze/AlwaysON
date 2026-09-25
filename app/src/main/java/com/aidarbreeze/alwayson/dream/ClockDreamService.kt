@@ -86,6 +86,31 @@ class ClockDreamService : DreamService() {
     // screen must then be handed over CLEANLY (see onDreamingStopped).
     private var selfStopped = false
 
+    override fun onCreate() {
+        super.onCreate()
+        // Claim the screen at the EARLIEST possible moment: the overlay
+        // service (same process) checks StandbyUiState.dreaming on every
+        // re-evaluation, and its restart raced the dream boot — it evaluated
+        // before the dream had attached and launched WakeActivity right
+        // beside it. onCreate fires while the system is still binding the
+        // dream, long before any window exists. Cleared again in onDestroy
+        // (and in the regular stop/detach paths below).
+        StandbyUiState.dreaming = true
+    }
+
+    override fun onDestroy() {
+        // Final belt & braces (the window may not exist here either — touch
+        // no views): clear the claim, cancel deferred work, stop the poll.
+        dreaming = false
+        StandbyUiState.dreaming = false
+        mainHandler.removeCallbacks(reArmOverlay)
+        mainHandler.removeCallbacks(exitFinish)
+        callMonitor.stop()
+        controller?.stop()
+        controller = null
+        super.onDestroy()
+    }
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         // Interactive: touches reach the content (paging gestures + tap to
