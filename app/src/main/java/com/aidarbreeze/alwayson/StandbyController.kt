@@ -396,13 +396,14 @@ class StandbyController(context: Context, private val root: View) {
         transitionGen++
         val gen = transitionGen
         val start = System.currentTimeMillis()
-        // ~450 ms ease-out reveal: quick enough to feel instant, slow enough
-        // to read as a deliberate fade (plus a 0.8% settle-in scale; the gap
-        // it opens at the edges is black over the black root - invisible).
+        // ~1.3 s ease-out reveal — slow, cinematic, deliberate (together
+        // with the locked-screen host's 1.2 s black hold the full entry is
+        // ~2.5 s, per the user request; a 0.8% settle-in scale rides along,
+        // its edge gap is black over the black root - invisible).
         val frame = object : Runnable {
             override fun run() {
                 if (gen != transitionGen) return
-                val t = ((System.currentTimeMillis() - start).toDouble() / 450.0)
+                val t = ((System.currentTimeMillis() - start).toDouble() / 1300.0)
                     .coerceIn(0.0, 1.0)
                 val e = 1.0 - (1.0 - t) * (1.0 - t)
                 entranceAlpha = e.toFloat()

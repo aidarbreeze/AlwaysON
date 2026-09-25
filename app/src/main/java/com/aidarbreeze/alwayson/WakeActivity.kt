@@ -73,11 +73,12 @@ class WakeActivity : Activity() {
 
         setContentView(R.layout.standby_view)
         controller = StandbyController(this, findViewById(R.id.standbyRoot)).apply {
-            // Black-curtain entry: ~320 ms of pure black BEFORE the clock
-            // fades in. The lock screen disappears under the black window
+            // Black-curtain entry: ~1.2 s of pure black BEFORE the clock
+            // starts fading in (the full sequence is over 2 s, per the user
+            // request). The lock screen disappears under the black window
             // first; only then is the content revealed — the keyguard and
             // the clock are never visible at the same moment.
-            entryDelayMs = 320L
+            entryDelayMs = 1200L
             // A tap on the clock hands the screen back to the keyguard; the
             // dismiss latch keeps it dismissed for a minute (the service must
             // not instantly re-host on its next evaluation).
