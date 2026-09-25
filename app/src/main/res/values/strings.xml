@@ -177,6 +177,7 @@
     <string name="bypass_run_button">Run now</string>
     <string name="bypass_toast_started">Opening the control center and tapping the bypass tile…</string>
     <string name="bypass_toast_not_ready">Enable AlwaysON in Accessibility first</string>
+    <string name="bypass_toast_retoggle">The gesture service is enabled but not connected (this happens after every app reinstall) — toggle AlwaysON off and on in Accessibility</string>
     <string name="bypass_acc_description">Lets AlwaysON tap the bypass-charging tile automatically when power is connected</string>
     <string name="notif_channel_wake">StandBy wake-up</string>
 

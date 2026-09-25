@@ -424,9 +424,20 @@ class MainActivity : Activity() {
         // the accessibility settings instead).
         findViewById<Button>(R.id.btnBypassTest).setOnClickListener {
             if (!BypassAutomationService.isReady()) {
-                Toast.makeText(
-                    this, getString(R.string.bypass_toast_not_ready), Toast.LENGTH_LONG
-                ).show()
+                // Not connected. Distinguish "never enabled" from "enabled
+                // but dropped": a reinstall (every Studio run force-stops the
+                // app) severs the accessibility binding, and this ROM does
+                // not rebind it on its own (log: serviceDisconnected ->
+                // mCrashedServices -> removeEnableService).
+                if (bypassAccessibilityEnabled()) {
+                    Toast.makeText(
+                        this, getString(R.string.bypass_toast_retoggle), Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        this, getString(R.string.bypass_toast_not_ready), Toast.LENGTH_LONG
+                    ).show()
+                }
                 try {
                     startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 } catch (_: Exception) {
@@ -438,6 +449,21 @@ class MainActivity : Activity() {
                 BypassAutomationService.runBypassSequence()
             }
         }
+
+    /** True when the gesture service is enabled in the accessibility
+     *  settings but not connected to this process — the post-reinstall
+     *  state on this ROM, fixed by a manual off/on toggle. */
+    private fun bypassAccessibilityEnabled(): Boolean {
+        return try {
+            val enabled = Settings.Secure.getString(
+                contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ).orEmpty()
+            enabled.contains(packageName) &&
+                enabled.contains("BypassAutomationService")
+        } catch (_: Exception) {
+            false
+        }
+    }
         // The spinner index maps to the "макс." row count (3/5/7/10).
         val notifMaxValues = intArrayOf(3, 5, 7, 10)
         bindIntSpinner(

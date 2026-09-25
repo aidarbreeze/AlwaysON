@@ -177,6 +177,7 @@
     <string name="bypass_run_button">Включить сейчас</string>
     <string name="bypass_toast_started">Открываю шторку и нажимаю плитку обходной зарядки…</string>
     <string name="bypass_toast_not_ready">Сначала включите AlwaysON в специальных возможностях</string>
+    <string name="bypass_toast_retoggle">Служба жестов включена, но не подключилась (так бывает после каждой переустановки приложения) — выключите и снова включите AlwaysON в специальных возможностях</string>
     <string name="bypass_acc_description">Позволяет AlwaysON нажимать плитку обходной зарядки при подключении питания</string>
     <string name="notif_channel_wake">Пробуждение StandBy</string>
 
