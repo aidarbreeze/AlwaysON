@@ -281,12 +281,35 @@ class StandbyController(context: Context, private val root: View) {
      * The single place that writes the content alpha:
      * brightness level × OLED dim cap. (The entry reveal no longer fades
      * the container — the individual cascade stages fade in instead, see
-     * [enter].)
+     * [enter]. A pending exit ([blackout]) forces everything to 0.)
      */
     private fun refreshContentAlpha() {
+        if (blackedOut) {
+            content.alpha = 0f
+            return
+        }
         val base = if (autoBrightness && currentAlpha >= 0f) currentAlpha
         else manualAlpha.coerceIn(minAlpha, 1f)
         content.alpha = base * dimFactor()
+    }
+
+    // Exit curtain latch: once set, every alpha write lands at 0 so the
+    // host window stays pure black while the SYSTEM animates it out.
+    private var blackedOut = false
+
+    /**
+     * Exit curtain: hide ALL content at once so the host window is pure
+     * black when it closes. The system animates the window OUT with its
+     * own transition (ColorOS spring-slide) — that animation must slide a
+     * BLACK panel away over the keyguard, never the live clock next to
+     * the keyguard it is being handed to. Deliberately NOT cleared by
+     * stop(): the teardown runs WHILE the window is animating out, and
+     * restoring the alpha there would flash the clock back. The next
+     * start() clears it; layout rebuilds create a fresh controller.
+     */
+    fun blackout() {
+        blackedOut = true
+        refreshContentAlpha()
     }
 
     private val tick = object : Runnable {
@@ -358,6 +381,7 @@ class StandbyController(context: Context, private val root: View) {
      *  cancelled first, so calling start() twice can never double the timers
      *  or the panel cycle. */
     fun start() {
+        blackedOut = false // a new session starts visible again
         handler.removeCallbacks(tick)
         handler.removeCallbacks(drift)
         handler.removeCallbacks(panelRunnable)

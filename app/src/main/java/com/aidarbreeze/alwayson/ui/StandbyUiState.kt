@@ -15,4 +15,12 @@ object StandbyUiState {
      *  charging overlay must not stack on top of an active dream. */
     @Volatile
     var dreaming: Boolean = false
+
+    /** SystemClock.elapsedRealtime() of the moment the user tapped the
+     *  dream away, or 0. The overlay service holds off re-hosting the
+     *  clock while this is set — otherwise its per-minute/sensor
+     *  re-evaluations bring the clock back within a minute and the
+     *  dismissal looks ignored. Cleared on the next SCREEN_OFF. */
+    @Volatile
+    var dreamDismissedAt: Long = 0L
 }

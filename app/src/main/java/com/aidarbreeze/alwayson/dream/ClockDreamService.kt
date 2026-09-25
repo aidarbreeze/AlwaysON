@@ -4,6 +4,9 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.service.dreams.DreamService
 import android.view.LayoutInflater
 import android.view.OrientationEventListener
@@ -60,6 +63,17 @@ class ClockDreamService : DreamService() {
         com.aidarbreeze.alwayson.service.OverlayService.requestReevaluate(this)
     }
     private var dreaming = false
+
+    // Dream teardown order note: on this ColorOS build the WINDOW is already
+    // detached when onDreamingStopped()/onDetachedFromWindow() run (the crash
+    // in the 09:18 log was window.decorView on a null window there), so ALL
+    // deferred work below is scheduled on the main handler — never on the
+    // window's decorView.
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Deferred finish after the exit blackout (see onTapExit): a field so
+    // the teardown can cancel it if the system stops the dream first.
+    private val exitFinish = Runnable { finish() }
     // True until the first entry of a dream session completes. The SYSTEM
     // adds the dream window with its own animation (ColorOS slides/fades it
     // in over the keyguard — an app cannot disable that transition), so the
@@ -117,16 +131,23 @@ class ClockDreamService : DreamService() {
         // after the dream's first frames are on screen — both windows are
         // opaque black with the same clock, so the handover never shows the
         // keyguard behind them.
-        window.decorView.removeCallbacks(reArmOverlay)
-        window.decorView.postDelayed(reArmOverlay, 150L)
+        mainHandler.removeCallbacks(reArmOverlay)
+        mainHandler.postDelayed(reArmOverlay, 150L)
     }
 
     override fun onDreamingStopped() {
         dreaming = false
         StandbyUiState.dreaming = false
-        // A dream stopped within the 150 ms grace must not re-arm the
-        // overlay on its way out.
-        window.decorView.removeCallbacks(reArmOverlay)
+        // NO window access here: the window may already be detached on this
+        // build (the crash from the user's log). The handler covers both.
+        mainHandler.removeCallbacks(reArmOverlay)
+        mainHandler.removeCallbacks(exitFinish)
+        // The user tapped the dream away: hold the overlay service off so
+        // the dismissal sticks for this wake session (cleared on the next
+        // SCREEN_OFF by OverlayService).
+        if (selfStopped) {
+            StandbyUiState.dreamDismissedAt = SystemClock.elapsedRealtime()
+        }
         callMonitor.stop()
         controller?.stop()
         super.onDreamingStopped()
@@ -143,9 +164,11 @@ class ClockDreamService : DreamService() {
     override fun onDetachedFromWindow() {
         dreaming = false
         StandbyUiState.dreaming = false
-        // Belt & braces: the deferred re-arm must not outlive the window
-        // even on an abnormal teardown path that skipped onDreamingStopped.
-        window.decorView.removeCallbacks(reArmOverlay)
+        // Belt & braces: the deferred work must not outlive the window even
+        // on an abnormal teardown path that skipped onDreamingStopped — and
+        // the window may ALREADY be detached here too, so: handler only.
+        mainHandler.removeCallbacks(reArmOverlay)
+        mainHandler.removeCallbacks(exitFinish)
         callMonitor.stop()
         controller?.stop()
         controller = null
@@ -212,7 +235,13 @@ class ClockDreamService : DreamService() {
             // swipes flip pages (handled inside the controller).
             onTapExit = {
                 selfStopped = true
-                finish()
+                // Exit curtain: the SYSTEM animates the dream window OUT
+                // over the keyguard (its own spring-slide) — hand it a pure
+                // BLACK window to slide away, never the live clock next to
+                // the keyguard it is being handed to. Give the black frame
+                // one render to land, then finish.
+                controller?.blackout()
+                mainHandler.postDelayed(exitFinish, 90L)
             }
         }
 

@@ -277,6 +277,10 @@ class OverlayService : Service(), SensorEventListener {
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> {
                     screenOn = false
+                    // A tap-dismissal of the dream applies to the current
+                    // wake session only: once the screen has been dark, the
+                    // next rest shows the clock again.
+                    StandbyUiState.dreamDismissedAt = 0L
                     if (overlayView != null) {
                         // The desk clock was showing and the user pressed
                         // Power. The Power button behaves EXACTLY like a
@@ -476,6 +480,11 @@ class OverlayService : Service(), SensorEventListener {
         return pm?.isInteractive ?: false
     }
 
+    /** True while the SYSTEM daydream is up (ours included) — regardless of
+     *  whether our process has attached to it yet. */
+    private fun isSystemDreaming(): Boolean =
+        (getSystemService(POWER_SERVICE) as? PowerManager)?.isDreaming == true
+
     private fun evaluateAndSync() {
         // 1) The feature is off -> never show, and never keep the
         //    foreground service (and its notification) alive either. This
@@ -528,8 +537,24 @@ class OverlayService : Service(), SensorEventListener {
         }
 
         // 6) The system daydream owns the screen (if the firmware honours it).
-        if (StandbyUiState.dreaming) {
+        //    PowerManager.isDreaming is the SYSTEM's truth: it is already
+        //    true while our dream process is still booting. Without it this
+        //    service evaluated before ClockDreamService could set
+        //    StandbyUiState.dreaming and launched WakeActivity right next
+        //    to the starting dream — two hosts animating in over the
+        //    keyguard was exactly the "screensaver + lockscreen" mess.
+        if (StandbyUiState.dreaming || isSystemDreaming()) {
             removeOverlay()
+            return
+        }
+
+        // 6b) The user tapped the dream away: do not re-host the clock, the
+        //     per-minute/sensor re-evaluations would bring it back within a
+        //     minute and the dismissal would look ignored. The latch clears
+        //     on the next SCREEN_OFF — the next rest shows the clock again.
+        if (StandbyUiState.dreamDismissedAt != 0L) {
+            removeOverlay()
+            cancelWake()
             return
         }
 
