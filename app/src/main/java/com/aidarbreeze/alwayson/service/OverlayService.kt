@@ -116,6 +116,10 @@ class OverlayService : Service(), SensorEventListener {
     // tryWakeForStandby); it is removed as soon as the screen comes back or
     // the overlay is shown.
     private var wakeArmed = false
+    // Bright wake lock used to RELIGHT a dark display when the overlay is
+    // added: FLAG_KEEP_SCREEN_ON only KEEPS an already-lit screen on, it
+    // never wakes one (see showOverlay).
+    private var screenWake: PowerManager.WakeLock? = null
     // Bounded retries: if the OEM ignores the notification (screen never
     // comes on), do not flash a new one forever — three attempts per
     // charge/session, then wait for a real event (plug, boot, screen).
@@ -656,6 +660,31 @@ class OverlayService : Service(), SensorEventListener {
         shownOrientationType = currentOrientationType()
         cancelWake() // the clock is up — the wake notification is no longer needed
 
+        // MIUI/OEM builds often ignore the window's FLAG_KEEP_SCREEN_ON as a
+        // wake trigger: the overlay just sits on a DARK display and the user
+        // sees nothing (the notification fallback then fights the vendor
+        // AOD). Light the display up ourselves: ACQUIRE_CAUSES_WAKEUP turns
+        // it on at once; after the 10 s safety timeout the overlay's own
+        // FLAG_KEEP_SCREEN_ON keeps it lit for as long as the clock shows.
+        if (!isScreenInteractive()) {
+            try {
+                @Suppress("DEPRECATION")
+                val wl = (getSystemService(POWER_SERVICE) as? PowerManager)
+                    ?.newWakeLock(
+                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+                            PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                        "alwayson:overlay"
+                    )
+                if (wl != null) {
+                    wl.acquire(10_000L)
+                    screenWake = wl
+                }
+            } catch (_: Exception) {
+                // Wake lock refused (policy): the wake notification
+                // remains the fallback path.
+            }
+        }
+
         val c = StandbyController(this, view)
         c.onTapExit = { exitStandby() }
         c.start()
@@ -673,6 +702,12 @@ class OverlayService : Service(), SensorEventListener {
     }
 
     private fun removeOverlay() {
+        // The relight lock must not outlive the window.
+        try {
+            screenWake?.let { if (it.isHeld) it.release() }
+        } catch (_: Exception) {
+        }
+        screenWake = null
         unregisterSensors()
         // Nothing shown -> no need to poll the rotation sensor.
         orientationListener?.disable()
