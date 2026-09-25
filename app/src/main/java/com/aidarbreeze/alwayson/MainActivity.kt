@@ -25,6 +25,7 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import com.aidarbreeze.alwayson.media.NowPlayingListenerService
 import com.aidarbreeze.alwayson.service.OverlayService
 import com.aidarbreeze.alwayson.stock.Candle
@@ -120,6 +121,12 @@ class MainActivity : Activity() {
     // City text a geocode is currently running for, so leaving the screen
     // does not fire a SECOND identical geocode right after the "Done" one.
     private var geocodeInFlightFor: String? = null
+
+    // True while the overlay-permission screen (opened because the user
+    // tried to switch the auto StandBy on) is in front: when they come back
+    // with the permission GRANTED, onActivityResult completes the activation
+    // automatically instead of demanding a second tap on the switch.
+    private var pendingAutoEnable = false
 
     // Style names for the "‹ ›" carousels (array index == style code).
     private lateinit var clockEntries: Array<String>
@@ -534,6 +541,8 @@ class MainActivity : Activity() {
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:$packageName")
             )
+            // Same completion-on-return as the switch path below.
+            pendingAutoEnable = true
             startActivityForResult(intent, reqOverlay)
         }
 
@@ -1357,12 +1366,34 @@ class MainActivity : Activity() {
 
     private fun enableAuto() {
         if (!canDraw()) {
-            // Turn the switch back off and ask for the permission.
+            // Turn the switch back off (honest state while the permission is
+            // missing) and take the user STRAIGHT to the permission screen —
+            // the old silent revert only flipped a far-away button visible,
+            // which read as "the switch does not work" (MIUI users never
+            // connected the two). onActivityResult completes the activation
+            // when the permission comes back granted.
             autoSwitch.setOnCheckedChangeListener(null)
             autoSwitch.isChecked = false
             attachAutoSwitchListener()
             updateScheduleRowVisibility()
             refreshPermissionUi()
+            pendingAutoEnable = true
+            Toast.makeText(
+                this, getString(R.string.overlay_perm_required), Toast.LENGTH_LONG
+            ).show()
+            try {
+                startActivityForResult(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    ),
+                    reqOverlay
+                )
+            } catch (_: Exception) {
+                // No activity handles the screen (rare ROMs): fall back to
+                // the in-screen button; do not complete anything on return.
+                pendingAutoEnable = false
+            }
             return
         }
         Prefs.setAutoStandby(this, true)
@@ -1425,6 +1456,15 @@ class MainActivity : Activity() {
         if (requestCode == reqOverlay) {
             refreshPermissionUi()
             refreshSwitchState()
+            if (pendingAutoEnable) {
+                pendingAutoEnable = false
+                if (canDraw()) {
+                    // The user wanted the StandBy on before being bounced to
+                    // the permission screen: finish the job now — no second
+                    // tap on the switch required.
+                    enableAuto()
+                }
+            }
         }
     }
 
