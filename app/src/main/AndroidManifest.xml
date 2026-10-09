@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Auto StandBy overlay (shown while charging) needs to draw over other
+         apps and run as a foreground service. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Relight the dark display when the StandBy overlay is added (OEM
+         builds that ignore the window's FLAG_KEEP_SCREEN_ON as a trigger). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- To fetch stock quotes/charts for the calendar<->stock alternation mode. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Weather by the device location (last known coordinates). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Bypass-charging reminder: see (and open) the vendor battery app
+         that hosts the "bypass charging" switch on OPPO/OnePlus/realme
+         builds (package visibility, Android 11+). -->
+    <queries>
+        <package android:name="com.oplus.battery" />
+        <package android:name="com.oneplus.battery" />
+        <package android:name="com.oppo.battery" />
+    </queries>
+
+    <!-- All app state is either re-fetchable (weather/stock cache) or
+         user-entered settings stored in EncryptedSharedPreferences: the
+         master key lives in the non-backup-able Android Keystore, so a
+         cloud restore of the prefs file on another device could never be
+         decrypted — Prefs would silently fall back to a DIFFERENT plain
+         file and every setting would look "lost". Safer to not back the
+         file up at all (hence allowBackup=false). -->
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+    android:theme="@style/AppTheme"
+    android:localeConfig="@xml/locales_config"
+    android:networkSecurityConfig="@xml/network_security_config">
+
+        <!-- Settings screen -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Full-screen preview / manual StandBy. Follows the device
+             orientation (portrait & landscape both supported). -->
+        <activity
+            android:name=".StandbyActivity"
+            android:exported="false"
+            android:theme="@style/StandbyTheme" />
+
+        <!-- Invisible wake-up helper: launched by the one-shot notification's
+             fullScreenIntent when the phone is charging, locked (Power /
+             on-screen lock button) and the StandBy clock is not showing.
+             Turns the screen on (staying locked), starts the overlay service,
+             then removes itself. -->
+        <activity
+            android:name=".WakeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity=""
+            android:theme="@style/WakeTheme" />
+
+        <!-- Auto StandBy: overlay while charging. Hides when the phone is
+             picked up / woken / touched, so it never blocks normal use. -->
+        <service
+            android:name=".service.OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="shows a dim clock while the phone charges (StandBy mode); auto-hides on pick-up, wake or touch so it never blocks the phone" />
+        </service>
+
+        <!-- Performs the bypass-charging tile choreography (injected
+             gestures, no root). Enabled once by the user in the
+             accessibility settings. -->
+        <service
+            android:name=".service.BypassAutomationService"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/bypass_accessibility_config" />
+        </service>
+
+        <!-- Auto-start the StandBy overlay when charging begins or after a
+             reboot while a charge is connected (if the feature is enabled);
+             stop it when the charger is unplugged. -->
+        <receiver
+            android:name=".recv.ChargingReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.POWER_CONNECTED" />
+                <action android:name="android.intent.action.POWER_DISCONNECTED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Screen saver (system "daydream"): Android starts it when idle &
+             charging on devices whose firmware honours it. -->
+        <service
+            android:name=".dream.ClockDreamService"
+            android:exported="true"
+            android:label="@string/dream_label"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.dream"
+                android:resource="@xml/dream_info" />
+        </service>
+
+        <!-- Reads the currently-playing track from media notifications so the
+             StandBy card can show it (works across apps/players). -->
+        <service
+            android:name=".media.NowPlayingListenerService"
+            android:exported="true"
+            android:label="@string/media_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Media-button target: registering it lets a hardware/media-button
+             press be routed here; the active-sessions listing itself is
+             granted by the notification listener above, not by this. -->
+        <receiver
+            android:name=".media.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Home-screen widget: clock + date + battery/last-known weather.
+             Tapping it opens the full StandBy preview. -->
+        <receiver
+            android:name=".widget.AlwaysOnWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
+
+    </application>
+
+</manifest>

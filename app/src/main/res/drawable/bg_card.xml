@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rounded "grouped list" card used behind each settings group. The app is
+     dark-only, so the fill is the fixed dark card color from the palette. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/settings_card" />
+    <corners android:radius="14dp" />
+</shape>

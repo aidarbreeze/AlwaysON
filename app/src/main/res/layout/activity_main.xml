@@ -1,0 +1,1797 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/settings_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="8dp"
+        android:paddingBottom="28dp">
+
+        <!-- Settings tabs -->
+        <LinearLayout
+            android:id="@+id/settingsTabBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp">
+
+            <Button
+                android:id="@+id/tabBtnClock"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="3dp"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:text="@string/tab_clock" />
+
+            <Button
+                android:id="@+id/tabBtnCalendar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="3dp"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:text="@string/tab_calendar" />
+
+            <Button
+                android:id="@+id/tabBtnStocks"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="3dp"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:text="@string/tab_stocks" />
+
+            <Button
+                android:id="@+id/tabBtnWeather"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="3dp"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:text="@string/tab_weather" />
+
+            <Button
+                android:id="@+id/tabBtnGeneral"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="3dp"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:text="@string/tab_general" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabClockContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+        <!-- ================= Live preview ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/preview_section" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="14dp"
+            android:background="@drawable/bg_preview">
+
+            <com.aidarbreeze.alwayson.view.ClockView
+                android:id="@+id/previewClock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/previewDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="@color/preview_text_secondary"
+                android:text="" />
+
+            <!-- Full StandBy mini-panel: rotates the same windows (calendar /
+                 chart / weather) with the same per-window durations as the
+                 real overlay, so the preview is the whole screen saver. -->
+            <FrameLayout
+                android:id="@+id/miniRoot"
+                android:layout_width="match_parent"
+                android:layout_height="170dp"
+                android:layout_marginTop="10dp">
+
+                <com.aidarbreeze.alwayson.view.MonthCalendarView
+                    android:id="@+id/miniMonth"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+
+                <com.aidarbreeze.alwayson.view.StockChartView
+                    android:id="@+id/miniStock"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+
+                <com.aidarbreeze.alwayson.view.WeatherPanelView
+                    android:id="@+id/miniWeather"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <!-- The live preview itself is swipeable: a swipe flips styles. -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:textSize="12sp"
+                android:textColor="@color/preview_text_secondary"
+                android:text="@string/preview_gesture_hint" />
+        </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabGeneralContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+        <!-- ================= StandBy ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/section_standby" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <Button
+                android:id="@+id/btnPreview"
+                style="@style/ActionButton"
+                android:text="@string/btn_preview" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="56dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/auto_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/auto_summary" />
+                </LinearLayout>
+
+                <Switch
+                    android:id="@+id/autoSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <!-- When the auto StandBy should be allowed (night by default). -->
+            <LinearLayout
+                android:id="@+id/scheduleRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <RadioGroup
+                    android:id="@+id/schedGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="2dp">
+
+                    <RadioButton
+                        android:id="@+id/schedAlways"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="16dp"
+                        android:text="@string/sched_always"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/schedByTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="16dp"
+                        android:paddingBottom="2dp"
+                        android:text="@string/sched_by_time"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                </RadioGroup>
+
+                <LinearLayout
+                    android:id="@+id/schedHoursRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:minHeight="48dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="12dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/sched_from" />
+
+                    <Spinner
+                        android:id="@+id/schedFromSpinner"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="10dp" />
+
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/sched_to" />
+
+                    <Spinner
+                        android:id="@+id/schedToSpinner"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Window rotation: how long each window stays on the screen -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card">
+
+            <TextView
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:text="@string/window_durations_title" />
+
+            <TextView
+                style="@style/PrefSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/window_durations_summary" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/dur_cal_label" />
+
+                <Spinner
+                    android:id="@+id/durCalSpinner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/dur_stock_label" />
+
+                <Spinner
+                    android:id="@+id/durStockSpinner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/dur_weather_label" />
+
+                <Spinner
+                    android:id="@+id/durWeatherSpinner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginBottom="6dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/permStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="2dp"
+            android:textSize="13sp"
+            android:textColor="@color/settings_text_secondary"
+            android:text="" />
+
+        <Button
+            android:id="@+id/btnGrantPerm"
+            style="@style/ActionButton"
+            android:layout_width="match_parent"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="16dp"
+            android:text="@string/overlay_perm_button"
+            android:visibility="gone" />
+
+        <!-- ================= Screen saver / media access ================= -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <Button
+                android:id="@+id/btnOpenDream"
+                style="@style/ActionButton"
+                android:text="@string/btn_open_dream" />
+
+            <TextView
+                style="@style/PrefSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="6dp"
+                android:text="@string/dream_hint" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <Button
+                android:id="@+id/btnMediaAccess"
+                style="@style/ActionButton"
+                android:text="@string/media_access_button" />
+
+            <TextView
+                style="@style/PrefSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="10dp"
+                android:text="@string/media_access_hint" />
+        </LinearLayout>
+
+        <!-- ================= Bypass-charging reminder ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/section_bypass" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="56dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/bypass_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/bypass_summary" />
+                </LinearLayout>
+
+                <Switch
+                    android:id="@+id/bypassSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <Button
+                android:id="@+id/btnBypassTest"
+                style="@style/ActionButton"
+                android:text="@string/bypass_run_button" />
+        </LinearLayout>
+
+        <!-- ================= Messenger notifications page ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/section_notifs" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="56dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/notif_page_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/notif_page_summary" />
+                </LinearLayout>
+
+                <Switch
+                    android:id="@+id/notifSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/notif_max_label" />
+
+                <Spinner
+                    android:id="@+id/notifMaxSpinner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+        </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabClockContainer2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+        <!-- ================= Appearance ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/section_appearance" />
+
+        <!-- Clock face -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <TextView
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:text="@string/clock_style_title" />
+
+            <!-- Style carousel: the same styles can also be flipped through
+                 with a swipe on the live clock preview above. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp">
+
+                <Button
+                    android:id="@+id/clockPrev"
+                    style="@style/CarouselButton"
+                    android:text="‹"
+                    android:contentDescription="@string/carousel_prev" />
+
+                <TextView
+                    android:id="@+id/clockStyleName"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text"
+                    android:text="" />
+
+                <Button
+                    android:id="@+id/clockNext"
+                    style="@style/CarouselButton"
+                    android:text="›"
+                    android:contentDescription="@string/carousel_next" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <TextView
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:text="@string/clock_color_title" />
+
+            <!-- Accent color carousel: white by default, live on the preview. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp">
+
+                <Button
+                    android:id="@+id/colorPrev"
+                    style="@style/CarouselButton"
+                    android:text="‹"
+                    android:contentDescription="@string/carousel_prev" />
+
+                <TextView
+                    android:id="@+id/colorStyleName"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text"
+                    android:text="" />
+
+                <Button
+                    android:id="@+id/colorNext"
+                    style="@style/CarouselButton"
+                    android:text="›"
+                    android:contentDescription="@string/carousel_next" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/outlineThicknessRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="56dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/clock_thickness_label" />
+
+                <SeekBar
+                    android:id="@+id/thicknessSeek"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:max="29" />
+
+                <TextView
+                    android:id="@+id/thicknessValue"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:textSize="14sp"
+                    android:textColor="@color/settings_text_secondary"
+                    android:text="" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 24h / seconds / battery switches -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/switch_24h" />
+                <Switch
+                    android:id="@+id/use24Switch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/seconds_label" />
+                <Spinner
+                    android:id="@+id/secondsSpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/battery_label" />
+                <Spinner
+                    android:id="@+id/batterySpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/dim_title" />
+                <Switch
+                    android:id="@+id/dimSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/clock_size_label" />
+                <Spinner
+                    android:id="@+id/clockSizeSpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/date_format_label" />
+                <Spinner
+                    android:id="@+id/dateFormatSpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <Button
+                android:id="@+id/btnBatteryProbe"
+                style="@style/ActionButton"
+                android:text="@string/btn_battery_probe" />
+
+            <TextView
+                style="@style/PrefSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="4dp"
+                android:text="@string/battery_probe_hint" />
+
+            <TextView
+                android:id="@+id/batteryProbe"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="10dp"
+                android:fontFamily="monospace"
+                android:textSize="11sp"
+                android:textColor="@color/settings_text_secondary"
+                android:visibility="gone"
+                android:text="" />
+        </LinearLayout>
+
+        <!-- Brightness -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/auto_brightness_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="@string/auto_brightness_summary" />
+                </LinearLayout>
+                <Switch
+                    android:id="@+id/autoBrightSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="16dp"
+                android:background="@color/settings_sep" />
+
+            <!-- iPhone-style Night Mode: red tint of the standby screen in the dark. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/night_mode_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="@string/night_mode_summary" />
+                </LinearLayout>
+                <Switch
+                    android:id="@+id/nightSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <!-- Manual-brightness row: shown only while auto brightness is off. -->
+            <LinearLayout
+                android:id="@+id/brightnessRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:minHeight="56dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="12dp">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/brightness_label" />
+                    <SeekBar
+                        android:id="@+id/brightnessSeek"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:max="100" />
+                    <TextView
+                        android:id="@+id/brightnessValue"
+                        android:layout_width="44dp"
+                        android:layout_height="wrap_content"
+                        android:gravity="end"
+                        android:textSize="14sp"
+                        android:textColor="@color/settings_text_secondary"
+                        android:text="100%" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <Switch
+                    android:id="@+id/clockRotateSwitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="12dp"
+                    android:paddingBottom="4dp"
+                    android:textSize="16sp"
+                    android:text="@string/clock_rotate_title" />
+
+                <TextView
+                    style="@style/PrefSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="6dp"
+                    android:text="@string/clock_rotate_hint" />
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="6dp"
+                    android:text="@string/clock_rotate_interval" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="8dp">
+
+                    <Button
+                        android:id="@+id/clockRotatePrev"
+                        style="@style/CarouselButton"
+                        android:text="‹"
+                        android:contentDescription="@string/carousel_prev" />
+
+                    <TextView
+                        android:id="@+id/clockRotateIntervalName"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text"
+                        android:text="" />
+
+                    <Button
+                        android:id="@+id/clockRotateNext"
+                        style="@style/CarouselButton"
+                        android:text="›"
+                        android:contentDescription="@string/carousel_next" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="12dp"
+                    android:paddingBottom="4dp"
+                    android:text="@string/clock_style_list_title" />
+
+                <LinearLayout
+                    android:id="@+id/clockStyleList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="10dp" />
+            </LinearLayout>
+        </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabCalendarContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+        <!-- Tab preview -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_card">
+
+            <com.aidarbreeze.alwayson.view.MonthCalendarView
+                android:id="@+id/tabCalendarPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
+        <!-- ================= Calendar ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/section_calendar" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <TextView
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="2dp"
+                android:text="@string/week_start_label" />
+
+            <RadioGroup
+                android:id="@+id/weekStartGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <RadioButton
+                    android:id="@+id/weekStartSystem"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/week_start_system"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/weekStartMon"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/week_start_mon"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/weekStartSun"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:text="@string/week_start_sun"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+                <RadioButton
+                    android:id="@+id/weekStartSat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingBottom="12dp"
+                    android:text="@string/week_start_sat"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text" />
+            </RadioGroup>
+
+            <TextView
+                style="@style/PrefTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="2dp"
+                android:text="@string/calendar_style_label" />
+
+            <!-- Style carousel: flipping it jumps the mini preview to the
+                 calendar window, so the new style is visible at once. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp">
+
+                <Button
+                    android:id="@+id/calPrev"
+                    style="@style/CarouselButton"
+                    android:text="‹"
+                    android:contentDescription="@string/carousel_prev" />
+
+                <TextView
+                    android:id="@+id/calStyleName"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="@color/settings_text"
+                    android:text="" />
+
+                <Button
+                    android:id="@+id/calNext"
+                    style="@style/CarouselButton"
+                    android:text="›"
+                    android:contentDescription="@string/carousel_next" />
+            </LinearLayout>
+        </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabStocksContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+        <!-- Tab preview -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_card">
+
+            <com.aidarbreeze.alwayson.view.StockChartView
+                android:id="@+id/tabStocksPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
+        <!-- ================= Stocks ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/stocks_section" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/stocks_switch_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="@string/stocks_switch_summary" />
+                </LinearLayout>
+                <Switch
+                    android:id="@+id/stocksSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/stockInputs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <TextView
+                    style="@style/PrefSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/stock_tickers_label" />
+
+                <EditText
+                    android:id="@+id/tickerInput"
+                    android:imeOptions="actionDone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:inputType="textCapCharacters"
+                    android:singleLine="true"
+                    android:textSize="16sp"
+                    android:hint="@string/stock_ticker_hint" />
+
+                <TextView
+                    style="@style/PrefSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingTop="6dp"
+                    android:text="@string/stock_ref_label" />
+
+                <EditText
+                    android:id="@+id/refInput"
+                    android:imeOptions="actionDone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:inputType="numberDecimal"
+                    android:singleLine="true"
+                    android:textSize="16sp"
+                    android:hint="@string/stock_ref_hint" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/stock_type_label" />
+
+                <RadioGroup
+                    android:id="@+id/stockTypeGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp">
+
+                    <RadioButton
+                        android:id="@+id/stockTypeLine"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="4dp"
+                        android:text="@string/stock_type_line"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/stockTypeCandles"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="16dp"
+                        android:text="@string/stock_type_candles"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                </RadioGroup>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/stock_period_label" />
+
+                <RadioGroup
+                    android:id="@+id/stockPeriodGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="10dp">
+
+                    <RadioButton
+                        android:id="@+id/stockPeriodAuto"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="4dp"
+                        android:text="@string/stock_period_auto"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/stockPeriod1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="12dp"
+                        android:text="@string/stock_period_1"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/stockPeriod10"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="12dp"
+                        android:text="@string/stock_period_10"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                    <RadioButton
+                        android:id="@+id/stockPeriod60"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="12dp"
+                        android:text="@string/stock_period_60"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text" />
+                </RadioGroup>
+            </LinearLayout>
+        </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabWeatherContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+        <!-- Tab preview -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_card">
+
+            <com.aidarbreeze.alwayson.view.WeatherPanelView
+                android:id="@+id/tabWeatherPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
+        <!-- ================= Weather ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/weather_section" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/PrefTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/weather_switch_title" />
+                    <TextView
+                        style="@style/PrefSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="@string/weather_switch_summary" />
+                </LinearLayout>
+                <Switch
+                    android:id="@+id/weatherSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <!-- Location source: geolocation and/or a manually typed city. -->
+            <LinearLayout
+                android:id="@+id/weatherLocBlock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/settings_sep" />
+
+                <!-- Forecast style: classic (hero temp + hourly + week bars)
+                     or curve (24 h temperature curve + two-column week). -->
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/weather_style_label" />
+
+                <!-- Style carousel: flipping it jumps the mini preview to the
+                     weather window, so the new style is visible at once. -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="4dp">
+
+                    <Button
+                        android:id="@+id/weatherPrev"
+                        style="@style/CarouselButton"
+                        android:text="‹"
+                        android:contentDescription="@string/carousel_prev" />
+
+                    <TextView
+                        android:id="@+id/weatherStyleName"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:textSize="16sp"
+                        android:textColor="@color/settings_text"
+                        android:text="" />
+
+                    <Button
+                        android:id="@+id/weatherNext"
+                        style="@style/CarouselButton"
+                        android:text="›"
+                        android:contentDescription="@string/carousel_next" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/PrefTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="10dp"
+                    android:text="@string/temp_unit_label" />
+
+                <Spinner
+                    android:id="@+id/tempUnitSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:layout_marginBottom="4dp" />
+
+                <Button
+                    android:id="@+id/weatherGeobtn"
+                    style="@style/ActionButton"
+                    android:text="@string/weather_geo_button" />
+
+                <TextView
+                    style="@style/PrefSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="@string/weather_city_label" />
+
+                <EditText
+                    android:id="@+id/weatherCityInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:inputType="text"
+                    android:imeOptions="actionDone"
+                    android:singleLine="true"
+                    android:textSize="16sp"
+                    android:hint="@string/weather_city_hint" />
+
+                <TextView
+                    android:id="@+id/weatherStatus"
+                    style="@style/PrefSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="10dp"
+                    android:text="" />
+
+                <TextView
+                    style="@style/PrefSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="12dp"
+                    android:text="@string/weather_attribution" />
+            </LinearLayout>
+        </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabGeneralContainer2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+        <!-- ================= Diagnostics ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/diag_title" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <Button
+                android:id="@+id/btnDiagnostics"
+                style="@style/ActionButton"
+                android:text="@string/btn_diagnostics" />
+
+            <TextView
+                android:id="@+id/diagnostics"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="4dp"
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:textColor="@color/settings_text"
+                android:text="" />
+
+            <Button
+                android:id="@+id/btnRefreshData"
+                style="@style/ActionButton"
+                android:text="@string/btn_refresh_data" />
+
+            <Button
+                android:id="@+id/btnResetPrefs"
+                style="@style/ActionButton"
+                android:layout_marginBottom="14dp"
+                android:text="@string/btn_reset_prefs" />
+        </LinearLayout>
+
+        <!-- ================= How it works ================= -->
+        <TextView
+            style="@style/SettingHeader"
+            android:text="@string/tech_note_title" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_card">
+
+            <TextView
+                style="@style/PrefSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/tech_note" />
+        </LinearLayout>
+
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

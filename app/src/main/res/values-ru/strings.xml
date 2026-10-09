@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AlwaysON</string>
+    <string name="dream_label">AlwaysON StandBy</string>
+
+    <!-- StandBy -->
+    <string name="section_standby">Экран StandBy</string>
+    <string name="preview_section">Живое превью</string>
+    <string name="preview_desc">Крупные часы, дата, календарь на месяц и, когда играет музыка, компактный плеер — в стиле iPhone StandBy. Чёрный OLED-фон с защитой от выгорания.</string>
+    <string name="btn_preview">Показать StandBy сейчас</string>
+
+    <string name="auto_title">Показывать во время зарядки</string>
+    <string name="auto_summary">Пока телефон заряжается, держит на экране приглушённые часы (как настольные) в обеих ориентациях. Это не мешает пользоваться телефоном — касание, кнопка питания/домой, пробуждение или подъём телефона возвращают обычный экран; на следующей зарядке часы появятся снова.</string>
+    <string name="overlay_perm_required">Требуется разрешение «поверх других приложений».</string>
+    <string name="overlay_perm_button">Выдать разрешение</string>
+    <string name="overlay_perm_granted">Разрешение выдано</string>
+
+    <string name="btn_open_dream">Также использовать как системную заставку</string>
+    <string name="dream_hint">Системная заставка сама запускается при зарядке только на части устройств. Если на вашем — выберите «AlwaysON StandBy» в открывшихся настройках заставки.</string>
+
+    <string name="media_listener_label">AlwaysON media</string>
+    <string name="media_access_title">Показывать играющую музыку</string>
+    <string name="media_access_button">Выдать доступ к уведомлениям</string>
+    <string name="media_access_hint">Чтобы карточка плеера появлялась для музыки из любого приложения, Android требует «Доступ к уведомлениям» для AlwaysON. Нажмите, чтобы открыть системный список, и включите AlwaysON.</string>
+
+    <!-- Страница уведомлений мессенджеров -->
+    <string name="section_notifs">Уведомления</string>
+    <string name="notif_page_title">Уведомления мессенджеров (Telegram, Max)</string>
+    <string name="notif_page_summary">Вторая страница заставки: свайп влево-вправо переключает часы и список последних уведомлений Telegram и Max со временем. Нужен «Доступ к уведомлениям» (см. выше). Во время звонка заставка сама уступает экран диалогу.</string>
+    <string name="notif_max_label">Показывать не более</string>
+    <string name="notif_header">Уведомления</string>
+    <string name="notif_empty">Уведомлений пока нет</string>
+
+    <!-- Оформление -->
+    <string name="section_appearance">Внешний вид</string>
+    <string name="auto_brightness_title">Автояркость</string>
+    <string name="auto_brightness_summary">Автоматически подстраиваться под датчик света — еле заметно в темноте и хорошо видно днём. Отключите, чтобы задать фиксированную яркость.</string>
+    <string name="brightness_label">Яркость часов</string>
+
+    <string name="clock_style_title">Стиль часов</string>
+    <string name="night_mode_title">Ночной режим</string>
+    <string name="night_mode_summary">Красный оттенок дежурного экрана в темноте, как у iPhone</string>
+    <string name="preview_gesture_hint">Свайп по часам меняет их стиль • свайп по окну — его стиль • тап по окну — следующее окно</string>
+    <string name="carousel_prev">Предыдущий стиль</string>
+    <string name="carousel_next">Следующий стиль</string>
+    <string name="pin_on">Окно закреплено — ещё раз, чтобы вернуться к смене</string>
+    <string name="pin_off">Смена окон включена</string>
+    <string-array name="clock_style_entries">
+        <item>Обычный</item>
+        <item>Контур (полые цифры)</item>
+        <item>Точки «комикс»</item>
+        <item>Откидные часы</item>
+        <item>Семисегментный LED</item>
+        <item>Неон</item>
+        <item>Блоки (пилюли)</item>
+        <item>Serif</item>
+        <item>Жирный курсив</item>
+        <item>Квадратная LED-матрица</item>
+        <item>Классические цифры</item>
+        <item>Жирные цифры</item>
+        <item>Моноширинный</item>
+        <item>Мягкий округлый</item>
+        <item>Премиум AMOLED</item>
+        <item>Стопка (iPhone)</item>
+        <item>Аналоговые (iPhone)</item>
+        <item>Float (iPhone)</item>
+        <item>Солнце (iPhone)</item>
+        <item>Карта мира (iPhone)</item>
+        <item>Минимал моно</item>
+        <item>Флип-карточки (Fliqlo)</item>
+        <item>Никсие (лампы)</item>
+        <item>Ретро ЖК</item>
+        <item>Понг</item>
+        <item>Словесные часы</item>
+        <item>Двоичные</item>
+        <item>Полярные кольца</item>
+        <item>Дрейф</item>
+        <item>Глитч</item>
+        <item>Дождь «Матрицы»</item>
+        <item>Словесные (по-русски)</item>
+        <item>Фаза Луны</item>
+        <item>Солнечный горизонт</item>
+        <item>Орбиты</item>
+        <item>Сутки по периметру</item>
+        <item>Контур</item>
+        <item>Свет и тьма</item>
+        <item>Неоморфизм</item>
+        <item>Карты веером</item>
+        <item>Барабаны-счётчик</item>
+        <item>Атомная лаборатория</item>
+        <item>Планетарий</item>
+        <item>Жидкое стекло</item>
+        <item>Градиентная сетка</item>
+        <item>Матовое стекло</item>
+        <item>Железнодорожные</item>
+        <item>Браун</item>
+        <item>Волна</item>
+    </string-array>
+    <string name="clock_color_title">Цвет часов</string>
+    <string-array name="clock_color_entries">
+        <item>Белый</item>
+        <item>Синий</item>
+        <item>Голубой</item>
+        <item>Зелёный</item>
+        <item>Янтарный</item>
+        <item>Оранжевый</item>
+        <item>Красный</item>
+        <item>Фиолетовый</item>
+    </string-array>
+    <string name="style_normal">Обычный</string>
+    <string name="style_outline">Контур (полые цифры)</string>
+    <string name="style_dots">Точки «комикс»</string>
+    <string name="style_flip">Откидные часы</string>
+    <string name="style_seg">Семисегментный LED</string>
+    <string name="style_neon">Неон</string>
+    <string name="style_blocks">Блоки (пилюли)</string>
+    <string name="style_serif">Serif (газетный)</string>
+    <string name="style_italic">Жирный курсив</string>
+    <string name="style_matrix">Квадратная LED-матрица</string>
+    <string name="clock_thickness_label">Толщина контура</string>
+    <string name="week_start_label">Первый день недели</string>
+    <string name="section_calendar">Календарь</string>
+    <string name="week_start_system">Системный</string>
+    <string name="week_start_mon">Понедельник</string>
+    <string name="week_start_sun">Воскресенье</string>
+    <string name="week_start_sat">Суббота</string>
+    <string name="calendar_style_label">Стиль календаря</string>
+    <string-array name="calendar_style_entries">
+        <item>Классическая сетка</item>
+        <item>Минимал</item>
+        <item>Сегодня закрашено</item>
+        <item>Сегодня обведено</item>
+        <item>Выходные приглушены</item>
+        <item>Монохром OLED</item>
+        <item>Компактный</item>
+        <item>Крупные числа</item>
+        <item>Премиум-карточка</item>
+        <item>В стиле iPhone</item>
+        <item>Откидные карточки</item>
+        <item>Стекло</item>
+        <item>Material</item>
+        <item>Терминал</item>
+        <item>Точечная матрица</item>
+        <item>Швейцарский</item>
+        <item>Плитки</item>
+        <item>Текущая неделя</item>
+        <item>Неон</item>
+        <item>Большая дата</item>
+    </string-array>
+
+    <!-- Акции / смена календаря -->
+    <string name="stocks_section">Панель акций</string>
+    <string name="stocks_switch_title">Показывать график акций между календарём</string>
+    <string name="stocks_switch_summary">Чередует каждые 10 с: календарь → график 60 мин → календарь → 10 мин → календарь → 1 мин, затем заново.</string>
+    <string name="stock_tickers_label">Список — 1–3 тикера МосБиржи через запятую. Каждый тикер получает своё окно графика в смене.</string>
+    <string name="stock_ticker_hint">напр. SBER,GAZP,LUKOIL</string>
+    <string name="tickers_max_error">Будут использованы только первые 3 тикера</string>
+    <string name="stock_ref_label">Референсная цена (база для % изменения)</string>
+    <string name="stock_ref_hint">напр. 184.25</string>
+    <string name="stock_type_label">Стиль графика</string>
+    <string name="stock_type_line">Линия</string>
+    <string name="stock_type_candles">Свечи</string>
+    <string name="stock_period_label">Период графика</string>
+    <string name="stock_period_auto">Авто (1/10/60)</string>
+    <string name="stock_period_1">1 минута</string>
+    <string name="stock_period_10">10 минут</string>
+    <string name="stock_period_60">60 минут</string>
+    <string name="switch_24h">24-часовой формат</string>
+    <string name="switch_seconds">Показывать секунды</string>
+    <string name="switch_battery">Показывать заряд батареи и ток зарядки</string>
+    <string name="dim_title">Приглушённый белый (защита OLED)</string>
+    <string name="charging_current_unit">мА</string>
+    <string name="btn_battery_probe">Что мой телефон сообщает о токе зарядки?</string>
+    <string name="battery_probe_hint">Показывает сырые показания (статус + узлы батареи), чтобы подобрать правильный источник для вашего устройства. Нажмите во время зарядки.</string>
+
+    <!-- Погода -->
+    <string name="weather_section">Погода</string>
+    <string name="weather_switch_title">Показывать прогноз погоды</string>
+    <string name="weather_switch_summary">После календаря и курса акций показывать прогноз погоды для вашего местоположения.</string>
+    <string name="weather_style_label">Вид прогноза</string>
+    <string name="weather_style_classic">Классика</string>
+    <string name="weather_style_curve">Кривая</string>
+    <string-array name="weather_style_entries">
+        <item>Классический</item>
+        <item>Кривая</item>
+        <item>Минимал</item>
+        <item>Лента часов</item>
+        <item>Прогноз на дни</item>
+        <item>Крупная температура</item>
+        <item>Монохром OLED</item>
+        <item>Погода + солнце</item>
+        <item>Компактный сплит</item>
+        <item>Премиум-карточка</item>
+        <item>Компактная карточка</item>
+        <item>Сетка недели</item>
+        <item>Терминал</item>
+    </string-array>
+    <string name="weather_geo_button">Определить по геолокации</string>
+    <string name="tab_clock">Часы</string>
+    <string name="tab_calendar">Календарь</string>
+    <string name="tab_stocks">Графики</string>
+    <string name="tab_weather">Погода</string>
+    <string name="tab_general">Общие</string>
+    <string name="clock_rotate_title">Менять циферблат по времени</string>
+    <string name="clock_rotate_hint">Отметьте стили ниже — экран ожидания будет сменять их через заданный интервал. Светлые темы (Неоморфизм, Свет и тьма) так же светло выглядят и на заставке.</string>
+    <string name="clock_rotate_interval">Интервал смены</string>
+    <string name="clock_rotate_in_pool">в смене</string>
+    <string name="clock_style_list_title">Все циферблаты</string>
+    <string-array name="clock_rotate_intervals">
+        <item>1 мин</item>
+        <item>5 мин</item>
+        <item>15 мин</item>
+        <item>30 мин</item>
+        <item>1 час</item>
+    </string-array>
+    <string name="weather_attribution">Данные погоды: Open-Meteo (основной источник), MET Norway Locationforecast (резервный). MET Norway — сервис Норвежского метеорологического института.</string>
+    <string name="weather_city_label">…или введите город вручную:</string>
+    <string name="weather_city_hint">Город, напр. Москва</string>
+    <string name="weather_loc_granted">Местоположение: %s</string>
+    <string name="weather_loc_unavailable">Местоположение ещё не определено. Включите геолокацию или введите город выше.</string>
+    <string name="weather_city_not_found">Город не найден — попробуйте другое название.</string>
+
+    <!-- Уведомление сервиса -->
+    <string name="notif_title">AlwaysON StandBy</string>
+    <string name="notif_text">Активно — держит часы на экране во время зарядки</string>
+    <string name="notif_hide">Скрыть</string>
+    <string name="notif_channel">Наложение StandBy</string>
+    <string name="notif_wake_text">Включаю экран StandBy…</string>
+    <string name="section_bypass">Обходная зарядка</string>
+    <string name="bypass_title">Автовключение обходной зарядки</string>
+    <string name="bypass_summary">При подключении питания AlwaysON сам развернёт шторку, нажмёт вашу плитку обходной зарядки и свернёт шторку. Один раз разрешите службу AlwaysON в специальных возможностях (кнопка «Включить сейчас» её откроет); пока она выключена — придёт уведомление-напоминание.</string>
+    <string name="notif_bypass_channel">Обходная зарядка</string>
+    <string name="notif_bypass_title">Обходная зарядка</string>
+    <string name="notif_bypass_text">Питание подключено — нажмите, чтобы включить обходную зарядку в настройках батареи</string>
+    <string name="notif_bypass_denied">Уведомления запрещены для AlwaysON — разрешите их, чтобы видеть напоминание</string>
+    <string name="bypass_run_button">Включить сейчас</string>
+    <string name="bypass_toast_started">Открываю шторку и нажимаю плитку обходной зарядки…</string>
+    <string name="bypass_toast_not_ready">Сначала включите AlwaysON в специальных возможностях</string>
+    <string name="bypass_toast_retoggle">Служба жестов включена, но не подключилась (так бывает после каждой переустановки приложения) — выключите и снова включите AlwaysON в специальных возможностях</string>
+    <string name="bypass_acc_description">Позволяет AlwaysON нажимать плитку обходной зарядки при подключении питания</string>
+    <string name="notif_channel_wake">Пробуждение StandBy</string>
+
+    <!-- Примечание -->
+    <string name="tech_note_title">Как это работает</string>
+    <string name="tech_note">Публичного Android-API для отрисовки при полностью выключенном экране нет (это AOD производителя). Приложение использует ближайшие поддерживаемые варианты: наложение, которое во время зарядки держит на экране приглушённые часы в обеих ориентациях и возвращает телефон по касанию, питанию/домой, пробуждению или подъёму, а также системную заставку там, где прошивка её запускает. Карточка «сейчас играет» появляется, только когда действительно играет музыка.</string>
+
+    <!-- Window rotation durations -->
+    <string name="window_durations_title">Длительность окон</string>
+    <string name="window_durations_summary">Сколько каждое окно остаётся на экране при смене. Применяется сразу в превью.</string>
+    <string name="dur_cal_label">Календарь</string>
+    <string name="dur_stock_label">График</string>
+    <string name="dur_weather_label">Погода</string>
+
+    <!-- StandBy time schedule -->
+    <string name="sched_always">Всегда</string>
+    <string name="sched_by_time">По часам</string>
+    <string name="sched_from">с</string>
+    <string name="sched_to">до</string>
+
+    <!-- Отображение (секунды / батарея / размер / дата / единица) -->
+    <string name="seconds_label">Секунды</string>
+    <string-array name="seconds_entries">
+        <item>Никогда</item>
+        <item>Всегда</item>
+        <item>Только в превью</item>
+    </string-array>
+    <string name="battery_label">Батарея</string>
+    <string-array name="battery_entries">
+        <item>Скрыть</item>
+        <item>Процент</item>
+        <item>Процент + ток</item>
+        <item>Зарядка</item>
+    </string-array>
+    <string name="clock_size_label">Размер часов</string>
+    <string-array name="clock_size_entries">
+        <item>Малый</item>
+        <item>Обычный</item>
+        <item>Крупный</item>
+    </string-array>
+    <string name="date_format_label">Формат даты</string>
+    <string-array name="date_format_entries">
+        <item>День недели + число</item>
+        <item>Короткий (ЧЧ.ММ)</item>
+        <item>Полный</item>
+    </string-array>
+    <string name="temp_unit_label">Единица температуры</string>
+    <string-array name="temp_unit_entries">
+        <item>°C</item>
+        <item>°F</item>
+    </string-array>
+
+    <!-- Диагностика / обслуживание -->
+    <string name="diag_title">Диагностика</string>
+    <string name="btn_diagnostics">Показать состояние</string>
+    <string name="btn_refresh_data">Обновить данные сейчас</string>
+    <string name="btn_reset_prefs">Сбросить все настройки</string>
+    <string name="reset_confirm_title">Сбросить настройки?</string>
+    <string name="reset_confirm_msg">Все настройки вернутся к значениям по умолчанию (включая список тикеров и город погоды).</string>
+    <string name="diag_version">Версия</string>
+    <string name="diag_overlay">Разрешение overlay</string>
+    <string name="diag_notif">Доступ к уведомлениям</string>
+    <string name="diag_location">Геолокация</string>
+    <string name="diag_auto">Авто-StandBy</string>
+    <string name="diag_weather">Погода</string>
+    <string name="diag_stock">Акции</string>
+    <string name="diag_granted">выдано</string>
+    <string name="diag_denied">не выдано</string>
+    <string name="diag_on">вкл</string>
+    <string name="diag_off">выкл</string>
+    <string name="diag_none">—</string>
+    <string name="diag_updated">обновлено</string>
+    <string name="diag_never">никогда</string>
+    <string name="diag_err">последняя ошибка</string>
+
+    <!-- Надписи оверлея/графиков (рисуются на canvas, поэтому вынесены в
+         ресурсы вместо жёсткого кода): русские тексты идентичны прежним
+         захардкоженным. -->
+    <string name="overlay_loading">Загрузка…</string>
+    <string name="overlay_weather_loading">Погода: загрузка…</string>
+    <string name="overlay_weather_no_network">Погода: нет сети</string>
+    <string name="overlay_weather_no_data">Погода: нет данных</string>
+    <string name="chart_day">день</string>
+    <string name="chart_base">база</string>
+    <string name="chart_closed">закрыт</string>
+    <string name="chart_err_not_found">тикер не найден</string>
+    <string name="chart_err_closed_empty">торги закрыты</string>
+    <string name="chart_err_network">нет сети</string>
+    <string name="chart_err_network_http">нет сети (HTTP %1$d)</string>
+
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Block cleartext traffic everywhere; trust only the system CAs
+         (no user-installed CAs). Plain TLS validation is used for the
+         Open-Meteo and MOEX endpoints on purpose: hardcoded certificate
+         pins would break the app on every server-side rotation, and the
+         previous revision of this file carried fabricated pin values that
+         crashed the app at startup (a SHA-256 pin must decode to exactly
+         32 bytes, and these did not). -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

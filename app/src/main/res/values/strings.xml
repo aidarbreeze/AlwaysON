@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AlwaysON</string>
+    <string name="dream_label">AlwaysON StandBy</string>
+
+    <!-- StandBy -->
+    <string name="section_standby">StandBy screen</string>
+    <string name="preview_section">Live preview</string>
+    <string name="preview_desc">Big clock, date, a month calendar and, when music plays, a compact player — in the style of iPhone StandBy. Black OLED background with burn-in protection.</string>
+    <string name="btn_preview">Show StandBy now</string>
+
+    <string name="auto_title">Show while charging</string>
+    <string name="auto_summary">While the phone charges, keeps a dim clock on screen (desk-clock style) in both orientations. It never blocks normal use — a tap, the power/home button, waking the phone or picking it up returns you to the normal screen; it re-appears on the next charge session.</string>
+    <string name="overlay_perm_required">The “display over other apps” permission is required.</string>
+    <string name="overlay_perm_button">Grant permission</string>
+    <string name="overlay_perm_granted">Permission granted</string>
+
+    <string name="btn_open_dream">Also use as the system screen saver</string>
+    <string name="dream_hint">Android only auto-starts a screen saver when idle and charging on some devices. If yours does, pick “AlwaysON StandBy” as the screen saver in the settings it opens.</string>
+
+    <string name="media_listener_label">AlwaysON media</string>
+    <string name="media_access_title">Show playing music</string>
+    <string name="media_access_button">Grant notification access</string>
+    <string name="media_access_hint">To show the player card for music from any app, Android needs “Notification access” for AlwaysON. Tap to open the system list, then turn AlwaysON on.</string>
+
+    <!-- Messenger notifications page -->
+    <string name="section_notifs">Notifications</string>
+    <string name="notif_page_title">Messenger notifications (Telegram, Max)</string>
+    <string name="notif_page_summary">A second StandBy page: swipe left/right to flip between the clock and a list of the latest Telegram and Max notifications, each with its time. Needs “Notification access” (see above). The StandBy screen steps aside while a call is up.</string>
+    <string name="notif_max_label">Show at most</string>
+    <string name="notif_header">Notifications</string>
+    <string name="notif_empty">No notifications yet</string>
+
+    <!-- Appearance -->
+    <string name="section_appearance">Appearance</string>
+    <string name="auto_brightness_title">Auto brightness</string>
+    <string name="auto_brightness_summary">Automatically adjust to the light sensor — barely visible in the dark, clearly readable in daylight. Turn this off to set a fixed brightness.</string>
+    <string name="brightness_label">Clock brightness</string>
+
+    <string name="clock_style_title">Clock style</string>
+    <string name="night_mode_title">Night Mode</string>
+    <string name="night_mode_summary">Red tint of the standby screen in the dark, like iPhone</string>
+    <string name="preview_gesture_hint">Swipe the clock to change its style • swipe the panel for its style • tap the panel for the next window</string>
+    <string name="carousel_prev">Previous style</string>
+    <string name="carousel_next">Next style</string>
+    <string name="pin_on">Window pinned — long-press again to resume rotation</string>
+    <string name="pin_off">Window rotation resumed</string>
+    <string-array name="clock_style_entries">
+        <item>Normal</item>
+        <item>Outline (hollow digits)</item>
+        <item>Dot-matrix “comic”</item>
+        <item>Flip clock</item>
+        <item>Seven-segment LED</item>
+        <item>Neon glow</item>
+        <item>Rounded blocks</item>
+        <item>Serif</item>
+        <item>Bold italic</item>
+        <item>Square LED-matrix</item>
+        <item>Classic Digital</item>
+        <item>Bold Digital</item>
+        <item>Monospaced</item>
+        <item>Soft Rounded</item>
+        <item>Premium AMOLED</item>
+        <item>Stacked (iPhone)</item>
+        <item>Analog (iPhone)</item>
+        <item>Float (iPhone)</item>
+        <item>Solar (iPhone)</item>
+        <item>World map (iPhone)</item>
+        <item>Minimal mono</item>
+        <item>Fliqlo</item>
+        <item>Nixie tubes</item>
+        <item>Retro LCD</item>
+        <item>Pong clock</item>
+        <item>Word clock</item>
+        <item>Binary</item>
+        <item>Polar rings</item>
+        <item>Drift</item>
+        <item>Glitch</item>
+        <item>Matrix rain</item>
+        <item>Word Clock RU</item>
+        <item>Moon Phase</item>
+        <item>Solar Horizon</item>
+        <item>Orbits</item>
+        <item>Day Perimeter</item>
+        <item>Outline</item>
+        <item>Day and Night</item>
+        <item>Neumorph</item>
+        <item>Card Deck</item>
+        <item>Odometer</item>
+        <item>Atomic Lab</item>
+        <item>Real Orrery</item>
+        <item>Liquid Glass</item>
+        <item>Gradient Mesh</item>
+        <item>Frosted Glass</item>
+        <item>Railway</item>
+        <item>Braun</item>
+        <item>Waveform</item>
+    </string-array>
+    <string name="clock_color_title">Clock color</string>
+    <string-array name="clock_color_entries">
+        <item>White</item>
+        <item>Blue</item>
+        <item>Sky</item>
+        <item>Green</item>
+        <item>Amber</item>
+        <item>Orange</item>
+        <item>Red</item>
+        <item>Purple</item>
+    </string-array>
+    <string name="style_normal">Normal</string>
+    <string name="style_outline">Outline (hollow digits)</string>
+    <string name="style_dots">Dot-matrix “comic” digits</string>
+    <string name="style_flip">Flip clock (откидные)</string>
+    <string name="style_seg">Seven-segment LED</string>
+    <string name="style_neon">Neon glow</string>
+    <string name="style_blocks">Rounded blocks (chips)</string>
+    <string name="style_serif">Serif (editorial)</string>
+    <string name="style_italic">Bold italic</string>
+    <string name="style_matrix">Square LED-matrix</string>
+    <string name="clock_thickness_label">Outline thickness</string>
+    <string name="week_start_label">First day of the week</string>
+    <string name="section_calendar">Calendar</string>
+    <string name="week_start_system">System</string>
+    <string name="week_start_mon">Monday</string>
+    <string name="week_start_sun">Sunday</string>
+    <string name="week_start_sat">Saturday</string>
+    <string name="calendar_style_label">Calendar style</string>
+    <string-array name="calendar_style_entries">
+        <item>Classic Grid</item>
+        <item>Minimal</item>
+        <item>Filled Today</item>
+        <item>Outlined Today</item>
+        <item>Accent Weekend</item>
+        <item>Monochrome OLED</item>
+        <item>Compact</item>
+        <item>Large Numbers</item>
+        <item>Premium Card</item>
+        <item>iPhone style</item>
+        <item>Flip board</item>
+        <item>Glass</item>
+        <item>Material</item>
+        <item>Terminal</item>
+        <item>Dot matrix</item>
+        <item>Swiss</item>
+        <item>Tiles</item>
+        <item>Week focus</item>
+        <item>Neon</item>
+        <item>Big date</item>
+    </string-array>
+
+    <!-- Stocks / calendar alternation -->
+    <string name="stocks_section">Stocks panel</string>
+    <string name="stocks_switch_title">Show a stock chart between calendar views</string>
+    <string name="stocks_switch_summary">Alternates every 10 s: calendar → 60-min chart → calendar → 10-min → calendar → 1-min, repeating.</string>
+    <string name="stock_tickers_label">Watchlist — 1–3 MOEX tickers, comma-separated. Each ticker gets its own chart window in the rotation.</string>
+    <string name="stock_ticker_hint">e.g. SBER,GAZP,LUKOIL</string>
+    <string name="tickers_max_error">Only the first 3 tickers will be used</string>
+    <string name="stock_ref_label">Reference price (base for the % change)</string>
+    <string name="stock_ref_hint">e.g. 184.25</string>
+    <string name="stock_type_label">Chart style</string>
+    <string name="stock_type_line">Line</string>
+    <string name="stock_type_candles">Candlesticks</string>
+    <string name="stock_period_label">Chart period</string>
+    <string name="stock_period_auto">Auto (1/10/60)</string>
+    <string name="stock_period_1">1 minute</string>
+    <string name="stock_period_10">10 minutes</string>
+    <string name="stock_period_60">60 minutes</string>
+    <string name="switch_24h">24-hour format</string>
+    <string name="switch_seconds">Show seconds</string>
+    <string name="switch_battery">Show battery level &amp; charge current</string>
+    <string name="dim_title">Dimmed white (OLED protection)</string>
+    <string name="charging_current_unit">mA</string>
+    <string name="btn_battery_probe">What does my phone report for charge current?</string>
+    <string name="battery_probe_hint">Shows the raw readings (status + battery nodes) so we can find the right source for your device. Tap while charging.</string>
+
+    <!-- Weather panel -->
+    <string name="weather_section">Weather</string>
+    <string name="weather_switch_title">Show the weather forecast</string>
+    <string name="weather_switch_summary">After the calendar and the stock chart, show a weather forecast for your location.</string>
+    <string name="weather_style_label">Forecast style</string>
+    <string name="weather_style_classic">Classic</string>
+    <string name="weather_style_curve">Curve</string>
+    <string-array name="weather_style_entries">
+        <item>Classic</item>
+        <item>Curve</item>
+        <item>Minimal</item>
+        <item>Forecast Strip</item>
+        <item>Daily Forecast</item>
+        <item>Large Temperature</item>
+        <item>Monochrome OLED</item>
+        <item>Weather + Sun Cycle</item>
+        <item>Compact Split</item>
+        <item>Premium Card</item>
+        <item>Compact Card</item>
+        <item>Week Grid</item>
+        <item>Terminal</item>
+    </string-array>
+    <string name="weather_geo_button">Use the device location</string>
+    <string name="tab_clock">Clock</string>
+    <string name="tab_calendar">Calendar</string>
+    <string name="tab_stocks">Charts</string>
+    <string name="tab_weather">Weather</string>
+    <string name="tab_general">General</string>
+    <string name="clock_rotate_title">Rotate clock faces over time</string>
+    <string name="clock_rotate_hint">Check the faces below - the standby screen will cycle them at the set interval. Light faces (Neumorph, Day and Night) render light on the screensaver too.</string>
+    <string name="clock_rotate_interval">Rotation interval</string>
+    <string name="clock_rotate_in_pool">in rotation</string>
+    <string name="clock_style_list_title">All clock faces</string>
+    <string-array name="clock_rotate_intervals">
+        <item>1 min</item>
+        <item>5 min</item>
+        <item>15 min</item>
+        <item>30 min</item>
+        <item>1 hour</item>
+    </string-array>
+    <string name="weather_attribution">Weather data: Open-Meteo (primary), MET Norway Locationforecast (backup). MET Norway is a service of the Norwegian Meteorological Institute.</string>
+    <string name="weather_city_label">…or type a city instead:</string>
+    <string name="weather_city_hint">City, e.g. Moscow</string>
+    <string name="weather_loc_granted">Location found: %s</string>
+    <string name="weather_loc_unavailable">No location yet. Turn on device location or type a city above.</string>
+    <string name="weather_city_not_found">City not found — try another name.</string>
+
+    <!-- Service notification -->
+    <string name="notif_title">AlwaysON StandBy</string>
+    <string name="notif_text">Active — keeps the clock on while charging</string>
+    <string name="notif_hide">Hide now</string>
+    <string name="notif_channel">StandBy overlay</string>
+    <string name="notif_wake_text">Turning on the StandBy screen…</string>
+    <string name="section_bypass">Bypass charging</string>
+    <string name="bypass_title">Auto-enable bypass charging</string>
+    <string name="bypass_summary">When power is connected, AlwaysON pulls down the control center, taps your bypass-charging tile and closes the shade by itself. Allow the AlwaysON accessibility service once (the Run now button opens that screen); while it is off, a notification reminder is used instead.</string>
+    <string name="notif_bypass_channel">Bypass charging</string>
+    <string name="notif_bypass_title">Bypass charging</string>
+    <string name="notif_bypass_text">Power connected — tap to enable bypass charging in battery settings</string>
+    <string name="notif_bypass_denied">Notifications are disabled for AlwaysON — allow them to see the reminder</string>
+    <string name="bypass_run_button">Run now</string>
+    <string name="bypass_toast_started">Opening the control center and tapping the bypass tile…</string>
+    <string name="bypass_toast_not_ready">Enable AlwaysON in Accessibility first</string>
+    <string name="bypass_toast_retoggle">The gesture service is enabled but not connected (this happens after every app reinstall) — toggle AlwaysON off and on in Accessibility</string>
+    <string name="bypass_acc_description">Lets AlwaysON tap the bypass-charging tile automatically when power is connected</string>
+    <string name="notif_channel_wake">StandBy wake-up</string>
+
+    <!-- Note -->
+    <string name="tech_note_title">How it works</string>
+    <string name="tech_note">There is no public Android API to draw while the screen is fully off (that is the manufacturer AOD). This app uses the closest supported options: an overlay that, while the phone charges, keeps a dim clock on screen in either orientation and hands the phone back on tap / power / home / wake / pick-up, plus the system screen saver where the firmware honours it. The now-playing card only appears while music actually plays.</string>
+
+    <!-- Window rotation durations -->
+    <string name="window_durations_title">Window duration</string>
+    <string name="window_durations_summary">How long each window stays on the screen during the rotation. Applied immediately in the preview.</string>
+    <string name="dur_cal_label">Calendar</string>
+    <string name="dur_stock_label">Chart</string>
+    <string name="dur_weather_label">Weather</string>
+
+    <!-- StandBy time schedule -->
+    <string name="sched_always">Always</string>
+    <string name="sched_by_time">During the hours</string>
+    <string name="sched_from">from</string>
+    <string name="sched_to">to</string>
+
+    <!-- Display options (seconds / battery / size / date / unit) -->
+    <string name="seconds_label">Seconds</string>
+    <string-array name="seconds_entries">
+        <item>Never</item>
+        <item>Always</item>
+        <item>Preview only</item>
+    </string-array>
+    <string name="battery_label">Battery</string>
+    <string-array name="battery_entries">
+        <item>Hidden</item>
+        <item>Percent</item>
+        <item>Percent + current</item>
+        <item>Charging</item>
+    </string-array>
+    <string name="clock_size_label">Clock size</string>
+    <string-array name="clock_size_entries">
+        <item>Small</item>
+        <item>Normal</item>
+        <item>Large</item>
+    </string-array>
+    <string name="date_format_label">Date format</string>
+    <string-array name="date_format_entries">
+        <item>Weekday + day</item>
+        <item>Short (dd.MM)</item>
+        <item>Full</item>
+    </string-array>
+    <string name="temp_unit_label">Temperature unit</string>
+    <string-array name="temp_unit_entries">
+        <item>°C</item>
+        <item>°F</item>
+    </string-array>
+
+    <!-- Diagnostics / maintenance -->
+    <string name="diag_title">Diagnostics</string>
+    <string name="btn_diagnostics">Show status</string>
+    <string name="btn_refresh_data">Refresh data now</string>
+    <string name="btn_reset_prefs">Reset all settings</string>
+    <string name="reset_confirm_title">Reset settings?</string>
+    <string name="reset_confirm_msg">All settings return to their defaults (including the watchlist and the weather location).</string>
+    <string name="diag_version">Version</string>
+    <string name="diag_overlay">Overlay permission</string>
+    <string name="diag_notif">Notification access</string>
+    <string name="diag_location">Location</string>
+    <string name="diag_auto">Auto-StandBy</string>
+    <string name="diag_weather">Weather</string>
+    <string name="diag_stock">Stocks</string>
+    <string name="diag_granted">granted</string>
+    <string name="diag_denied">denied</string>
+    <string name="diag_on">on</string>
+    <string name="diag_off">off</string>
+    <string name="diag_none">—</string>
+    <string name="diag_updated">updated</string>
+    <string name="diag_never">never</string>
+    <string name="diag_err">last error</string>
+
+    <!-- Overlay/chart one-liners (the always-on screens draw them on the
+         canvas, so they live here instead of being hardcoded): RU texts are
+         kept identical to the previously hardcoded ones. -->
+    <string name="overlay_loading">Loading…</string>
+    <string name="overlay_weather_loading">Weather: loading…</string>
+    <string name="overlay_weather_no_network">Weather: no network</string>
+    <string name="overlay_weather_no_data">Weather: no data</string>
+    <string name="chart_day">day</string>
+    <string name="chart_base">base</string>
+    <string name="chart_closed">closed</string>
+    <string name="chart_err_not_found">ticker not found</string>
+    <string name="chart_err_closed_empty">market closed</string>
+    <string name="chart_err_network">no network</string>
+    <string name="chart_err_network_http">no network (HTTP %1$d)</string>
+
+</resources>

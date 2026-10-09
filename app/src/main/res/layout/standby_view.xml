@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/standbyRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/aod_background">
+
+    <!-- Black backdrop: fades in to opaque on entry (controller-driven)
+         BEFORE the data below is revealed. -->
+    <View
+        android:id="@+id/aodBg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/aod_background"
+        android:alpha="0" />
+
+    <!-- Drifted a few px every minute for OLED burn-in protection.
+         Hidden until the entry animation reveals it. -->
+    <FrameLayout
+        android:id="@+id/standbyContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0">
+
+        <!-- Portrait: calendar card in the lower area, clock column above it.
+             Page 1 of 2 — page 2 (messenger notifications) is flipped in
+             with a horizontal swipe. -->
+        <LinearLayout
+            android:id="@+id/pageClock"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:paddingStart="30dp"
+            android:paddingEnd="30dp"
+            android:paddingTop="40dp"
+            android:paddingBottom="30dp">
+
+            <LinearLayout
+                android:id="@+id/leftColumn"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="3"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginBottom="6dp">
+
+                <!-- Clock is the main focus; the date sits UNDER it (premium
+                     composition: time -> seconds -> date). -->
+                <com.aidarbreeze.alwayson.view.ClockView
+                    android:id="@+id/clockText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/dateText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:textColor="@color/aod_secondary_text"
+                    android:textSize="15sp"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/batteryText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"
+                    android:text=""
+                    android:textColor="@color/aod_secondary_text"
+                    android:textSize="15sp"
+                    android:visibility="gone" />
+
+                <!-- Compact now-playing, under the clock -->
+                <LinearLayout
+                    android:id="@+id/mediaGroup"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:background="@drawable/media_pill"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="8dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/mediaPrev"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="6dp"
+                        android:paddingEnd="10dp"
+                        android:text="\u23EE"
+                        android:textColor="@color/aod_secondary_text"
+                        android:textSize="20sp" />
+
+                    <TextView
+                        android:id="@+id/mediaGlyph"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="10dp"
+                        android:text=""
+                        android:textColor="@color/aod_secondary_text"
+                        android:textSize="13sp" />
+
+                    <com.aidarbreeze.alwayson.media.MediaArtView
+                        android:id="@+id/mediaArt"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginEnd="8dp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/mediaText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxWidth="150dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:text=""
+                        android:textColor="@color/aod_clock_text"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/mediaNext"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="6dp"
+                        android:text="\u23ED"
+                        android:textColor="@color/aod_secondary_text"
+                        android:textSize="20sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Lower panel: alternates month calendar and a stock chart
+                 (black & white) when the stocks mode is enabled. -->
+            <FrameLayout
+                android:id="@+id/infoPanel"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="2"
+                android:layout_marginTop="8dp">
+
+                <com.aidarbreeze.alwayson.view.MonthCalendarView
+                    android:id="@+id/monthView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <com.aidarbreeze.alwayson.view.StockChartView
+                    android:id="@+id/stockView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+
+                <com.aidarbreeze.alwayson.view.WeatherPanelView
+                    android:id="@+id/weatherView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+        </LinearLayout>
+
+        <!-- Page 2: recent messenger notifications (Telegram / Max) with
+             their times, under a compact clock. Flipped in with a swipe. -->
+        <LinearLayout
+            android:id="@+id/pageNotifs"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:paddingStart="30dp"
+            android:paddingEnd="30dp"
+            android:paddingTop="40dp"
+            android:paddingBottom="30dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/notifTimeText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/aod_clock_text"
+                android:textSize="34sp"
+                android:letterSpacing="0.02" />
+
+            <TextView
+                android:id="@+id/notifDateText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textColor="@color/aod_secondary_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/notifHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:layout_marginBottom="4dp"
+                android:text="@string/notif_header"
+                android:textAllCaps="true"
+                android:letterSpacing="0.08"
+                android:textColor="@color/aod_text_tertiary"
+                android:textSize="12sp" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
+                <ScrollView
+                    android:id="@+id/notifScroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="vertical"
+                    android:overScrollMode="never">
+
+                    <LinearLayout
+                        android:id="@+id/notifList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingBottom="8dp" />
+                </ScrollView>
+
+                <TextView
+                    android:id="@+id/notifEmpty"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal|top"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/notif_empty"
+                    android:textColor="@color/aod_secondary_text"
+                    android:textSize="15sp"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+
+    </FrameLayout>
+</FrameLayout>
